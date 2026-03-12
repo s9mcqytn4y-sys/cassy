@@ -1,0 +1,10 @@
+- Cassy is retail-first, local-first, audit-heavy, and sync-explicit.
+- Shared business logic lives in bounded-context KMP modules.
+- App-shell, lifecycle, permissions, scanner, printer, payment, and bootstrap stay native.
+- UI must not own business invariants, SQLDelight queries, or sync persistence logic.
+- Approval logic must live in application/domain flow and leave durable evidence.
+- Checkout-critical flows must preserve local atomic transaction bundles.
+- Prefer explicit module ownership over clever abstractions.
+- When refactoring, reduce legacy/target dual-path drift instead of wrapping both forever.
+- For high-risk flows, generate tests from traceability and critical flow specs.
+- If repository code conflicts with source-of-truth docs, flag the drift before modifying code.

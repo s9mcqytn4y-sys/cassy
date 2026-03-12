@@ -1,0 +1,9 @@
+<implementation_plan>
+  <goal></goal>
+  <bounded_context></bounded_context>
+  <source_artifacts></source_artifacts>
+  <steps></steps>
+  <migration_notes></migration_notes>
+  <tests></tests>
+  <rollback_note></rollback_note>
+</implementation_plan>

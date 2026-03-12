@@ -1,0 +1,41 @@
+# Build and generated output
+.gradle/
+build/
+**/build/
+.idea/
+.kotlinc/
+
+# Binary and large assets
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.pdf
+*.zip
+*.apk
+*.aab
+*.exe
+*.msi
+*.dll
+*.so
+*.dylib
+
+# Logs and local caches
+*.log
+coverage/
+reports/
+.tmp/
+.cache/
+
+# Sensitive local material
+local.properties
+*.keystore
+*.jks
+*.key
+*.pem
+*.p12
+*.mobileprovision
+secrets/
+
+# Optional: exclude generated SQLDelight output if it becomes noisy
+# shared/**/build/generated/

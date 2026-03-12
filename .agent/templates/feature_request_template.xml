@@ -1,0 +1,11 @@
+<feature_request>
+  <bounded_context></bounded_context>
+  <source_flow></source_flow>
+  <business_goal></business_goal>
+  <invariants></invariants>
+  <transaction_boundary></transaction_boundary>
+  <persistence_impact></persistence_impact>
+  <audit_sync_impact></audit_sync_impact>
+  <tests_required></tests_required>
+  <open_risks></open_risks>
+</feature_request>

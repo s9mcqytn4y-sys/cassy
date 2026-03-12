@@ -1,0 +1,10 @@
+<bug_investigation>
+  <symptom></symptom>
+  <affected_flow></affected_flow>
+  <suspected_boundary></suspected_boundary>
+  <data_to_inspect></data_to_inspect>
+  <audit_sync_evidence></audit_sync_evidence>
+  <reproduction></reproduction>
+  <fix_strategy></fix_strategy>
+  <regression_tests></regression_tests>
+</bug_investigation>

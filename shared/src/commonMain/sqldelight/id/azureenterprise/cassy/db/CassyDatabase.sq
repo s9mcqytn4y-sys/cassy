@@ -1,0 +1,194 @@
+CREATE TABLE OutboxEvent (
+    id TEXT NOT NULL PRIMARY KEY,
+    timestamp INTEGER NOT NULL,
+    type TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    status TEXT NOT NULL
+);
+
+CREATE TABLE AuditLog (
+    id TEXT NOT NULL PRIMARY KEY,
+    timestamp INTEGER NOT NULL,
+    message TEXT NOT NULL,
+    level TEXT NOT NULL
+);
+
+CREATE TABLE Metadata (
+    key TEXT NOT NULL PRIMARY KEY,
+    value TEXT NOT NULL
+);
+
+CREATE TABLE ProductCategory (
+    id TEXT NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL,
+    color TEXT NOT NULL
+);
+
+CREATE TABLE Product (
+    id TEXT NOT NULL PRIMARY KEY,
+    categoryId TEXT NOT NULL,
+    name TEXT NOT NULL,
+    price REAL NOT NULL,
+    sku TEXT NOT NULL,
+    imageUrl TEXT,
+    isActive INTEGER AS Boolean NOT NULL DEFAULT 1,
+    FOREIGN KEY(categoryId) REFERENCES ProductCategory(id)
+);
+
+CREATE TABLE ProductBarcode (
+    barcode TEXT NOT NULL PRIMARY KEY,
+    productId TEXT NOT NULL,
+    type TEXT NOT NULL, -- 'GLOBAL', 'INTERNAL'
+    FOREIGN KEY(productId) REFERENCES Product(id)
+);
+
+CREATE TABLE BusinessDay (
+    id TEXT NOT NULL PRIMARY KEY,
+    openedAt INTEGER NOT NULL,
+    closedAt INTEGER,
+    status TEXT NOT NULL -- 'OPEN', 'CLOSED'
+);
+
+CREATE TABLE Shift (
+    id TEXT NOT NULL PRIMARY KEY,
+    businessDayId TEXT NOT NULL,
+    terminalId TEXT NOT NULL,
+    openedAt INTEGER NOT NULL,
+    closedAt INTEGER,
+    openedBy TEXT NOT NULL,
+    closedBy TEXT,
+    status TEXT NOT NULL, -- 'OPEN', 'CLOSED'
+    FOREIGN KEY(businessDayId) REFERENCES BusinessDay(id)
+);
+
+CREATE TABLE Sale (
+    id TEXT NOT NULL PRIMARY KEY,
+    localNumber TEXT NOT NULL,
+    shiftId TEXT NOT NULL,
+    terminalId TEXT NOT NULL,
+    timestamp INTEGER NOT NULL,
+    totalAmount REAL NOT NULL,
+    taxAmount REAL NOT NULL,
+    discountAmount REAL NOT NULL,
+    finalAmount REAL NOT NULL,
+    status TEXT NOT NULL, -- 'PENDING', 'COMPLETED', 'CANCELLED', 'SUSPENDED'
+    suspendedAt INTEGER,
+    FOREIGN KEY(shiftId) REFERENCES Shift(id)
+);
+
+CREATE TABLE SaleItem (
+    id TEXT NOT NULL PRIMARY KEY,
+    saleId TEXT NOT NULL,
+    productId TEXT NOT NULL,
+    unitPrice REAL NOT NULL,
+    quantity REAL NOT NULL,
+    totalPrice REAL NOT NULL,
+    taxAmount REAL NOT NULL,
+    discountAmount REAL NOT NULL,
+    FOREIGN KEY(saleId) REFERENCES Sale(id),
+    FOREIGN KEY(productId) REFERENCES Product(id)
+);
+
+CREATE TABLE SalePayment (
+    id TEXT NOT NULL PRIMARY KEY,
+    saleId TEXT NOT NULL,
+    method TEXT NOT NULL, -- 'CASH', 'CARD', 'QRIS'
+    amount REAL NOT NULL,
+    status TEXT NOT NULL, -- 'PENDING', 'SUCCESS', 'FAILED'
+    providerReference TEXT,
+    timestamp INTEGER NOT NULL,
+    FOREIGN KEY(saleId) REFERENCES Sale(id)
+);
+
+CREATE TABLE ReceiptSnapshot (
+    saleId TEXT NOT NULL PRIMARY KEY,
+    content TEXT NOT NULL, -- JSON or Template data
+    createdAt INTEGER NOT NULL,
+    FOREIGN KEY(saleId) REFERENCES Sale(id)
+);
+
+-- Seed Data
+INSERT OR IGNORE INTO ProductCategory(id, name, color) VALUES ('cat_1', 'Electronics', '#FF5733');
+INSERT OR IGNORE INTO ProductCategory(id, name, color) VALUES ('cat_2', 'Groceries', '#33FF57');
+INSERT OR IGNORE INTO ProductCategory(id, name, color) VALUES ('cat_3', 'Apparel', '#3357FF');
+
+INSERT OR IGNORE INTO Product(id, categoryId, name, price, sku, imageUrl) VALUES ('p_1', 'cat_1', 'Laptop', 1200.0, 'SKU-LAP-001', NULL);
+INSERT OR IGNORE INTO Product(id, categoryId, name, price, sku, imageUrl) VALUES ('p_2', 'cat_1', 'Smartphone', 800.0, 'SKU-PHO-002', NULL);
+INSERT OR IGNORE INTO Product(id, categoryId, name, price, sku, imageUrl) VALUES ('p_3', 'cat_2', 'Apple', 1.5, 'SKU-FRU-001', NULL);
+INSERT OR IGNORE INTO Product(id, categoryId, name, price, sku, imageUrl) VALUES ('p_4', 'cat_2', 'Bread', 2.0, 'SKU-BAK-001', NULL);
+INSERT OR IGNORE INTO Product(id, categoryId, name, price, sku, imageUrl) VALUES ('p_5', 'cat_3', 'T-Shirt', 25.0, 'SKU-CLO-001', NULL);
+
+INSERT OR IGNORE INTO ProductBarcode(barcode, productId, type) VALUES ('123456789', 'p_1', 'GLOBAL');
+INSERT OR IGNORE INTO ProductBarcode(barcode, productId, type) VALUES ('987654321', 'p_2', 'GLOBAL');
+INSERT OR IGNORE INTO ProductBarcode(barcode, productId, type) VALUES ('111', 'p_3', 'INTERNAL');
+
+-- Queries
+insertEvent:
+INSERT INTO OutboxEvent(id, timestamp, type, payload, status)
+VALUES (?, ?, ?, ?, ?);
+
+selectAllEvents:
+SELECT * FROM OutboxEvent;
+
+deleteEvent:
+DELETE FROM OutboxEvent WHERE id = ?;
+
+insertAudit:
+INSERT INTO AuditLog(id, timestamp, message, level)
+VALUES (?, ?, ?, ?);
+
+upsertMetadata:
+INSERT OR REPLACE INTO Metadata(key, value)
+VALUES (?, ?);
+
+getMetadata:
+SELECT value FROM Metadata WHERE key = ?;
+
+-- Product Queries
+selectAllProducts:
+SELECT * FROM Product;
+
+getProductsByCategory:
+SELECT * FROM Product WHERE categoryId = ?;
+
+searchProducts:
+SELECT * FROM Product WHERE name LIKE ('%' || ? || '%') OR sku LIKE ('%' || ? || '%');
+
+findProductByBarcode:
+SELECT p.* FROM Product p
+JOIN ProductBarcode pb ON p.id = pb.productId
+WHERE pb.barcode = ?;
+
+selectAllCategories:
+SELECT * FROM ProductCategory;
+
+-- Sales Queries
+insertSale:
+INSERT INTO Sale(id, localNumber, shiftId, terminalId, timestamp, totalAmount, taxAmount, discountAmount, finalAmount, status)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+insertSaleItem:
+INSERT INTO SaleItem(id, saleId, productId, unitPrice, quantity, totalPrice, taxAmount, discountAmount)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+
+insertSalePayment:
+INSERT INTO SalePayment(id, saleId, method, amount, status, providerReference, timestamp)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+updateSaleStatus:
+UPDATE Sale SET status = ?, suspendedAt = ? WHERE id = ?;
+
+getSaleWithItems:
+SELECT s.*, si.* FROM Sale s
+LEFT JOIN SaleItem si ON s.id = si.saleId
+WHERE s.id = ?;
+
+getActiveShift:
+SELECT * FROM Shift WHERE status = 'OPEN' AND terminalId = ? LIMIT 1;
+
+insertReceiptSnapshot:
+INSERT INTO ReceiptSnapshot(saleId, content, createdAt)
+VALUES (?, ?, ?);
+
+getReceiptSnapshot:
+SELECT * FROM ReceiptSnapshot WHERE saleId = ?;
