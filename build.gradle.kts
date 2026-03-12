@@ -9,6 +9,7 @@ plugins {
     alias(libs.plugins.kotlinAndroid).apply(false)
     alias(libs.plugins.sqlDelight).apply(false)
     alias(libs.plugins.detekt)
+    alias(libs.plugins.cassy.kmp.shared).apply(false)
 }
 
 subprojects {

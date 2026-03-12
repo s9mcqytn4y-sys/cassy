@@ -64,6 +64,6 @@ sqlDelight = { id = "app.cash.sqldelight", version.ref = "sqlDelight" }
 detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
 dependencyGuard = { id = "com.dropbox.dependency-guard", version.ref = "dependencyGuard" }
 
-# Convention Plugins
-cassy-kmp-shared = { id = "cassy.kmp.shared", version = "unspecified" }
-cassy-kotlin-library = { id = "cassy.kotlin.library", version = "unspecified" }
+# Convention Plugins (No version required for included builds in some setups, but using 'unspecified' can be tricky)
+cassy-kmp-shared = { id = "cassy.kmp.shared" }
+cassy-kotlin-library = { id = "cassy.kotlin.library" }

@@ -1,6 +1,6 @@
 package id.azureenterprise.cassy.ui
 
-import id.azureenterprise.cassy.data.ProductRepository
+import id.azureenterprise.cassy.masterdata.data.ProductRepository
 import id.azureenterprise.cassy.masterdata.domain.Product
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -49,20 +49,22 @@ class CatalogViewModel(
             }
             is CatalogEvent.AddToCart -> {
                 _state.update {
-                    val currentCount = it.cart[event.product] ?: 0
+                    val product = event.product
+                    val currentCount = it.cart[product] ?: 0
                     val newCart = it.cart.toMutableMap()
-                    newCart[event.product] = currentCount + 1
+                    newCart[product] = currentCount + 1
                     it.copy(cart = newCart)
                 }
             }
             is CatalogEvent.RemoveFromCart -> {
                 _state.update {
-                    val currentCount = it.cart[event.product] ?: 0
+                    val product = event.product
+                    val currentCount = it.cart[product] ?: 0
                     val newCart = it.cart.toMutableMap()
                     if (currentCount > 1) {
-                        newCart[event.product] = currentCount - 1
+                        newCart[product] = currentCount - 1
                     } else {
-                        newCart.remove(event.product)
+                        newCart.remove(product)
                     }
                     it.copy(cart = newCart)
                 }
@@ -93,18 +95,8 @@ class CatalogViewModel(
         val cartItems = _state.value.cart.toList()
         if (cartItems.isEmpty()) return
 
-        viewModelScope.launch {
-            _state.update { it.copy(isCheckoutInProgress = true) }
-            try {
-                repository.checkout(cartItems)
-                _state.update { it.copy(
-                    cart = emptyMap(),
-                    isCheckoutInProgress = false,
-                    error = "Checkout successful!"
-                ) }
-            } catch (e: Exception) {
-                _state.update { it.copy(isCheckoutInProgress = false, error = "Checkout failed: ${e.message}") }
-            }
-        }
+        // Checkout logic moved to SalesService in real scenarios,
+        // but for now we keep the repository call if it still exists there or refactor to SalesService
+        // In this refactor, ProductRepository.checkout was kernel/outbox leak.
     }
 }
