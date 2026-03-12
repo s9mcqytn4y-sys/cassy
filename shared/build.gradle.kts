@@ -23,6 +23,11 @@ kotlin {
             implementation(compose.components.uiToolingPreview)
         }
 
+        commonTest.dependencies {
+            implementation(libs.kotlin.test)
+            implementation(libs.koin.test)
+        }
+
         androidMain.dependencies {
             implementation(libs.koin.android)
         }
