@@ -10,5 +10,5 @@ val masterDataModule = module {
     single { BarcodeNormalizer() }
     single { ProductLookupRepositoryImpl(get(), get()) }
     single { ProductLookupUseCase(get(), get()) }
-    single { ProductRepository(get(), get(), get()) }
+    single { ProductRepository(get(), get()) }
 }

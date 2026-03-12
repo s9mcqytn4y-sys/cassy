@@ -1,9 +1,8 @@
 package id.azureenterprise.cassy.sales.data
 
 import id.azureenterprise.cassy.db.CassyDatabase
-import id.azureenterprise.cassy.db.Sale
-import id.azureenterprise.cassy.db.Shift
 import id.azureenterprise.cassy.sales.domain.Basket
+import id.azureenterprise.cassy.sales.domain.Shift
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
 import kotlinx.datetime.Clock
@@ -16,7 +15,7 @@ class SalesRepository(
     private val queries = database.cassyDatabaseQueries
 
     suspend fun getActiveShift(terminalId: String): Shift? = withContext(ioDispatcher) {
-        queries.getActiveShift(terminalId).executeAsOneOrNull()
+        queries.getActiveShift(terminalId).executeAsOneOrNull()?.toDomain()
     }
 
     suspend fun saveSale(

@@ -1,11 +1,11 @@
 package id.azureenterprise.cassy.sales.application
 
-import id.azureenterprise.cassy.db.Product
-import id.azureenterprise.cassy.db.Shift
+import id.azureenterprise.cassy.masterdata.domain.Product
 import id.azureenterprise.cassy.sales.data.SalesRepository
 import id.azureenterprise.cassy.sales.domain.Basket
 import id.azureenterprise.cassy.sales.domain.BasketItem
 import id.azureenterprise.cassy.sales.domain.PricingEngine
+import id.azureenterprise.cassy.sales.domain.Shift
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow

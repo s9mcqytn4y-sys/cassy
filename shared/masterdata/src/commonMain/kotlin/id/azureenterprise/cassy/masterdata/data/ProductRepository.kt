@@ -5,14 +5,12 @@ import id.azureenterprise.cassy.masterdata.domain.Category
 import id.azureenterprise.cassy.masterdata.domain.Product
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
-import kotlinx.datetime.Clock
 import id.azureenterprise.cassy.db.Product as DbProduct
 import id.azureenterprise.cassy.db.ProductCategory as DbCategory
 
 class ProductRepository(
     private val database: CassyDatabase,
-    private val ioDispatcher: CoroutineContext,
-    private val clock: Clock
+    private val ioDispatcher: CoroutineContext
 ) {
     private val queries = database.cassyDatabaseQueries
 
@@ -38,13 +36,13 @@ class ProductRepository(
         price = price,
         categoryId = categoryId,
         sku = sku,
-        description = "", // Adjust based on DB schema if needed
-        imageUrl = imageUrl
+        imageUrl = imageUrl,
+        isActive = isActive
     )
 
     private fun DbCategory.toDomain(): Category = Category(
         id = id,
         name = name,
-        description = "" // Adjust based on DB schema if needed
+        color = color
     )
 }

@@ -1,6 +1,6 @@
 package id.azureenterprise.cassy.sales.domain
 
-import id.azureenterprise.cassy.db.Product
+import id.azureenterprise.cassy.masterdata.domain.Product
 
 data class BasketItem(
     val product: Product,

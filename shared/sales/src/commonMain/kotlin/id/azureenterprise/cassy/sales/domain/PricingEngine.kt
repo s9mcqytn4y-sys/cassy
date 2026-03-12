@@ -1,6 +1,6 @@
 package id.azureenterprise.cassy.sales.domain
 
-import id.azureenterprise.cassy.db.Product
+import id.azureenterprise.cassy.masterdata.domain.Product
 
 class PricingEngine {
     fun calculateTotals(items: List<BasketItem>): BasketTotals {
@@ -18,13 +18,12 @@ class PricingEngine {
     }
 
     fun createBasketItem(product: Product, quantity: Double): BasketItem {
-        // In a real app, tax and base price might be derived from product/policy
         return BasketItem(
             product = product,
             quantity = quantity,
             unitPrice = product.price,
-            taxAmount = 0.0, // Default for now
-            discountAmount = 0.0 // Default for now
+            taxAmount = 0.0,
+            discountAmount = 0.0
         )
     }
 }
