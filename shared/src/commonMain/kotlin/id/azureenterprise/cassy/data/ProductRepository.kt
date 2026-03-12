@@ -1,11 +1,13 @@
 package id.azureenterprise.cassy.data
 
 import id.azureenterprise.cassy.db.CassyDatabase
-import id.azureenterprise.cassy.db.Product
-import id.azureenterprise.cassy.db.ProductCategory
+import id.azureenterprise.cassy.masterdata.domain.Category
+import id.azureenterprise.cassy.masterdata.domain.Product
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
 import kotlinx.datetime.Clock
+import id.azureenterprise.cassy.db.Product as DbProduct
+import id.azureenterprise.cassy.db.ProductCategory as DbCategory
 
 class ProductRepository(
     private val database: CassyDatabase,
@@ -15,19 +17,19 @@ class ProductRepository(
     private val queries = database.cassyDatabaseQueries
 
     suspend fun getAllProducts(): List<Product> = withContext(ioDispatcher) {
-        queries.selectAllProducts().executeAsList()
+        queries.selectAllProducts().executeAsList().map { it.toDomain() }
     }
 
     suspend fun getProductsByCategory(categoryId: String): List<Product> = withContext(ioDispatcher) {
-        queries.getProductsByCategory(categoryId).executeAsList()
+        queries.getProductsByCategory(categoryId).executeAsList().map { it.toDomain() }
     }
 
     suspend fun searchProducts(query: String): List<Product> = withContext(ioDispatcher) {
-        queries.searchProducts(query, query).executeAsList()
+        queries.searchProducts(query, query).executeAsList().map { it.toDomain() }
     }
 
-    suspend fun getAllCategories(): List<ProductCategory> = withContext(ioDispatcher) {
-        queries.selectAllCategories().executeAsList()
+    suspend fun getAllCategories(): List<Category> = withContext(ioDispatcher) {
+        queries.selectAllCategories().executeAsList().map { it.toDomain() }
     }
 
     suspend fun checkout(items: List<Pair<Product, Int>>) = withContext(ioDispatcher) {
@@ -35,7 +37,6 @@ class ProductRepository(
         val totalAmount = items.sumOf { it.first.price * it.second }
 
         database.transaction {
-            // Record sale intent in AuditLog
             queries.insertAudit(
                 id = "audit_$saleId",
                 timestamp = clock.now().toEpochMilliseconds(),
@@ -43,7 +44,6 @@ class ProductRepository(
                 level = "INFO"
             )
 
-            // Atomic Outbox Event for synchronization
             queries.insertEvent(
                 id = "event_$saleId",
                 timestamp = clock.now().toEpochMilliseconds(),
@@ -55,10 +55,25 @@ class ProductRepository(
     }
 
     private fun buildPayload(saleId: String, items: List<Pair<Product, Int>>, total: Double): String {
-        // Simple manual JSON-like string for the reference implementation
         val itemsJson = items.joinToString(",") { (p, q) ->
             "{\"id\":\"${p.id}\", \"name\":\"${p.name}\", \"price\":${p.price}, \"quantity\":$q}"
         }
         return "{\"saleId\":\"$saleId\", \"total\":$total, \"items\":[$itemsJson]}"
     }
+
+    private fun DbProduct.toDomain(): Product = Product(
+        id = id,
+        name = name,
+        price = price,
+        categoryId = categoryId,
+        sku = sku,
+        description = description,
+        imageUrl = imageUrl
+    )
+
+    private fun DbCategory.toDomain(): Category = Category(
+        id = id,
+        name = name,
+        description = description
+    )
 }

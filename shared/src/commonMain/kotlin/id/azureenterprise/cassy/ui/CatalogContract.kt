@@ -1,11 +1,11 @@
 package id.azureenterprise.cassy.ui
 
-import id.azureenterprise.cassy.db.Product
-import id.azureenterprise.cassy.db.ProductCategory
+import id.azureenterprise.cassy.masterdata.domain.Category
+import id.azureenterprise.cassy.masterdata.domain.Product
 
 data class CatalogState(
     val products: List<Product> = emptyList(),
-    val categories: List<ProductCategory> = emptyList(),
+    val categories: List<Category> = emptyList(),
     val selectedCategoryId: String? = null,
     val searchQuery: String = "",
     val cart: Map<Product, Int> = emptyMap(),

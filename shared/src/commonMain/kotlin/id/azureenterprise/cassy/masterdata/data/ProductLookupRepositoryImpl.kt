@@ -1,10 +1,11 @@
 package id.azureenterprise.cassy.masterdata.data
 
 import id.azureenterprise.cassy.db.CassyDatabase
-import id.azureenterprise.cassy.db.Product
+import id.azureenterprise.cassy.masterdata.domain.Product
 import id.azureenterprise.cassy.masterdata.domain.ProductLookupResult
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
+import id.azureenterprise.cassy.db.Product as DbProduct
 
 class ProductLookupRepositoryImpl(
     private val database: CassyDatabase,
@@ -17,17 +18,26 @@ class ProductLookupRepositoryImpl(
         when {
             products.isEmpty() -> ProductLookupResult.NotFound
             products.size > 1 -> ProductLookupResult.Collision
-            else -> ProductLookupResult.FoundSingle(products.first())
+            else -> ProductLookupResult.FoundSingle(products.first().toDomain())
         }
     }
 
     suspend fun findBySku(sku: String): ProductLookupResult = withContext(ioDispatcher) {
-        // Simple implementation for SKU lookup, using the existing searchProducts or adding a specific one
         val products = queries.searchProducts(sku, sku).executeAsList().filter { it.sku == sku }
         when {
             products.isEmpty() -> ProductLookupResult.NotFound
             products.size > 1 -> ProductLookupResult.Collision
-            else -> ProductLookupResult.FoundSingle(products.first())
+            else -> ProductLookupResult.FoundSingle(products.first().toDomain())
         }
     }
+
+    private fun DbProduct.toDomain(): Product = Product(
+        id = id,
+        name = name,
+        price = price,
+        categoryId = categoryId,
+        sku = sku,
+        imageUrl = imageUrl,
+        isActive = isActive
+    )
 }
