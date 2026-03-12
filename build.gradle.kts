@@ -1,6 +1,6 @@
+import io.gitlab.arturbosch.detekt.extensions.DetektExtension
+
 plugins {
-    // this is necessary to avoid the plugins being loaded multiple times
-    // in each subproject's classloader
     alias(libs.plugins.androidApplication).apply(false)
     alias(libs.plugins.androidLibrary).apply(false)
     alias(libs.plugins.jetbrainsCompose).apply(false)
@@ -8,4 +8,15 @@ plugins {
     alias(libs.plugins.kotlinMultiplatform).apply(false)
     alias(libs.plugins.kotlinAndroid).apply(false)
     alias(libs.plugins.sqlDelight).apply(false)
+    alias(libs.plugins.detekt)
+}
+
+subprojects {
+    apply(plugin = "io.gitlab.arturbosch.detekt")
+
+    extensions.configure<DetektExtension> {
+        buildUponDefaultConfig = true
+        allRules = false
+        config.setFrom(files("$rootDir/config/detekt/detekt.yml"))
+    }
 }
