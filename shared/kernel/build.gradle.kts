@@ -24,8 +24,10 @@ kotlin {
             implementation(libs.sqldelight.android.driver)
         }
 
-        jvmMain.dependencies {
-            implementation(libs.sqldelight.sqlite.driver)
+        val desktopMain by getting {
+            dependencies {
+                implementation(libs.sqldelight.sqlite.driver)
+            }
         }
     }
 }

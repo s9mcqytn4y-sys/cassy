@@ -1,17 +1,17 @@
 package id.azureenterprise.cassy.masterdata.data
 
-import id.azureenterprise.cassy.db.CassyDatabase
+import id.azureenterprise.cassy.masterdata.db.MasterDataDatabase
 import id.azureenterprise.cassy.masterdata.domain.Product
 import id.azureenterprise.cassy.masterdata.domain.ProductLookupResult
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
-import id.azureenterprise.cassy.db.Product as DbProduct
+import id.azureenterprise.cassy.masterdata.db.Product as DbProduct
 
 class ProductLookupRepositoryImpl(
-    private val database: CassyDatabase,
+    private val database: MasterDataDatabase,
     private val ioDispatcher: CoroutineContext
 ) {
-    private val queries = database.cassyDatabaseQueries
+    private val queries = database.masterDataDatabaseQueries
 
     suspend fun findByBarcode(barcode: String): ProductLookupResult = withContext(ioDispatcher) {
         val products = queries.findProductByBarcode(barcode).executeAsList()

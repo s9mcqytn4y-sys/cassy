@@ -1,22 +1,17 @@
 package id.azureenterprise.cassy.sales.data
 
-import id.azureenterprise.cassy.db.CassyDatabase
+import id.azureenterprise.cassy.sales.db.SalesDatabase
 import id.azureenterprise.cassy.sales.domain.Basket
-import id.azureenterprise.cassy.sales.domain.Shift
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
 import kotlinx.datetime.Clock
 
 class SalesRepository(
-    private val database: CassyDatabase,
+    private val database: SalesDatabase,
     private val ioDispatcher: CoroutineContext,
     private val clock: Clock
 ) {
-    private val queries = database.cassyDatabaseQueries
-
-    suspend fun getActiveShift(terminalId: String): Shift? = withContext(ioDispatcher) {
-        queries.getActiveShift(terminalId).executeAsOneOrNull()?.toDomain()
-    }
+    private val queries = database.salesDatabaseQueries
 
     suspend fun saveSale(
         saleId: String,
@@ -85,21 +80,6 @@ class SalesRepository(
                 content = receiptContent,
                 createdAt = clock.now().toEpochMilliseconds()
             )
-
-            queries.insertAudit(
-                id = "audit_finalize_$saleId",
-                timestamp = clock.now().toEpochMilliseconds(),
-                message = "Sale $saleId finalized.",
-                level = "INFO"
-            )
-
-            queries.insertEvent(
-                id = "event_finalize_$saleId",
-                timestamp = clock.now().toEpochMilliseconds(),
-                type = "SALE_COMPLETED",
-                payload = "{\"saleId\":\"$saleId\"}",
-                status = "PENDING"
-            )
         }
     }
 
@@ -110,4 +90,7 @@ class SalesRepository(
             id = saleId
         )
     }
+
+    // Shift retrieval moved to KernelRepository/Service or kept as bridge
+    // For now, SalesService will need a way to check shift.
 }

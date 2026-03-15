@@ -1,0 +1,51 @@
+import kotlin.Boolean;
+
+CREATE TABLE ProductCategory (
+    id TEXT NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL,
+    color TEXT NOT NULL
+);
+
+CREATE TABLE Product (
+    id TEXT NOT NULL PRIMARY KEY,
+    categoryId TEXT NOT NULL,
+    name TEXT NOT NULL,
+    price REAL NOT NULL,
+    sku TEXT NOT NULL,
+    imageUrl TEXT,
+    isActive INTEGER AS Boolean NOT NULL DEFAULT 1,
+    FOREIGN KEY(categoryId) REFERENCES ProductCategory(id)
+);
+
+CREATE TABLE ProductBarcode (
+    barcode TEXT NOT NULL PRIMARY KEY,
+    productId TEXT NOT NULL,
+    type TEXT NOT NULL, -- 'GLOBAL', 'INTERNAL'
+    FOREIGN KEY(productId) REFERENCES Product(id)
+);
+
+-- Seed Data
+INSERT OR IGNORE INTO ProductCategory(id, name, color) VALUES ('cat_1', 'Electronics', '#FF5733');
+INSERT OR IGNORE INTO ProductCategory(id, name, color) VALUES ('cat_2', 'Groceries', '#33FF57');
+INSERT OR IGNORE INTO ProductCategory(id, name, color) VALUES ('cat_3', 'Apparel', '#3357FF');
+
+INSERT OR IGNORE INTO Product(id, categoryId, name, price, sku, imageUrl) VALUES ('p_1', 'cat_1', 'Laptop', 1200.0, 'SKU-LAP-001', NULL);
+INSERT OR IGNORE INTO Product(id, categoryId, name, price, sku, imageUrl) VALUES ('p_2', 'cat_1', 'Smartphone', 800.0, 'SKU-PHO-002', NULL);
+
+-- Queries
+selectAllProducts:
+SELECT * FROM Product;
+
+getProductsByCategory:
+SELECT * FROM Product WHERE categoryId = ?;
+
+searchProducts:
+SELECT * FROM Product WHERE name LIKE ('%' || ? || '%') OR sku LIKE ('%' || ? || '%');
+
+findProductByBarcode:
+SELECT p.* FROM Product p
+JOIN ProductBarcode pb ON p.id = pb.productId
+WHERE pb.barcode = ?;
+
+selectAllCategories:
+SELECT * FROM ProductCategory;

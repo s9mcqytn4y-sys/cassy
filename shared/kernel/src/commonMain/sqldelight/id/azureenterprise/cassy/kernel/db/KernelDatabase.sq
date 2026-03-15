@@ -20,6 +20,25 @@ CREATE TABLE Metadata (
     value TEXT NOT NULL
 );
 
+CREATE TABLE BusinessDay (
+    id TEXT NOT NULL PRIMARY KEY,
+    openedAt INTEGER NOT NULL,
+    closedAt INTEGER,
+    status TEXT NOT NULL -- 'OPEN', 'CLOSED'
+);
+
+CREATE TABLE Shift (
+    id TEXT NOT NULL PRIMARY KEY,
+    businessDayId TEXT NOT NULL,
+    terminalId TEXT NOT NULL,
+    openedAt INTEGER NOT NULL,
+    closedAt INTEGER,
+    openedBy TEXT NOT NULL,
+    closedBy TEXT,
+    status TEXT NOT NULL, -- 'OPEN', 'CLOSED'
+    FOREIGN KEY(businessDayId) REFERENCES BusinessDay(id)
+);
+
 -- Queries
 insertEvent:
 INSERT INTO OutboxEvent(id, timestamp, type, payload, status)
@@ -41,3 +60,24 @@ VALUES (?, ?);
 
 getMetadata:
 SELECT value FROM Metadata WHERE key = ?;
+
+-- BusinessDay & Shift Queries
+insertBusinessDay:
+INSERT INTO BusinessDay(id, openedAt, status)
+VALUES (?, ?, ?);
+
+getActiveBusinessDay:
+SELECT * FROM BusinessDay WHERE status = 'OPEN' LIMIT 1;
+
+closeBusinessDay:
+UPDATE BusinessDay SET status = 'CLOSED', closedAt = ? WHERE id = ?;
+
+insertShift:
+INSERT INTO Shift(id, businessDayId, terminalId, openedAt, openedBy, status)
+VALUES (?, ?, ?, ?, ?, ?);
+
+getActiveShift:
+SELECT * FROM Shift WHERE status = 'OPEN' AND terminalId = ? LIMIT 1;
+
+closeShift:
+UPDATE Shift SET status = 'CLOSED', closedAt = ?, closedBy = ? WHERE id = ?;

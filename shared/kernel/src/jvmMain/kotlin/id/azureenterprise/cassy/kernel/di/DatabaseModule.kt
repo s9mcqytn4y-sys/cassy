@@ -21,3 +21,4 @@ actual val databaseModule: Module = module {
         KernelDatabase(driver)
     }
 }
+// This is an actual declaration for JVM (Desktop)

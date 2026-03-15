@@ -1,0 +1,71 @@
+CREATE TABLE Sale (
+    id TEXT NOT NULL PRIMARY KEY,
+    localNumber TEXT NOT NULL,
+    shiftId TEXT NOT NULL,
+    terminalId TEXT NOT NULL,
+    timestamp INTEGER NOT NULL,
+    totalAmount REAL NOT NULL,
+    taxAmount REAL NOT NULL,
+    discountAmount REAL NOT NULL,
+    finalAmount REAL NOT NULL,
+    status TEXT NOT NULL, -- 'PENDING', 'COMPLETED', 'CANCELLED', 'SUSPENDED'
+    suspendedAt INTEGER
+);
+
+CREATE TABLE SaleItem (
+    id TEXT NOT NULL PRIMARY KEY,
+    saleId TEXT NOT NULL,
+    productId TEXT NOT NULL,
+    unitPrice REAL NOT NULL,
+    quantity REAL NOT NULL,
+    totalPrice REAL NOT NULL,
+    taxAmount REAL NOT NULL,
+    discountAmount REAL NOT NULL,
+    FOREIGN KEY(saleId) REFERENCES Sale(id)
+);
+
+CREATE TABLE SalePayment (
+    id TEXT NOT NULL PRIMARY KEY,
+    saleId TEXT NOT NULL,
+    method TEXT NOT NULL, -- 'CASH', 'CARD', 'QRIS'
+    amount REAL NOT NULL,
+    status TEXT NOT NULL, -- 'PENDING', 'SUCCESS', 'FAILED'
+    providerReference TEXT,
+    timestamp INTEGER NOT NULL,
+    FOREIGN KEY(saleId) REFERENCES Sale(id)
+);
+
+CREATE TABLE ReceiptSnapshot (
+    saleId TEXT NOT NULL PRIMARY KEY,
+    content TEXT NOT NULL, -- JSON or Template data
+    createdAt INTEGER NOT NULL,
+    FOREIGN KEY(saleId) REFERENCES Sale(id)
+);
+
+-- Queries
+insertSale:
+INSERT INTO Sale(id, localNumber, shiftId, terminalId, timestamp, totalAmount, taxAmount, discountAmount, finalAmount, status)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+insertSaleItem:
+INSERT INTO SaleItem(id, saleId, productId, unitPrice, quantity, totalPrice, taxAmount, discountAmount)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+
+insertSalePayment:
+INSERT INTO SalePayment(id, saleId, method, amount, status, providerReference, timestamp)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+updateSaleStatus:
+UPDATE Sale SET status = ?, suspendedAt = ? WHERE id = ?;
+
+getSaleWithItems:
+SELECT s.*, si.* FROM Sale s
+LEFT JOIN SaleItem si ON s.id = si.saleId
+WHERE s.id = ?;
+
+insertReceiptSnapshot:
+INSERT INTO ReceiptSnapshot(saleId, content, createdAt)
+VALUES (?, ?, ?);
+
+getReceiptSnapshot:
+SELECT * FROM ReceiptSnapshot WHERE saleId = ?;

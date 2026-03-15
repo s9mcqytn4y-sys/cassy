@@ -10,6 +10,7 @@ kotlin {
             api(project(":shared:kernel"))
             api(project(":shared:masterdata"))
             api(project(":shared:sales"))
+            api(project(":shared:inventory"))
 
             implementation(libs.koin.core)
             implementation(libs.koin.compose)
@@ -32,9 +33,11 @@ kotlin {
             implementation(libs.koin.android)
         }
 
-        jvmMain.dependencies {
-            implementation(libs.kotlinx.coroutines.swing)
-            implementation(compose.desktop.currentOs)
+        val desktopMain by getting {
+            dependencies {
+                implementation(libs.kotlinx.coroutines.swing)
+                implementation(compose.desktop.currentOs)
+            }
         }
     }
 }

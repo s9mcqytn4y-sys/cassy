@@ -1,18 +1,18 @@
 package id.azureenterprise.cassy.masterdata.data
 
-import id.azureenterprise.cassy.db.CassyDatabase
+import id.azureenterprise.cassy.masterdata.db.MasterDataDatabase
 import id.azureenterprise.cassy.masterdata.domain.Category
 import id.azureenterprise.cassy.masterdata.domain.Product
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
-import id.azureenterprise.cassy.db.Product as DbProduct
-import id.azureenterprise.cassy.db.ProductCategory as DbCategory
+import id.azureenterprise.cassy.masterdata.db.Product as DbProduct
+import id.azureenterprise.cassy.masterdata.db.ProductCategory as DbCategory
 
 class ProductRepository(
-    private val database: CassyDatabase,
+    private val database: MasterDataDatabase,
     private val ioDispatcher: CoroutineContext
 ) {
-    private val queries = database.cassyDatabaseQueries
+    private val queries = database.masterDataDatabaseQueries
 
     suspend fun getAllProducts(): List<Product> = withContext(ioDispatcher) {
         queries.selectAllProducts().executeAsList().map { it.toDomain() }

@@ -1,11 +1,15 @@
 package id.azureenterprise.cassy.sales.application
 
+import id.azureenterprise.cassy.inventory.data.InventoryRepository
+import id.azureenterprise.cassy.inventory.domain.InventoryTransaction
+import id.azureenterprise.cassy.inventory.domain.TransactionType
+import id.azureenterprise.cassy.kernel.data.KernelRepository
+import id.azureenterprise.cassy.kernel.domain.IdGenerator
 import id.azureenterprise.cassy.masterdata.domain.Product
 import id.azureenterprise.cassy.sales.data.SalesRepository
 import id.azureenterprise.cassy.sales.domain.Basket
 import id.azureenterprise.cassy.sales.domain.BasketItem
 import id.azureenterprise.cassy.sales.domain.PricingEngine
-import id.azureenterprise.cassy.sales.domain.Shift
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -13,6 +17,8 @@ import kotlinx.datetime.Clock
 
 class SalesService(
     private val salesRepository: SalesRepository,
+    private val inventoryRepository: InventoryRepository,
+    private val kernelRepository: KernelRepository,
     private val pricingEngine: PricingEngine,
     private val clock: Clock,
     private val terminalId: String
@@ -50,21 +56,42 @@ class SalesService(
         val currentBasket = _basket.value
         if (currentBasket.items.isEmpty()) return Result.failure(Exception("Cart is empty"))
 
-        val shift: Shift = salesRepository.getActiveShift(terminalId) ?: return Result.failure(Exception("No active shift"))
+        // 0. Guardrail: Business Day must be open
+        if (!kernelRepository.isBusinessDayOpen()) {
+            return Result.failure(Exception("Business day is not open"))
+        }
 
-        val saleId = activeSaleId ?: "sale_${clock.now().toEpochMilliseconds()}"
+        // 1. Get Active Shift
+        val shift = kernelRepository.getActiveShift(terminalId) ?: return Result.failure(Exception("No active shift"))
+
+        val saleId = activeSaleId ?: IdGenerator.nextId("sale")
         val localNumber = "INV-${clock.now().toEpochMilliseconds()}"
 
-        // 1. Save Pending Sale
+        // 2. Save Pending Sale
         salesRepository.saveSale(saleId, localNumber, shift.id, terminalId, currentBasket)
 
-        // 2. Process Payment (Stub)
-        val paymentId = "pay_${clock.now().toEpochMilliseconds()}"
+        // 3. Process Payment
+        val paymentId = IdGenerator.nextId("pay")
         salesRepository.recordPayment(paymentId, saleId, paymentMethod, currentBasket.totals.finalTotal, "SUCCESS", null)
 
-        // 3. Finalize
+        // 4. Finalize Sale
         val receiptContent = buildReceiptContent(currentBasket, localNumber)
         salesRepository.finalizeSale(saleId, receiptContent)
+
+        // 5. Update Inventory
+        currentBasket.items.forEach { item ->
+            inventoryRepository.recordTransaction(
+                InventoryTransaction(
+                    id = IdGenerator.nextId("inv"),
+                    productId = item.product.id,
+                    quantity = -item.quantity,
+                    type = TransactionType.SALE,
+                    referenceId = saleId,
+                    timestamp = clock.now(),
+                    terminalId = terminalId
+                )
+            )
+        }
 
         // Clear local state
         _basket.value = Basket()

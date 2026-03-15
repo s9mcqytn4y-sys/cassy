@@ -1,0 +1,33 @@
+CREATE TABLE InventoryBalance (
+    productId TEXT NOT NULL PRIMARY KEY,
+    quantity REAL NOT NULL DEFAULT 0,
+    lastUpdatedAt INTEGER NOT NULL
+);
+
+CREATE TABLE StockLedger (
+    id TEXT NOT NULL PRIMARY KEY,
+    productId TEXT NOT NULL,
+    quantity REAL NOT NULL,
+    type TEXT NOT NULL, -- 'SALE', 'RETURN', 'ADJUSTMENT', 'RECEIVING'
+    referenceId TEXT,
+    terminalId TEXT NOT NULL,
+    timestamp INTEGER NOT NULL
+);
+
+-- Queries
+updateBalance:
+UPDATE InventoryBalance SET quantity = quantity + :quantity, lastUpdatedAt = :timestamp WHERE productId = :productId;
+
+insertBalance:
+INSERT OR IGNORE INTO InventoryBalance(productId, quantity, lastUpdatedAt)
+VALUES (:productId, 0, :timestamp);
+
+getBalance:
+SELECT * FROM InventoryBalance WHERE productId = ?;
+
+getLedgerByProduct:
+SELECT * FROM StockLedger WHERE productId = ? ORDER BY timestamp DESC;
+
+insertLedger:
+INSERT INTO StockLedger(id, productId, quantity, type, referenceId, terminalId, timestamp)
+VALUES (?, ?, ?, ?, ?, ?, ?);
