@@ -3,6 +3,8 @@
 ## Root-level files
 - `AGENTS.md` -> root repository
 - `CLAUDE.md` -> root repository
+- `CODEX.md` -> root repository
+- `GEMINI.md` -> root repository
 - `.aiexclude` -> root repository
 - `README_INSTALLATION.md` -> root repository
 
@@ -23,7 +25,7 @@
 ## Placement recommendation by repository area
 - `shared/**` tasks -> read `shared_core.instructions.md`
 - `apps/android-pos/**` tasks -> read `android_pos.instructions.md`
-- `apps/desktop-backoffice/**` tasks -> read `desktop_retail.instructions.md`
+- `apps/desktop-pos/**` tasks -> read `desktop_retail.instructions.md`
 - `backend/**` tasks -> read `backend.instructions.md`
 - sync contract / outbox / reconciliation work -> read `sync_contract.instructions.md`
 

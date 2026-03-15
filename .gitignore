@@ -1,7 +1,44 @@
+# Gradle
 .gradle
 build/
+*/build/
+
+# IntelliJ IDEA
 .idea
 *.iml
+*.iws
+out/
+
+# Android
 local.properties
+.navigation
+captures/
+*.apk
+*.ap_
+*.dex
+*.class
+bin/
+gen/
+
+# Kotlin
+.kotlin
+*.kotlin_module
+
+# Compose Desktop
+apps/desktop-pos/build/
+compose-desktop-build/
+
+# Node/JS (if any)
+node_modules/
+
+# OS specific
 .DS_Store
-.history
+Thumbs.db
+
+# Secrets
+*.jks
+*.keystore
+secrets.properties
+
+# Log
+*.log

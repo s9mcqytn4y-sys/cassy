@@ -16,6 +16,7 @@ Project memory loading order:
 ## Behavior rules
 - favor bounded-context ownership over convenience shortcuts
 - keep native app-shell and device-heavy integration outside shared business modules
+- **Desktop-First**: prioritize Desktop as the primary operational and release target for V1
 - never treat sync as a hidden background queue
 - sensitive flows must leave durable audit evidence
 

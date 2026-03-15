@@ -13,8 +13,8 @@ Work as if `AGENTS.md` is the repository constitution.
 - POS-first
 - retail-first
 - local-first
-- Android baseline
-- Desktop parity bertahap
+- **Desktop-First**: Desktop is the primary release lane for V1.
+- Android is semantic parity lane.
 - no architecture theater
 
 ## Allowed operations

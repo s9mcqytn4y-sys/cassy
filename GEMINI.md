@@ -15,8 +15,9 @@ Use this file first if the agent is Gemini or another agent that benefits from a
 
 ## Working mode
 - prefer truthful scope over broad ambition
+- **Desktop-First**: Desktop is the primary operational and release target for V1.
 - do not overclaim cross-platform readiness
-- keep Android as the operational baseline unless evidence shows otherwise
+- keep semantic parity across platforms while prioritizing Desktop execution
 - do not treat repo module count as proof of healthy boundaries
 
 ## Permission posture

@@ -11,6 +11,12 @@ Read these files in order before planning, generating, refactoring, reviewing, o
 7. `.agent/context/known_repo_gaps.md`
 8. `.agent/plan.md`
 
+## Strategic Lock (PDF v1.1)
+- **Posture**: Desktop-First Retail Operating Core.
+- **V1 Scope**: POS Core + Inventory Basic + Sync Visibility + Migration Replay + Release Evidence.
+- **Release Lane**: Desktop is primary; Android is semantic parity lane.
+- **Model**: Solo Agile End-to-End (2-week sprints).
+
 ## Hard rules
 - Do not bypass application boundaries for speed.
 - Do not invent flows that contradict the Cassy source-of-truth.

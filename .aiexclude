@@ -1,10 +1,10 @@
-# Cassy AI Exclude V2
+# Cassy AI Exclude V2 - Standardized
 # Keep context useful. Remove noise, not signal.
 
 # IDE / local
 .idea/
 .kotlin/
-.vscode/.history/
+.vscode/
 .DS_Store
 Thumbs.db
 *.iml
@@ -23,18 +23,12 @@ reports/
 
 # Logs
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
 
 # Heavy binaries / packages
 *.apk
 *.aab
 *.apks
 *.jar
-*.war
-*.ear
 *.so
 *.dylib
 *.dll
@@ -48,7 +42,6 @@ pnpm-debug.log*
 *.gz
 *.7z
 *.rar
-*.pdf
 
 # Secrets / local credentials
 local.properties
@@ -57,9 +50,6 @@ local.properties
 *.p12
 *.pem
 *.key
-*.mobileprovision
-.env
-.env.*
 secrets.*
 google-services.json
 GoogleService-Info.plist
@@ -74,8 +64,6 @@ GoogleService-Info.plist
 # Vendor / deps
 node_modules/
 vendor/
-Pods/
-DerivedData/
 
 # Test artifacts
 screenshots/

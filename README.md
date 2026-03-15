@@ -1,50 +1,28 @@
-# Cassy Agent Pack V2
+# Cassy - Desktop-First Retail Operating Core
 
-Pack V2 ini adalah versi yang lebih lengkap untuk repository Cassy, disusun agar lebih kompatibel dan lebih berguna untuk:
-- Codex
-- Claude
-- Gemini
-- GitHub Copilot / IDE agents yang membaca `.github/*`
+"Cepat di kasir. Rapi di operasional."
 
-## Kenapa V2
-V2 mengikuti pola yang sudah dipakai di repo Cassy:
-- `AGENTS.md` sebagai entrypoint utama lintas agent
-- `.agent/README.md` sebagai compression layer AI + manusia
-- `CLAUDE.md` sebagai load-order khusus Claude
-- file placement yang juga merekomendasikan `.github/copilot-instructions.md`, `.github/instructions/*`, dan `.github/prompts/*`
+Cassy V1 adalah retail-first operational POS yang berfokus pada kecepatan transaksi lokal (local-first) dan integritas data operasional (ledger-based inventory).
 
-## Isi utama
-### Root
-- `AGENTS.md`
-- `CODEX.md`
-- `CLAUDE.md`
-- `GEMINI.md`
-- `.aiexclude`
-- `README_INSTALLATION.md`
+## Strategic Posture (V1)
+- **Primary Target**: Desktop POS (Primary release lane).
+- **Secondary Target**: Android POS (Semantic parity lane).
+- **Architecture**: Kotlin Multiplatform (KMP) for Domain/Application/Data.
+- **Database**: SQLDelight (Bounded-context local SQLite).
 
-### `.agent/`
-- `README.md`
-- `plan.md`
-- `rules/architecture_rules.md`
-- `context/*.md`
-- `playbooks/*.md`
-- `templates/*.md`
-- `memory/*.md`
+## Project Structure
+- `apps/desktop-pos`: Desktop retail client.
+- `apps/android-pos`: Android retail client.
+- `shared/kernel`: Core infra, Auth, Day/Shift management.
+- `shared/inventory`: Stock ledger and balance truth.
+- `shared/sales`: Basket, pricing, and checkout logic.
+- `shared/masterdata`: Product and metadata.
 
-### `.github/`
-- `copilot-instructions.md`
-- `instructions/*.instructions.md`
-- `prompts/*.prompt.md`
+## AI Agent Context
+Proyek ini dioptimalkan untuk kolaborasi manusia dan AI. Seluruh aturan operasional dan roadmap tersimpan di:
+1. `AGENTS.md` (Constitution & Entrypoint)
+2. `.agent/` (Context compression layer)
+3. `docs/execution/roadmap_bridge.md` (Active Milestone tracking)
 
-## Operational posture
-Pack ini **mengizinkan secara policy** agent untuk:
-- read
-- create
-- edit
-- move
-- rename
-- delete
-- git status / diff / add / commit / branch
-- build / test / lint
-
-Tetapi pack ini **tidak bisa mem-bypass permission runtime**. Capability aktual tetap ditentukan oleh tool agent yang dipakai.
+## Getting Started
+Lihat `README_INSTALLATION.md` untuk setup lingkungan pengembangan.

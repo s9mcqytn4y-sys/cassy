@@ -16,6 +16,7 @@ Use this file first when the agent is Codex or Codex-like.
 ## Codex behavior bias
 - optimize for execution clarity and correct boundaries
 - prefer narrow, shippable POS-first scope over broad ERP-like expansion
+- **Desktop-First**: prioritize Desktop as the primary operational and release target
 - do not let checkout semantics drift across Android and Desktop
 - keep device-heavy concerns native
 - surface repo gaps explicitly instead of painting over them
