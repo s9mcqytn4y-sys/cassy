@@ -1,4 +1,4 @@
-package id.azureenterprise.cassy.db
+package id.azureenterprise.cassy.kernel.db
 
 import app.cash.sqldelight.ColumnAdapter
 
