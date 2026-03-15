@@ -4,6 +4,8 @@ import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.kotlin.dsl.configure
 import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.targets.jvm.KotlinJvmTarget
 import com.android.build.api.dsl.KotlinMultiplatformAndroidLibraryExtension
 
 class CassyKmpSharedPlugin : Plugin<Project> {
@@ -15,6 +17,8 @@ class CassyKmpSharedPlugin : Plugin<Project> {
             }
 
             extensions.configure<KotlinMultiplatformExtension> {
+                jvmToolchain(17)
+
                 (this as org.gradle.api.plugins.ExtensionAware).extensions.configure<KotlinMultiplatformAndroidLibraryExtension>("android") {
                     // Generate namespace based on project path
                     // e.g., :shared:kernel -> id.azureenterprise.cassy.kernel
@@ -31,6 +35,12 @@ class CassyKmpSharedPlugin : Plugin<Project> {
                 }
 
                 jvm("desktop")
+
+                targets.withType(KotlinJvmTarget::class.java).configureEach {
+                    compilerOptions {
+                        jvmTarget.set(JvmTarget.JVM_17)
+                    }
+                }
             }
         }
     }

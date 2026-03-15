@@ -1,28 +1,62 @@
-# Cassy - Desktop-First Retail Operating Core
+# Cassy
 
-"Cepat di kasir. Rapi di operasional."
+Desktop-first retail operating core untuk single outlet. Fokus V1 saat ini adalah foundation cashier yang jujur: access gate, business day, shift, catalog, cart, dan pricing baseline.
 
-Cassy V1 adalah retail-first operational POS yang berfokus pada kecepatan transaksi lokal (local-first) dan integritas data operasional (ledger-based inventory).
+## Repo truth
 
-## Strategic Posture (V1)
-- **Primary Target**: Desktop POS (Primary release lane).
-- **Secondary Target**: Android POS (Semantic parity lane).
-- **Architecture**: Kotlin Multiplatform (KMP) for Domain/Application/Data.
-- **Database**: SQLDelight (Bounded-context local SQLite).
+- Primary release lane: desktop Windows
+- Android: parity/business-semantics lane
+- Shared scope: domain, application, data
+- Native scope: app shell, lifecycle, OS integration, printer/scanner/device-heavy concern
 
-## Project Structure
-- `apps/desktop-pos`: Desktop retail client.
-- `apps/android-pos`: Android retail client.
-- `shared/kernel`: Core infra, Auth, Day/Shift management.
-- `shared/inventory`: Stock ledger and balance truth.
-- `shared/sales`: Basket, pricing, and checkout logic.
-- `shared/masterdata`: Product and metadata.
+Status milestone aktif tidak boleh diambil dari UI semata. Gunakan:
+- `docs/execution/roadmap_bridge.md`
+- `docs/execution/windows_desktop_runbook.md`
+- `.agent/plan.md`
 
-## AI Agent Context
-Proyek ini dioptimalkan untuk kolaborasi manusia dan AI. Seluruh aturan operasional dan roadmap tersimpan di:
-1. `AGENTS.md` (Constitution & Entrypoint)
-2. `.agent/` (Context compression layer)
-3. `docs/execution/roadmap_bridge.md` (Active Milestone tracking)
+## Module map
 
-## Getting Started
-Lihat `README_INSTALLATION.md` untuk setup lingkungan pengembangan.
+- `apps/desktop-pos`: desktop cashier shell
+- `apps/android-pos`: Android parity lane
+- `shared:kernel`: access, terminal binding, business day, shift
+- `shared:masterdata`: catalog, search, barcode lookup
+- `shared:sales`: cart dan pricing baseline
+- `shared:inventory`: stock repository baseline
+- `shared`: legacy bridge yang sedang disusutkan
+
+## Current foundation flow
+
+1. bootstrap store dan terminal
+2. login dengan PIN baseline
+3. open business day
+4. start shift dengan opening cash
+5. browse/search catalog
+6. mutate cart dengan pricing baseline
+
+Checkout penuh, payment state final, dan receipt final masih di luar closure foundation ini.
+
+## Verification quick start
+
+Untuk evidence build/test/package yang dipakai repo saat ini:
+
+```powershell
+.\gradlew --version
+.\gradlew clean
+.\gradlew build
+.\gradlew test
+.\gradlew detekt
+.\gradlew :apps:android-pos:lintDebug
+.\gradlew :apps:desktop-pos:packageDistributionForCurrentOS
+```
+
+Catatan:
+- Jalankan packaging Windows terakhir karena file lock Windows bisa mengganggu `clean`.
+- Artifact EXE lokal saat ini ada di `apps/desktop-pos/build/compose/binaries/main/exe/`.
+
+## Docs entry
+
+- `AGENTS.md`
+- `CODEX.md`
+- `README_INSTALLATION.md`
+- `docs/execution/roadmap_bridge.md`
+- `docs/execution/windows_desktop_runbook.md`

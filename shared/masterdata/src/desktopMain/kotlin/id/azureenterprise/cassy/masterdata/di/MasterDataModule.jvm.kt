@@ -11,9 +11,9 @@ actual val masterDataDatabaseModule: Module = module {
         val databasePath = File(System.getProperty("user.home"), ".cassy/masterdata.db")
         databasePath.parentFile.mkdirs()
         val driver = JdbcSqliteDriver("jdbc:sqlite:${databasePath.absolutePath}")
-        try {
+        if (!databasePath.exists()) {
             MasterDataDatabase.Schema.create(driver)
-        } catch (e: Exception) {}
+        }
         MasterDataDatabase(driver)
     }
 }

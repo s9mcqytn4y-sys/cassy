@@ -20,6 +20,40 @@ CREATE TABLE Metadata (
     value TEXT NOT NULL
 );
 
+CREATE TABLE TerminalBinding (
+    terminalId TEXT NOT NULL PRIMARY KEY,
+    storeId TEXT NOT NULL,
+    storeName TEXT NOT NULL,
+    terminalName TEXT NOT NULL,
+    boundAt INTEGER NOT NULL
+);
+
+CREATE TABLE OperatorAccount (
+    id TEXT NOT NULL PRIMARY KEY,
+    employeeCode TEXT NOT NULL UNIQUE,
+    displayName TEXT NOT NULL,
+    role TEXT NOT NULL,
+    pinHash TEXT NOT NULL,
+    pinSalt TEXT NOT NULL,
+    failedAttempts INTEGER NOT NULL DEFAULT 0,
+    lockedUntil INTEGER,
+    isActive INTEGER AS Boolean NOT NULL DEFAULT 1,
+    lastLoginAt INTEGER
+);
+
+CREATE TABLE AccessSession (
+    id TEXT NOT NULL PRIMARY KEY,
+    operatorId TEXT NOT NULL,
+    terminalId TEXT NOT NULL,
+    storeId TEXT NOT NULL,
+    authMode TEXT NOT NULL,
+    status TEXT NOT NULL,
+    createdAt INTEGER NOT NULL,
+    updatedAt INTEGER NOT NULL,
+    FOREIGN KEY(operatorId) REFERENCES OperatorAccount(id),
+    FOREIGN KEY(terminalId) REFERENCES TerminalBinding(terminalId)
+);
+
 CREATE TABLE BusinessDay (
     id TEXT NOT NULL PRIMARY KEY,
     openedAt INTEGER NOT NULL,
@@ -32,7 +66,9 @@ CREATE TABLE Shift (
     businessDayId TEXT NOT NULL,
     terminalId TEXT NOT NULL,
     openedAt INTEGER NOT NULL,
+    openingCash REAL NOT NULL,
     closedAt INTEGER,
+    closingCash REAL,
     openedBy TEXT NOT NULL,
     closedBy TEXT,
     status TEXT NOT NULL, -- 'OPEN', 'CLOSED'
@@ -61,6 +97,53 @@ VALUES (?, ?);
 getMetadata:
 SELECT value FROM Metadata WHERE key = ?;
 
+upsertTerminalBinding:
+INSERT OR REPLACE INTO TerminalBinding(terminalId, storeId, storeName, terminalName, boundAt)
+VALUES (?, ?, ?, ?, ?);
+
+getTerminalBinding:
+SELECT * FROM TerminalBinding LIMIT 1;
+
+insertOperator:
+INSERT OR REPLACE INTO OperatorAccount(
+    id,
+    employeeCode,
+    displayName,
+    role,
+    pinHash,
+    pinSalt,
+    failedAttempts,
+    lockedUntil,
+    isActive,
+    lastLoginAt
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+listActiveOperators:
+SELECT * FROM OperatorAccount
+WHERE isActive = 1
+ORDER BY role DESC, displayName ASC;
+
+selectOperatorById:
+SELECT * FROM OperatorAccount WHERE id = ? LIMIT 1;
+
+updateOperatorAccessState:
+UPDATE OperatorAccount
+SET failedAttempts = ?, lockedUntil = ?, lastLoginAt = ?
+WHERE id = ?;
+
+insertAccessSession:
+INSERT INTO AccessSession(id, operatorId, terminalId, storeId, authMode, status, createdAt, updatedAt)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+
+getActiveAccessSession:
+SELECT * FROM AccessSession WHERE status = 'ACTIVE' LIMIT 1;
+
+clearActiveAccessSessions:
+UPDATE AccessSession
+SET status = ?, updatedAt = ?
+WHERE status = 'ACTIVE';
+
 -- BusinessDay & Shift Queries
 insertBusinessDay:
 INSERT INTO BusinessDay(id, openedAt, status)
@@ -69,15 +152,21 @@ VALUES (?, ?, ?);
 getActiveBusinessDay:
 SELECT * FROM BusinessDay WHERE status = 'OPEN' LIMIT 1;
 
+getBusinessDayById:
+SELECT * FROM BusinessDay WHERE id = ? LIMIT 1;
+
 closeBusinessDay:
 UPDATE BusinessDay SET status = 'CLOSED', closedAt = ? WHERE id = ?;
 
 insertShift:
-INSERT INTO Shift(id, businessDayId, terminalId, openedAt, openedBy, status)
-VALUES (?, ?, ?, ?, ?, ?);
+INSERT INTO Shift(id, businessDayId, terminalId, openedAt, openingCash, openedBy, status)
+VALUES (?, ?, ?, ?, ?, ?, ?);
 
 getActiveShift:
 SELECT * FROM Shift WHERE status = 'OPEN' AND terminalId = ? LIMIT 1;
 
 closeShift:
-UPDATE Shift SET status = 'CLOSED', closedAt = ?, closedBy = ? WHERE id = ?;
+UPDATE Shift SET status = 'CLOSED', closedAt = ?, closingCash = ?, closedBy = ? WHERE id = ?;
+
+getShiftById:
+SELECT * FROM Shift WHERE id = ? LIMIT 1;

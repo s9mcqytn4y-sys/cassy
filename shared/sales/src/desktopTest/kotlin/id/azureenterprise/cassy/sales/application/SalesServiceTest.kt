@@ -1,0 +1,96 @@
+package id.azureenterprise.cassy.sales.application
+
+import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
+import id.azureenterprise.cassy.inventory.data.InventoryRepository
+import id.azureenterprise.cassy.inventory.db.InventoryDatabase
+import id.azureenterprise.cassy.kernel.data.KernelRepository
+import id.azureenterprise.cassy.kernel.db.KernelDatabase
+import id.azureenterprise.cassy.masterdata.domain.Product
+import id.azureenterprise.cassy.sales.data.SalesRepository
+import id.azureenterprise.cassy.sales.db.SalesDatabase
+import id.azureenterprise.cassy.sales.domain.PricingEngine
+import kotlinx.coroutines.runBlocking
+import kotlinx.datetime.Clock
+import kotlin.coroutines.EmptyCoroutineContext
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+
+class SalesServiceTest {
+
+    @Test
+    fun `cart mutation is blocked without active day and shift`() {
+        runBlocking {
+            val fixture = salesFixture()
+
+            val result = fixture.service.addProduct(sampleProduct())
+
+            assertTrue(result.isFailure)
+        }
+    }
+
+    @Test
+    fun `pricing totals stay consistent when quantity changes`() {
+        runBlocking {
+            val fixture = salesFixture()
+            fixture.kernelRepository.upsertTerminalBinding(fixture.binding)
+            fixture.kernelRepository.openBusinessDay("bd_1")
+            fixture.kernelRepository.openShift(
+                id = "shift_1",
+                businessDayId = "bd_1",
+                terminalId = fixture.binding.terminalId,
+                openingCash = 100.0,
+                openedBy = "operator_1"
+            )
+
+            fixture.service.addProduct(sampleProduct(), quantity = 2.0).getOrThrow()
+            fixture.service.setQuantity("product_1", 3.0).getOrThrow()
+
+            val basket = fixture.service.basket.value
+            assertEquals(30.0, basket.totals.subtotal)
+            assertEquals(30.0, basket.totals.finalTotal)
+        }
+    }
+
+    private fun salesFixture(): SalesFixture {
+        val kernelDriver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+        val salesDriver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+        val inventoryDriver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+        KernelDatabase.Schema.create(kernelDriver)
+        SalesDatabase.Schema.create(salesDriver)
+        InventoryDatabase.Schema.create(inventoryDriver)
+
+        val kernelRepository = KernelRepository(KernelDatabase(kernelDriver), EmptyCoroutineContext, Clock.System)
+        return SalesFixture(
+            service = SalesService(
+                salesRepository = SalesRepository(SalesDatabase(salesDriver), EmptyCoroutineContext, Clock.System),
+                inventoryRepository = InventoryRepository(InventoryDatabase(inventoryDriver), EmptyCoroutineContext, Clock.System),
+                kernelRepository = kernelRepository,
+                pricingEngine = PricingEngine(),
+                clock = Clock.System
+            ),
+            kernelRepository = kernelRepository,
+            binding = id.azureenterprise.cassy.kernel.domain.TerminalBinding(
+                storeId = "store_1",
+                storeName = "Toko Test",
+                terminalId = "terminal_1",
+                terminalName = "Kasir Test",
+                boundAt = Clock.System.now()
+            )
+        )
+    }
+
+    private fun sampleProduct(): Product = Product(
+        id = "product_1",
+        name = "Produk Uji",
+        price = 10.0,
+        categoryId = "cat_1",
+        sku = "SKU-TEST-001"
+    )
+}
+
+private data class SalesFixture(
+    val service: SalesService,
+    val kernelRepository: KernelRepository,
+    val binding: id.azureenterprise.cassy.kernel.domain.TerminalBinding
+)

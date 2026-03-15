@@ -14,7 +14,9 @@ data class Shift(
     val businessDayId: String,
     val terminalId: String,
     val openedAt: Instant,
+    val openingCash: Double,
     val closedAt: Instant? = null,
+    val closingCash: Double? = null,
     val openedBy: String,
     val closedBy: String? = null,
     val status: String

@@ -23,7 +23,7 @@ class ProductLookupRepositoryImpl(
     }
 
     suspend fun findBySku(sku: String): ProductLookupResult = withContext(ioDispatcher) {
-        val products = queries.searchProducts(sku, sku).executeAsList().filter { it.sku == sku }
+        val products = queries.searchProducts(sku, sku).executeAsList().filter { it.sku.equals(sku, ignoreCase = true) }
         when {
             products.isEmpty() -> ProductLookupResult.NotFound
             products.size > 1 -> ProductLookupResult.Collision

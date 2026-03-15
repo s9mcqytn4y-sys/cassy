@@ -13,10 +13,8 @@ actual val databaseModule: Module = module {
             databasePath.parentFile.mkdirs()
         }
         val driver = JdbcSqliteDriver("jdbc:sqlite:${databasePath.absolutePath}")
-        try {
+        if (!databasePath.exists()) {
             KernelDatabase.Schema.create(driver)
-        } catch (e: Exception) {
-            // Database already exists
         }
         KernelDatabase(driver)
     }

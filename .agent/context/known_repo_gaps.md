@@ -1,14 +1,17 @@
 # Cassy Known Repo Gaps
 
 ## Risks that must stay visible
-- **Pseudo-modularization (M2 Debt)**: `:shared` still acts as an aggregator for UI and DI.
-- **AppContainer / Service-locator blob**: Still present in `:shared/src/commonMain/kotlin/id/azureenterprise/cassy/di/Koin.kt`.
-- **Legacy/new DB coexistence**: Migration baseline for SQLDelight contexts.
-- **Desktop Placeholder risk**: (Mitigated) Desktop now has `CatalogScreen.kt`.
-- **Parity drift**: Android and Desktop UI coordination.
-- **Inventory ownership ambiguity**: `:shared:inventory` exists but isn't integrated.
-- **Docs more advanced than runtime**: (Mitigated) `roadmap_bridge.md` updated to match actual repo truth.
 
-## Resolved Gaps (Audit Fix)
-- [x] Missing `CatalogScreen` reference in Desktop POS.
-- [x] Roadmap Bridge status sync (M3 marked as Done).
+- `:shared` masih menjadi legacy bridge dan belum sepenuhnya dievakuasi ke bounded context yang bersih.
+- Access/PIN saat ini adalah local baseline untuk foundation, bukan security-hardening final.
+- Business day dan shift guardrail sudah hidup, tetapi audit/reporting/receipt closure belum ikut tertutup.
+- Inventory module sudah terhubung pada baseline service, tetapi belum terbukti pada flow checkout/finalize sale penuh.
+- Windows packaging sudah terbukti lokal, tetapi hosted CI Windows packaging belum punya execution evidence.
+- Installer smoke install/uninstall Windows belum tervalidasi end-to-end; yang terbukti baru artifact generation.
+- Migration replay, sync visibility, dan release evidence penuh masih di depan milestone foundation ini.
+
+## Gaps recently reduced
+
+- false-ready desktop `NO-SOURCE` build sudah ditutup dengan source-set mapping yang nyata di `apps/desktop-pos`
+- M3/M4 false completion di docs sudah diturunkan ke foundation status
+- Java target drift ke bytecode > 17 pada shared desktop target sudah dijaga di build-logic

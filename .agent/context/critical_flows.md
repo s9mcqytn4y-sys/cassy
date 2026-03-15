@@ -1,32 +1,33 @@
 # Cassy Critical Flows
 
-## Priority
-1. setup minimum
-2. product master data dasar
-3. product lookup
-4. cart
-5. payment state
-6. finalize sale
-7. receipt snapshot dasar
-8. transaction history readback
+## Priority foundation
+
+1. access gate
+2. terminal/store bootstrap
+3. open business day
+4. start shift
+5. catalog search / barcode fallback
+6. cart mutation
+7. pricing baseline
 
 ## Mandatory semantics
-- completed sale must be valid
-- no fake success on failed persistence
-- totals/pricing semantics must stay consistent cross-platform
-- history/readback must match finalize-sale output
+
+- user tidak boleh masuk catalog/cart tanpa access context valid
+- cart tidak boleh berjalan tanpa business day dan shift aktif
+- PIN validation, lockout baseline, dan capability gate harus hidup di shared boundary
+- pricing, subtotal, tax, dan discount baseline harus konsisten lintas platform
+- UI hanya memantulkan state; invariant tidak boleh tinggal di screen
 
 ## Cross-platform stance
+
 ### Mandatory parity
+- access capability semantics
+- business day / shift transition semantics
 - product lookup
 - cart semantics
-- pricing/totals semantics
-- payment validity semantics
-- finalize sale semantics
-- receipt snapshot semantics
-- history semantics
+- pricing / totals baseline
 
 ### Allowed divergence
 - keyboard vs touch ergonomics
-- printer/scanner/pairing UX
-- packaging/distribution
+- printer / scanner / permission / spooler UX
+- platform packaging dan distribution

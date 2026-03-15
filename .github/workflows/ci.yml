@@ -12,14 +12,14 @@ concurrency:
 
 jobs:
   validate-wrapper:
-    name: 🛡️ Validate Wrapper
+    name: Validate Wrapper
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: gradle/wrapper-validation-action@v3
 
   static-analysis:
-    name: 🔍 Static Analysis
+    name: Static Analysis
     needs: validate-wrapper
     runs-on: ubuntu-latest
     steps:
@@ -29,7 +29,7 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
           cache: gradle
-      - name: Run Detekt & Build Scan
+      - name: Run Detekt
         run: ./gradlew detekt --scan --no-daemon
       - name: Upload Reports
         if: failure()
@@ -39,7 +39,7 @@ jobs:
           path: "**/build/reports/detekt/*.xml"
 
   dependency-guard:
-    name: 📦 Dependency Guard
+    name: Dependency Guard
     needs: validate-wrapper
     runs-on: ubuntu-latest
     steps:
@@ -53,7 +53,7 @@ jobs:
         run: ./gradlew dependencyGuard --scan --no-daemon
 
   android-lane:
-    name: 🤖 Android POS
+    name: Android POS
     needs: validate-wrapper
     runs-on: ubuntu-latest
     steps:
@@ -63,11 +63,11 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
           cache: gradle
-      - name: Build & Test Android
+      - name: Build and Test Android
         run: ./gradlew :apps:android-pos:assembleDebug :apps:android-pos:testDebugUnitTest :apps:android-pos:lintDebug --scan --no-daemon
 
   desktop-lane:
-    name: 💻 Desktop POS
+    name: Desktop POS
     needs: validate-wrapper
     runs-on: ubuntu-latest
     steps:
@@ -77,13 +77,32 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
           cache: gradle
-      - name: Build & Test Desktop
+      - name: Build and Test Desktop
         run: ./gradlew :apps:desktop-pos:build --scan --no-daemon
 
-  nightly-packaging:
-    name: 📦 Nightly Release
+  windows-package-evidence:
+    name: Windows Package Evidence
+    needs: validate-wrapper
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+      - name: Package Windows EXE
+        run: .\gradlew :apps:desktop-pos:packageDistributionForCurrentOS --scan --no-daemon
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cassy-desktop-exe
+          path: apps/desktop-pos/build/compose/binaries/main/exe/*.exe
+
+  linux-package-compat:
+    name: Linux Package Compatibility
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [android-lane, desktop-lane]
+    needs: [android-lane, desktop-lane, windows-package-evidence]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

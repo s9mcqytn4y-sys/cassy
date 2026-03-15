@@ -9,7 +9,7 @@ import org.koin.core.module.Module
 val salesModule = module {
     single { SalesRepository(get(), get(), get()) }
     single { PricingEngine() }
-    single { SalesService(get(), get(), get(), get(), get(), "terminal_01") }
+    single { SalesService(get(), get(), get(), get(), get()) }
 }
 
 expect val salesDatabaseModule: Module

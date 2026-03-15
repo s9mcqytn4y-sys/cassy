@@ -1,33 +1,66 @@
-# Cassy Roadmap Execution Bridge (PDF v1.1 -> Repo)
+# Cassy Roadmap Execution Bridge
 
-This document maps the strategic milestones from the PDF Roadmap to the actual repository state.
+Dokumen ini adalah bridge antara roadmap PDF, context agent, dan repo reality. Repo diperlakukan sebagai implementation snapshot; status milestone hanya boleh naik bila ada evidence kode, test, dan verifikasi yang nyata.
 
-## Milestone Status Tracker
+## Status ringkas per 2026-03-16
 
-| ID | Milestone Name | Repo Evidence | Status |
-|:---|:---|:---|:---|
-| **M0** | Program Setup | `AGENTS.md`, `.agent/` structure | **DONE** |
-| **M1** | Scope Lock V1 | `AGENTS.md` (Strategic Lock section) | **DONE** |
-| **M2** | Architecture Control Plane | Multi-module Gradle, SQLDelight cleanup | **DONE** (Residual Debt in `:shared` aggregator) |
-| **M3** | Desktop Store Bootstrap | `apps/desktop-pos` + `CatalogScreen` | **DONE** |
-| **M4** | Business Day & Shift | `BusinessDayScreen.kt` + `BusinessDayService.kt` | **DONE** |
-| **M5** | Catalog & Cart | `CatalogViewModel.kt` in `:shared` | **PARTIAL** |
-| **M6** | Checkout & Receipt | `SalesService.kt` basic flow | **PENDING** |
-| **M7** | Inventory Truth | `:shared:inventory` module created | **DONE** (Foundation only) |
-| **M8** | Governance & Reporting | - | **PENDING** |
-| **M9** | Sync & Offline Safety | `OutboxRepository.kt` | **PENDING** |
-| **M10**| Release & Hypercare | - | **PENDING** |
+| ID | Milestone | Status repo jujur | Evidence utama | Catatan |
+|:---|:---|:---|:---|:---|
+| M0 | Program setup | DONE | `AGENTS.md`, `CODEX.md`, `.agent/`, Gradle wrapper | Control plane dasar ada |
+| M1 | Scope lock V1 | DONE | `AGENTS.md`, `.agent/context/project_overview.md` | Desktop-first retail core terkunci |
+| M2 | Architecture control plane | PARTIAL / FOUNDATION | multi-module Gradle, build-logic Java 17, SQLDelight bounded context | `:shared` aggregator dan legacy bridge masih ada |
+| M3 | Desktop access bootstrap | PARTIAL / FOUNDATION | `apps/desktop-pos`, `AccessService`, desktop controller test | Sebelumnya false-ready karena source set desktop belum benar-benar dibuild |
+| M4 | Business day & shift | PARTIAL / FOUNDATION | `BusinessDayService`, `ShiftService`, service tests, desktop guarded flow | Guardrail inti hidup, tetapi belum layak disebut fully done |
+| M5 | Catalog + cart + pricing baseline | PARTIAL / FOUNDATION | `SalesService`, `PricingEngine`, product lookup tests | Checkout penuh, receipt, dan payment state belum dibuka |
+| M6 | Checkout + receipt | PENDING | - | Hanya placeholder jujur di desktop shell |
+| M7 | Inventory basic | PARTIAL / FOUNDATION | `:shared:inventory` module, repository wiring | Belum terbukti end-to-end ke closing/checkout |
+| M8 | Reporting dasar | PENDING | - | Belum ada evidence runtime |
+| M9 | Sync visibility + replay | PENDING | outbox/infra parsial | Belum ada closure evidence |
+| M10 | Release + hypercare | PENDING | CI dasar + local Windows package evidence | Windows pilot CI belum terbukti di hosted runner |
 
-## Active Milestone: M5 Catalog, Pricing & Cart
-**Goal**: Memastikan produk bisa dicari, dimasukkan ke keranjang, dan harga dihitung dengan benar di shared domain.
+## False readiness yang sudah dibongkar
 
-### Required Artifacts for M5:
-- [ ] Product Search & Barcode Lookup logic
-- [ ] Cart State management in Shared Domain
-- [ ] Pricing invariants (tax, discount baseline)
+- `apps/desktop-pos` sempat terlihat ada, tetapi source utama berada di `src/jvmMain` saat module memakai source set `main`; hasilnya desktop build sebelumnya bisa lolos dengan `NO-SOURCE`.
+- M3 dan M4 sempat ditandai done hanya karena screen/navigasi tampil, bukan karena access/day/shift guardrail benar-benar hidup.
+- Packaging malam di CI hanya menghasilkan Debian package pada Ubuntu; itu bukan evidence kesiapan distribusi Windows.
 
-### Evidence for M4 (Closed):
-- [x] Desktop UI for "Open Business Day" (`BusinessDayScreen.kt`)
-- [x] State-driven navigation (Business Day -> Catalog)
-- [x] Wiring to `BusinessDayService` in `:shared:kernel`
-- [x] CI/CD Verification (`.github/workflows/ci.yml`)
+## Definition of done minimum per lane foundation
+
+### M2
+- task build/test/lint/package yang benar-benar ada terdokumentasi
+- boundary shared vs native jelas
+- command matrix dan verification matrix sinkron dengan repo
+
+### M3
+- bootstrap store/terminal hidup
+- login PIN baseline hidup
+- restore access context hidup
+- locked/wrong pin/error/loading state jujur
+- navigation guard mencegah bypass
+- test minimal untuk success/wrong pin/restore
+
+### M4
+- business day dan shift state dimodelkan
+- open/start/end/close punya service guardrail
+- cart diblok saat day/shift invalid
+- negative-path test ada
+- UI menampilkan state error/blocked secara jujur
+
+### Thin M5
+- catalog read model dan search hidup
+- cart mutation hidup
+- pricing baseline hidup di shared domain/application
+- unit/service tests untuk invariant pricing dan cart ada
+- checkout tetap ditahan
+
+## Verifikasi yang dipakai untuk status ini
+
+- `.\gradlew --version`
+- `.\gradlew clean`
+- `.\gradlew build`
+- `.\gradlew test`
+- `.\gradlew detekt`
+- `.\gradlew :apps:android-pos:lintDebug`
+- `.\gradlew :apps:desktop-pos:packageDistributionForCurrentOS`
+
+Lihat `docs/execution/windows_desktop_runbook.md` untuk command matrix, artifact path, dan gap packaging Windows.

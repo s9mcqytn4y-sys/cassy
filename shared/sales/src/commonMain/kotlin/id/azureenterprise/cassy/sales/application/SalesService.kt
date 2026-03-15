@@ -20,15 +20,17 @@ class SalesService(
     private val inventoryRepository: InventoryRepository,
     private val kernelRepository: KernelRepository,
     private val pricingEngine: PricingEngine,
-    private val clock: Clock,
-    private val terminalId: String
+    private val clock: Clock
 ) {
     private val _basket = MutableStateFlow(Basket())
     val basket: StateFlow<Basket> = _basket.asStateFlow()
 
     private var activeSaleId: String? = null
 
-    suspend fun addProduct(product: Product, quantity: Double = 1.0) {
+    suspend fun addProduct(product: Product, quantity: Double = 1.0): Result<Basket> {
+        requireOperationalContext().getOrElse { return Result.failure(it) }
+        if (quantity <= 0) return Result.failure(IllegalArgumentException("Quantity harus lebih besar dari 0"))
+
         val currentItems = _basket.value.items.toMutableList()
         val existingIndex = currentItems.indexOfFirst { it.product.id == product.id }
 
@@ -40,11 +42,32 @@ class SalesService(
         }
 
         updateBasket(currentItems)
+        return Result.success(_basket.value)
     }
 
-    suspend fun removeProduct(productId: String) {
+    suspend fun setQuantity(productId: String, quantity: Double): Result<Basket> {
+        requireOperationalContext().getOrElse { return Result.failure(it) }
+        if (quantity < 0) return Result.failure(IllegalArgumentException("Quantity tidak boleh negatif"))
+
+        val currentItems = _basket.value.items.toMutableList()
+        val existingIndex = currentItems.indexOfFirst { it.product.id == productId }
+        if (existingIndex < 0) return Result.failure(IllegalStateException("Item tidak ditemukan di cart"))
+
+        if (quantity == 0.0) {
+            currentItems.removeAt(existingIndex)
+        } else {
+            val existingItem = currentItems[existingIndex]
+            currentItems[existingIndex] = existingItem.copy(quantity = quantity)
+        }
+        updateBasket(currentItems)
+        return Result.success(_basket.value)
+    }
+
+    suspend fun removeProduct(productId: String): Result<Basket> {
+        requireOperationalContext().getOrElse { return Result.failure(it) }
         val currentItems = _basket.value.items.filterNot { it.product.id == productId }
         updateBasket(currentItems)
+        return Result.success(_basket.value)
     }
 
     private fun updateBasket(items: List<BasketItem>) {
@@ -56,29 +79,23 @@ class SalesService(
         val currentBasket = _basket.value
         if (currentBasket.items.isEmpty()) return Result.failure(Exception("Cart is empty"))
 
-        // 0. Guardrail: Business Day must be open
-        if (!kernelRepository.isBusinessDayOpen()) {
-            return Result.failure(Exception("Business day is not open"))
-        }
-
-        // 1. Get Active Shift
-        val shift = kernelRepository.getActiveShift(terminalId) ?: return Result.failure(Exception("No active shift"))
+        val binding = kernelRepository.getTerminalBinding()
+            ?: return Result.failure(IllegalStateException("Terminal belum terikat"))
+        requireOperationalContext().getOrElse { return Result.failure(it) }
+        val shift = kernelRepository.getActiveShift(binding.terminalId)
+            ?: return Result.failure(Exception("No active shift"))
 
         val saleId = activeSaleId ?: IdGenerator.nextId("sale")
         val localNumber = "INV-${clock.now().toEpochMilliseconds()}"
 
-        // 2. Save Pending Sale
-        salesRepository.saveSale(saleId, localNumber, shift.id, terminalId, currentBasket)
+        salesRepository.saveSale(saleId, localNumber, shift.id, binding.terminalId, currentBasket)
 
-        // 3. Process Payment
         val paymentId = IdGenerator.nextId("pay")
         salesRepository.recordPayment(paymentId, saleId, paymentMethod, currentBasket.totals.finalTotal, "SUCCESS", null)
 
-        // 4. Finalize Sale
         val receiptContent = buildReceiptContent(currentBasket, localNumber)
         salesRepository.finalizeSale(saleId, receiptContent)
 
-        // 5. Update Inventory
         currentBasket.items.forEach { item ->
             inventoryRepository.recordTransaction(
                 InventoryTransaction(
@@ -88,12 +105,11 @@ class SalesService(
                     type = TransactionType.SALE,
                     referenceId = saleId,
                     timestamp = clock.now(),
-                    terminalId = terminalId
+                    terminalId = binding.terminalId
                 )
             )
         }
 
-        // Clear local state
         _basket.value = Basket()
         activeSaleId = null
 
@@ -109,6 +125,24 @@ class SalesService(
         salesRepository.suspendSale(saleId)
         _basket.value = Basket()
         activeSaleId = null
+        return Result.success(Unit)
+    }
+
+    suspend fun clearCart(): Result<Basket> {
+        requireOperationalContext().getOrElse { return Result.failure(it) }
+        _basket.value = Basket()
+        return Result.success(_basket.value)
+    }
+
+    private suspend fun requireOperationalContext(): Result<Unit> {
+        val binding = kernelRepository.getTerminalBinding()
+            ?: return Result.failure(IllegalStateException("Terminal belum terikat"))
+        if (!kernelRepository.isBusinessDayOpen()) {
+            return Result.failure(IllegalStateException("Business day belum aktif"))
+        }
+        if (kernelRepository.getActiveShift(binding.terminalId) == null) {
+            return Result.failure(IllegalStateException("Shift belum aktif"))
+        }
         return Result.success(Unit)
     }
 }

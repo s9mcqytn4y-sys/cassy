@@ -11,7 +11,9 @@ actual val inventoryDatabaseModule: Module = module {
         val databasePath = File(System.getProperty("user.home"), ".cassy/inventory.db")
         databasePath.parentFile.mkdirs()
         val driver = JdbcSqliteDriver("jdbc:sqlite:${databasePath.absolutePath}")
-        InventoryDatabase.Schema.create(driver)
+        if (!databasePath.exists()) {
+            InventoryDatabase.Schema.create(driver)
+        }
         InventoryDatabase(driver)
     }
 }

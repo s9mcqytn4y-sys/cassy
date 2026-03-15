@@ -23,12 +23,23 @@ kotlin {
             api(libs.sqldelight.runtime)
         }
 
+        commonTest.dependencies {
+            implementation(libs.kotlin.test)
+        }
+
         androidMain.dependencies {
             implementation(libs.sqldelight.android.driver)
         }
 
         val desktopMain by getting {
             dependencies {
+                implementation(libs.sqldelight.sqlite.driver)
+            }
+        }
+
+        val desktopTest by getting {
+            dependencies {
+                implementation(libs.kotlin.test)
                 implementation(libs.sqldelight.sqlite.driver)
             }
         }
