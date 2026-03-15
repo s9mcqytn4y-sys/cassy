@@ -1,23 +1,18 @@
-# Cassy Rolling AI Plan
+# Cassy Rolling Execution Plan
 
-## Current objective
-Use the AI context layer to reduce architectural drift, speed up navigation in the monorepo, and keep generated code aligned with local-first + audit-heavy Cassy rules.
+## Current default focus
+Cassy POS V1:
+- master data dasar
+- sales core
+- transaction verification
+- Android operational baseline
+- Desktop parity checkpoint bertahap
 
-## Active workstreams
-1. Harden entrypoint rules and bounded-context ownership.
-2. Make repo drift explicit so AI does not normalize transitional blobs.
-3. Push implementation and review flows through traceability-aware playbooks.
-4. Keep Android POS, shared core, sync, and migration work aligned.
-
-## Immediate risks
-- False modularization.
-- Extending `AppContainer` beyond bridge scope.
-- Legacy/new DB dual-path becoming permanent.
-- Sync visibility reduced to logs.
-- Desktop parity being claimed before operational flows are real.
-
-## Update checklist
-- Update after milestone changes.
-- Update after namespace cutover decisions.
-- Update after each migration wave.
-- Update after any source-of-truth revision that changes architecture meaningfully.
+## Next planning order
+1. lock V1 scope and non-goals
+2. stabilize foundation
+3. finish master data minimum
+4. finish sales core
+5. prove transaction readback/history
+6. harden Android smoke path
+7. evaluate Desktop parity honestly

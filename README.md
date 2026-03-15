@@ -1,30 +1,50 @@
-# Cassy POS System
+# Cassy Agent Pack V2
 
-Cassy is a retail-first operational POS system built with Kotlin Multiplatform.
+Pack V2 ini adalah versi yang lebih lengkap untuk repository Cassy, disusun agar lebih kompatibel dan lebih berguna untuk:
+- Codex
+- Claude
+- Gemini
+- GitHub Copilot / IDE agents yang membaca `.github/*`
 
-## Project Structure
+## Kenapa V2
+V2 mengikuti pola yang sudah dipakai di repo Cassy:
+- `AGENTS.md` sebagai entrypoint utama lintas agent
+- `.agent/README.md` sebagai compression layer AI + manusia
+- `CLAUDE.md` sebagai load-order khusus Claude
+- file placement yang juga merekomendasikan `.github/copilot-instructions.md`, `.github/instructions/*`, dan `.github/prompts/*`
 
-- `apps/android-pos`: Android application for POS operations.
-- `apps/desktop-pos`: Desktop application (JVM) for POS operations.
-- `shared`: Shared business logic, data persistence, and bounded contexts.
-- `tooling/build-logic`: Gradle convention plugins for project-wide configuration.
+## Isi utama
+### Root
+- `AGENTS.md`
+- `CODEX.md`
+- `CLAUDE.md`
+- `GEMINI.md`
+- `.aiexclude`
+- `README_INSTALLATION.md`
 
-## Tech Stack
+### `.agent/`
+- `README.md`
+- `plan.md`
+- `rules/architecture_rules.md`
+- `context/*.md`
+- `playbooks/*.md`
+- `templates/*.md`
+- `memory/*.md`
 
-- **Kotlin Multiplatform**
-- **Compose Multiplatform**
-- **SQLDelight** for local persistence
-- **Koin** for dependency injection
-- **Gradle** with convention plugins
+### `.github/`
+- `copilot-instructions.md`
+- `instructions/*.instructions.md`
+- `prompts/*.prompt.md`
 
-## Getting Started
+## Operational posture
+Pack ini **mengizinkan secara policy** agent untuk:
+- read
+- create
+- edit
+- move
+- rename
+- delete
+- git status / diff / add / commit / branch
+- build / test / lint
 
-To build the project:
-```bash
-./gradlew assemble
-```
-
-To run the desktop application:
-```bash
-./gradlew :apps:desktop-pos:run
-```
+Tetapi pack ini **tidak bisa mem-bypass permission runtime**. Capability aktual tetap ditentukan oleh tool agent yang dipakai.

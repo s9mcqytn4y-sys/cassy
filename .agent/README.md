@@ -14,13 +14,13 @@ This folder is the human-readable and AI-readable compression layer for the Cass
 8. `plan.md`
 
 ## What belongs here
-- Stable rules that repeatedly steer implementation.
-- Domain and architecture context that should not be re-explained in every prompt.
-- Brutally honest notes about migration debt and repo drift.
-- Playbooks and templates that standardize how AI assists engineering tasks.
+- stable rules that repeatedly steer implementation
+- domain and architecture context that should not be re-explained in every prompt
+- brutally honest notes about migration debt and repo drift
+- playbooks and templates that standardize how AI assists engineering tasks
 
 ## What does not belong here
-- New product requirements with no source backing.
-- Temporary scratch notes mixed into stable rules.
-- Raw OCR dumps or giant copied PDFs.
-- Wishful assumptions about repo health.
+- new product requirements with no source backing
+- temporary scratch notes mixed into stable rules
+- raw dumps and giant copied documents
+- wishful assumptions about repo health

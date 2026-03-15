@@ -1,6 +1,6 @@
 # Cassy Agent Entry
 
-Read these files in order before planning, generating, refactoring, or reviewing code.
+Read these files in order before planning, generating, refactoring, reviewing, or deleting code.
 
 1. `.agent/README.md`
 2. `.agent/rules/architecture_rules.md`
@@ -11,9 +11,27 @@ Read these files in order before planning, generating, refactoring, or reviewing
 7. `.agent/context/known_repo_gaps.md`
 8. `.agent/plan.md`
 
-Hard rules:
+## Hard rules
 - Do not bypass application boundaries for speed.
 - Do not invent flows that contradict the Cassy source-of-truth.
 - Treat repository code as an implementation snapshot when it conflicts with prescriptive design docs.
 - Preserve local-first correctness, auditability, explicit sync state, and terminal-bound operational ownership.
 - Do not add new F&B or Service complexity into retail shipping flows unless the task explicitly targets prepared boundaries.
+
+## Operational permission posture
+When the runtime/tool permits it, you are authorized in this repository to:
+- read any relevant repository file except intentionally excluded local noise
+- create files/folders
+- edit files/folders
+- move files/folders
+- rename files/folders
+- delete files/folders
+- run git status / diff / add / commit / branch actions
+- run build / test / lint / format commands
+
+## Destructive-change policy
+Allowed does not mean careless:
+- do not mass-delete without a checkpoint
+- do not rewrite git history unless explicitly asked
+- do not rename large trees cosmetically
+- do not claim Desktop readiness from placeholder scaffolding

@@ -1,21 +1,23 @@
-# Project Overview
+# Cassy Project Overview
 
-## Identity
-Cassy is a retail-first, local-first store operating system with an audit-heavy, sync-explicit posture.
+## Product shape
+Cassy is a retail-first operational POS.
 
-## Phase-1 center of gravity
-- Mandatory core: sales, returns, cash/shift/business day, inventory basics, reporting basics, and sync.
-- Prepared boundaries: F&B and Service.
-- Shared business core: Kotlin Multiplatform.
-- Local operational store: SQLite via SQLDelight on clients.
-- HQ convergence: backend API + PostgreSQL.
+## V1 bias
+- product master data dasar
+- cart / checkout / finalize sale
+- receipt snapshot dasar
+- transaction history dasar
+- Android baseline operasional
+- Desktop parity checkpoint bertahap
 
-## Architectural posture
-- Shared domain/application/data.
-- Native app-shell and device-heavy integration.
-- Sync is a business-visible subsystem.
-- Approval and audit are first-class, not afterthoughts.
+## Technical posture
+- Kotlin Multiplatform
+- Compose Multiplatform
+- SQLDelight
+- Koin
+- local-first persistence
 
-## Practical reading
-Treat prescriptive design artefacts as source-of-truth.
-Treat repository code as an implementation snapshot that may lag or drift.
+## Important truth
+The active repo surface is narrower than the prescriptive target-state docs.
+Do not pretend every phase-1 context is already operational just because the docs describe it.

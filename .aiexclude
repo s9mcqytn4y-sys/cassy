@@ -1,41 +1,102 @@
-# Build and generated output
-.gradle/
-build/
-**/build/
+# Cassy AI Exclude V2
+# Keep context useful. Remove noise, not signal.
+
+# IDE / local
 .idea/
-.kotlinc/
+.kotlin/
+.vscode/.history/
+.DS_Store
+Thumbs.db
+*.iml
 
-# Binary and large assets
-*.png
-*.jpg
-*.jpeg
-*.webp
-*.pdf
-*.zip
-*.apk
-*.aab
-*.exe
-*.msi
-*.dll
-*.so
-*.dylib
-
-# Logs and local caches
-*.log
+# Build outputs / caches
+.gradle/
+**/build/
+out/
+dist/
+target/
+tmp/
+temp/
 coverage/
 reports/
-.tmp/
-.cache/
+.cxx/
 
-# Sensitive local material
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Heavy binaries / packages
+*.apk
+*.aab
+*.apks
+*.jar
+*.war
+*.ear
+*.so
+*.dylib
+*.dll
+*.exe
+*.msi
+*.dmg
+*.app
+*.ipa
+*.zip
+*.tar
+*.gz
+*.7z
+*.rar
+*.pdf
+
+# Secrets / local credentials
 local.properties
 *.keystore
 *.jks
-*.key
-*.pem
 *.p12
+*.pem
+*.key
 *.mobileprovision
-secrets/
+.env
+.env.*
+secrets.*
+google-services.json
+GoogleService-Info.plist
 
-# Optional: exclude generated SQLDelight output if it becomes noisy
-# shared/**/build/generated/
+# DB lock/shm noise
+*.db-shm
+*.db-wal
+*.sqlite-shm
+*.sqlite-wal
+*.trace
+
+# Vendor / deps
+node_modules/
+vendor/
+Pods/
+DerivedData/
+
+# Test artifacts
+screenshots/
+recordings/
+artifacts/
+test-results/
+snapshot-output/
+
+# Intentionally NOT excluded:
+# - AGENTS.md
+# - CODEX.md
+# - CLAUDE.md
+# - GEMINI.md
+# - .agent/**
+# - .github/**
+# - apps/**
+# - shared/**
+# - docs/**
+# - tooling/**
+# - gradle/**
+# - *.md
+# - settings.gradle.kts
+# - build.gradle.kts
+# - gradle/libs.versions.toml

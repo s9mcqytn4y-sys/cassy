@@ -1,12 +1,9 @@
----
-applyTo: "apps/android-pos/**, apps/android/**"
----
-
 # Android POS Instructions
 
-- POS is the operational writer for checkout and shift-critical flows unless the task explicitly addresses a later strategic override.
-- Keep scanner, printer, payment terminal callbacks, permission prompts, and lifecycle logic in native modules.
-- Guided Operations Dashboard and anti-skip gates are mandatory semantics.
-- Do not place SQLDelight query calls in ViewModels or Composables.
-- Sales finality must survive printer failure.
-- Offline mode is controlled degradation, not a bypass.
+Use for work under `apps/android-pos/**`.
+
+## Rules
+- Android is the operational baseline
+- native lifecycle, permission, scanner, printer, and hardware handling stay native
+- UI may orchestrate, but must not own business invariants
+- prove smoke path for critical retail flows

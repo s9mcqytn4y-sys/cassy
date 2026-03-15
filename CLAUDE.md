@@ -2,7 +2,7 @@
 
 Use `AGENTS.md` as the primary entrypoint.
 
-Project memory loading order for this repository:
+Project memory loading order:
 1. `AGENTS.md`
 2. `.agent/README.md`
 3. `.agent/rules/architecture_rules.md`
@@ -13,8 +13,14 @@ Project memory loading order for this repository:
 8. `.agent/context/known_repo_gaps.md`
 9. `.agent/plan.md`
 
-Behavior rules:
-- Favor bounded-context ownership over convenience shortcuts.
-- Keep native app-shell and device-heavy integration outside shared business modules.
-- Never treat sync as a hidden background queue.
-- Sensitive flows must leave durable audit evidence.
+## Behavior rules
+- favor bounded-context ownership over convenience shortcuts
+- keep native app-shell and device-heavy integration outside shared business modules
+- never treat sync as a hidden background queue
+- sensitive flows must leave durable audit evidence
+
+## Operational permission posture
+When runtime/tooling allows it, Claude may:
+- create/edit/move/rename/delete files
+- run git status/diff/add/commit/branch
+- update docs, code, context, prompts, and instructions

@@ -1,13 +1,18 @@
-# Known Repository Gaps
+# Cassy Known Repo Gaps
 
-## Current drift themes
-- Pseudo-modularization: bounded-context modules exist, but giant shared paths still influence runtime.
-- `AppContainer` risk: service locator / bridge blob instead of a narrow migration shell.
-- Legacy/new DB coexistence: critical flows still depend partly on monolithic DB paths.
-- Inventory ownership is not fully evacuated into target inventory balance + ledger model.
-- Sync target tables are demanded by source-of-truth but may not yet be fully proven in runtime.
-- Desktop parity remains risky; placeholder shells are not operational readiness.
+## Risks that must stay visible
+- pseudo-modularization
+- AppContainer / service-locator blob
+- legacy/new DB coexistence
+- desktop placeholder risk
+- parity drift
+- inventory ownership ambiguity
+- docs more advanced than runtime
+- release theater before operational proof
 
-## How to use this file
-Do not treat these gaps as permission to ignore the target architecture.
-Treat them as explicit warnings that AI must not normalize transitional shortcuts.
+## What not to normalize
+- a giant shared blob as final design
+- placeholder desktop marketed as pilot-ready
+- stock truth still hanging on legacy paths
+- sync treated as invisible magic
+- module count mistaken as architecture health
