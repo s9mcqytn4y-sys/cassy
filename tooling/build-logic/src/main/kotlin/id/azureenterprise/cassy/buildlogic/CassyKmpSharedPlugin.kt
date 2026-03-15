@@ -16,7 +16,16 @@ class CassyKmpSharedPlugin : Plugin<Project> {
 
             extensions.configure<KotlinMultiplatformExtension> {
                 (this as org.gradle.api.plugins.ExtensionAware).extensions.configure<KotlinMultiplatformAndroidLibraryExtension>("android") {
-                    namespace = "id.azureenterprise.cassy.shared"
+                    // Generate namespace based on project path
+                    // e.g., :shared:kernel -> id.azureenterprise.cassy.kernel
+                    // e.g., :shared -> id.azureenterprise.cassy.shared
+                    val projectPath = path.replace(":", ".").removePrefix(".")
+                    namespace = if (projectPath == "shared") {
+                        "id.azureenterprise.cassy.shared"
+                    } else {
+                        "id.azureenterprise.cassy.${projectPath.substringAfter("shared.")}"
+                    }
+
                     compileSdk = 35
                     minSdk = 24
                 }
