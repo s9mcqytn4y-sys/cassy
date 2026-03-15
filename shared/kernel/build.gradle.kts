@@ -5,8 +5,8 @@ plugins {
 
 sqldelight {
     databases {
-        create("CassyDatabase") {
-            packageName.set("id.azureenterprise.cassy.db")
+        create("KernelDatabase") {
+            packageName.set("id.azureenterprise.cassy.kernel.db")
         }
     }
 }

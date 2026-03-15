@@ -1,0 +1,43 @@
+import kotlin.Boolean;
+
+CREATE TABLE OutboxEvent (
+    id TEXT NOT NULL PRIMARY KEY,
+    timestamp INTEGER NOT NULL,
+    type TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    status TEXT NOT NULL
+);
+
+CREATE TABLE AuditLog (
+    id TEXT NOT NULL PRIMARY KEY,
+    timestamp INTEGER NOT NULL,
+    message TEXT NOT NULL,
+    level TEXT NOT NULL
+);
+
+CREATE TABLE Metadata (
+    key TEXT NOT NULL PRIMARY KEY,
+    value TEXT NOT NULL
+);
+
+-- Queries
+insertEvent:
+INSERT INTO OutboxEvent(id, timestamp, type, payload, status)
+VALUES (?, ?, ?, ?, ?);
+
+selectAllEvents:
+SELECT * FROM OutboxEvent;
+
+deleteEvent:
+DELETE FROM OutboxEvent WHERE id = ?;
+
+insertAudit:
+INSERT INTO AuditLog(id, timestamp, message, level)
+VALUES (?, ?, ?, ?);
+
+upsertMetadata:
+INSERT OR REPLACE INTO Metadata(key, value)
+VALUES (?, ?);
+
+getMetadata:
+SELECT value FROM Metadata WHERE key = ?;
