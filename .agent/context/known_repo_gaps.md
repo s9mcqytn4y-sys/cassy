@@ -1,18 +1,14 @@
 # Cassy Known Repo Gaps
 
 ## Risks that must stay visible
-- pseudo-modularization
-- AppContainer / service-locator blob
-- legacy/new DB coexistence
-- desktop placeholder risk
-- parity drift
-- inventory ownership ambiguity
-- docs more advanced than runtime
-- release theater before operational proof
+- **Pseudo-modularization (M2 Debt)**: `:shared` still acts as an aggregator for UI and DI.
+- **AppContainer / Service-locator blob**: Still present in `:shared/src/commonMain/kotlin/id/azureenterprise/cassy/di/Koin.kt`.
+- **Legacy/new DB coexistence**: Migration baseline for SQLDelight contexts.
+- **Desktop Placeholder risk**: (Mitigated) Desktop now has `CatalogScreen.kt`.
+- **Parity drift**: Android and Desktop UI coordination.
+- **Inventory ownership ambiguity**: `:shared:inventory` exists but isn't integrated.
+- **Docs more advanced than runtime**: (Mitigated) `roadmap_bridge.md` updated to match actual repo truth.
 
-## What not to normalize
-- a giant shared blob as final design
-- placeholder desktop marketed as pilot-ready
-- stock truth still hanging on legacy paths
-- sync treated as invisible magic
-- module count mistaken as architecture health
+## Resolved Gaps (Audit Fix)
+- [x] Missing `CatalogScreen` reference in Desktop POS.
+- [x] Roadmap Bridge status sync (M3 marked as Done).
