@@ -8,11 +8,14 @@ Dokumen ini hanya mencatat jalur yang benar-benar relevan untuk pilot Windows da
 - JDK 17
 - Gradle wrapper repo
 - koneksi internet saat packaging pertama jika Compose perlu mengunduh tooling WiX
+- `JAVA_HOME` harus menunjuk ke JDK 17
+- configuration cache default local adalah off; CI menyalakannya per command
 
 ## Development run
 
 ```powershell
 .\gradlew :apps:desktop-pos:run
+.\gradlew :apps:desktop-pos:smokeRun
 ```
 
 Yang harus terlihat dari flow foundation:
@@ -27,13 +30,16 @@ Yang harus terlihat dari flow foundation:
 Gunakan urutan ini:
 
 ```powershell
+.\gradlew :apps:desktop-pos:smokeRun
 .\gradlew --version
 .\gradlew clean
 .\gradlew build
 .\gradlew test
 .\gradlew detekt
 .\gradlew :apps:android-pos:lintDebug
+.\gradlew :apps:desktop-pos:createDistributable
 .\gradlew :apps:desktop-pos:packageDistributionForCurrentOS
+.\tooling\scripts\Invoke-DesktopDistributionSmoke.ps1
 ```
 
 Catatan operasional:
@@ -42,14 +48,19 @@ Catatan operasional:
 
 ## Artifact packaging yang sudah terbukti lokal
 
+- Source smoke task: `:apps:desktop-pos:smokeRun`
+- Distribution smoke path: `tooling/scripts/Invoke-DesktopDistributionSmoke.ps1`
+- Distribution app folder: `apps/desktop-pos/build/compose/binaries/main/app/Cassy/`
 - Task: `:apps:desktop-pos:packageDistributionForCurrentOS`
 - Format lokal terverifikasi: `EXE`
 - Artifact path: `apps/desktop-pos/build/compose/binaries/main/exe/Cassy-0.1.0.exe`
+- Embedded runtime evidence: `apps/desktop-pos/build/compose/binaries/main/app/Cassy/runtime/release`
 
 ## Gap yang masih harus diakui
 
-- Packaging Windows sudah terbukti lokal, tetapi belum punya hosted CI execution evidence.
-- Smoke install/uninstall installer Windows belum tervalidasi di repo ini.
+- Packaging Windows sudah terbukti lokal, tetapi belum punya hosted CI execution evidence yang bisa saya lihat dari environment ini.
+- Smoke installer install/uninstall Windows belum tervalidasi di repo ini; automation yang terbukti baru source smoke dan distribution runtime smoke.
+- Launcher GUI `Cassy.exe` dari app image belum memberi output smoke CLI yang stabil di environment lokal ini, sehingga smoke otomatis menggunakan classpath distribusi dari `app/Cassy.cfg` dan fallback ke `JAVA_HOME` JDK 17 saat app image tidak menyertakan `java.exe`.
 - Debian package pada Ubuntu hanya compatibility artifact; bukan release truth untuk pilot Windows.
 
 ## Manual smoke checklist

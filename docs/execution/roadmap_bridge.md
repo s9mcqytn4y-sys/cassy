@@ -23,6 +23,7 @@ Dokumen ini adalah bridge antara roadmap PDF, context agent, dan repo reality. R
 - `apps/desktop-pos` sempat terlihat ada, tetapi source utama berada di `src/jvmMain` saat module memakai source set `main`; hasilnya desktop build sebelumnya bisa lolos dengan `NO-SOURCE`.
 - M3 dan M4 sempat ditandai done hanya karena screen/navigasi tampil, bukan karena access/day/shift guardrail benar-benar hidup.
 - Packaging malam di CI hanya menghasilkan Debian package pada Ubuntu; itu bukan evidence kesiapan distribusi Windows.
+- desktop run sempat bocor ke Java 21 daemon criteria dan crash karena mixed Compose/Skiko runtime; lane ini sekarang dipaksa kembali ke JDK 17 only dan punya smoke run eksplisit.
 
 ## Definition of done minimum per lane foundation
 
@@ -56,11 +57,14 @@ Dokumen ini adalah bridge antara roadmap PDF, context agent, dan repo reality. R
 ## Verifikasi yang dipakai untuk status ini
 
 - `.\gradlew --version`
+- `.\gradlew :apps:desktop-pos:smokeRun`
 - `.\gradlew clean`
 - `.\gradlew build`
 - `.\gradlew test`
 - `.\gradlew detekt`
 - `.\gradlew :apps:android-pos:lintDebug`
+- `.\gradlew :apps:desktop-pos:createDistributable`
 - `.\gradlew :apps:desktop-pos:packageDistributionForCurrentOS`
+- `.\tooling\scripts\Invoke-DesktopDistributionSmoke.ps1`
 
-Lihat `docs/execution/windows_desktop_runbook.md` untuk command matrix, artifact path, dan gap packaging Windows.
+Lihat `docs/execution/windows_desktop_runbook.md` dan `docs/execution/workspace_jdk_guide.md` untuk command matrix, artifact path, JDK 17 policy, dan gap packaging Windows.

@@ -7,6 +7,7 @@ sqldelight {
     databases {
         create("MasterDataDatabase") {
             packageName.set("id.azureenterprise.cassy.masterdata.db")
+            module(project(":tooling:sqlite-worker-init"))
         }
     }
 }

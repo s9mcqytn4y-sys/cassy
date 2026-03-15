@@ -6,6 +6,9 @@ Desktop-first retail operating core untuk single outlet. Fokus V1 saat ini adala
 
 - Primary release lane: desktop Windows
 - Android: parity/business-semantics lane
+- Desktop JDK policy: 17 only
+- Local/IDE default: configuration cache off
+- CI default: configuration cache on per command
 - Shared scope: domain, application, data
 - Native scope: app shell, lifecycle, OS integration, printer/scanner/device-heavy concern
 
@@ -40,6 +43,7 @@ Checkout penuh, payment state final, dan receipt final masih di luar closure fou
 Untuk evidence build/test/package yang dipakai repo saat ini:
 
 ```powershell
+.\gradlew :apps:desktop-pos:smokeRun
 .\gradlew --version
 .\gradlew clean
 .\gradlew build
@@ -50,8 +54,12 @@ Untuk evidence build/test/package yang dipakai repo saat ini:
 ```
 
 Catatan:
+- Pastikan `JAVA_HOME` menunjuk ke JDK 17 sebelum run desktop.
 - Jalankan packaging Windows terakhir karena file lock Windows bisa mengganggu `clean`.
+- Jika Anda sedang melakukan sync/import IDE, biarkan `configuration-cache` tetap off secara default untuk local/dev path.
 - Artifact EXE lokal saat ini ada di `apps/desktop-pos/build/compose/binaries/main/exe/`.
+- App distribution folder untuk smoke runtime ada di `apps/desktop-pos/build/compose/binaries/main/app/Cassy/`.
+- Smoke distribution terotomasi memakai `tooling/scripts/Invoke-DesktopDistributionSmoke.ps1` agar runtime image Windows bisa diverifikasi tanpa bergantung pada launcher GUI `Cassy.exe`.
 
 ## Docs entry
 
@@ -60,3 +68,4 @@ Catatan:
 - `README_INSTALLATION.md`
 - `docs/execution/roadmap_bridge.md`
 - `docs/execution/windows_desktop_runbook.md`
+- `docs/execution/workspace_jdk_guide.md`

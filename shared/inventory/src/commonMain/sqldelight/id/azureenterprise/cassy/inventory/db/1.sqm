@@ -1,0 +1,3 @@
+CREATE INDEX IF NOT EXISTS StockLedger_product_timestamp_idx ON StockLedger(productId, timestamp DESC);
+CREATE INDEX IF NOT EXISTS StockLedger_reference_idx ON StockLedger(referenceId);
+CREATE INDEX IF NOT EXISTS StockLedger_terminal_timestamp_idx ON StockLedger(terminalId, timestamp DESC);

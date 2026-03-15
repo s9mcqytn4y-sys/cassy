@@ -42,6 +42,13 @@ CREATE TABLE ReceiptSnapshot (
     FOREIGN KEY(saleId) REFERENCES Sale(id)
 );
 
+CREATE UNIQUE INDEX Sale_terminal_local_unique_idx ON Sale(terminalId, localNumber);
+CREATE INDEX Sale_shift_timestamp_idx ON Sale(shiftId, timestamp);
+CREATE INDEX Sale_status_timestamp_idx ON Sale(status, timestamp);
+CREATE UNIQUE INDEX SaleItem_sale_product_unique_idx ON SaleItem(saleId, productId);
+CREATE INDEX SalePayment_sale_timestamp_idx ON SalePayment(saleId, timestamp);
+CREATE INDEX SalePayment_status_timestamp_idx ON SalePayment(status, timestamp);
+
 -- Queries
 insertSale:
 INSERT INTO Sale(id, localNumber, shiftId, terminalId, timestamp, totalAmount, taxAmount, discountAmount, finalAmount, status)

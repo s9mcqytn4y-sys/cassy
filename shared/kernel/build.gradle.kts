@@ -7,6 +7,7 @@ sqldelight {
     databases {
         create("KernelDatabase") {
             packageName.set("id.azureenterprise.cassy.kernel.db")
+            module(project(":tooling:sqlite-worker-init"))
         }
     }
 }

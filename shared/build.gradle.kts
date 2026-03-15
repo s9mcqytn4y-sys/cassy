@@ -13,7 +13,13 @@ kotlin {
             api(project(":shared:inventory"))
 
             implementation(libs.koin.core)
-            implementation(libs.koin.compose)
+            implementation("io.insert-koin:koin-compose:${libs.versions.koin.get()}") {
+                exclude(group = "org.jetbrains.compose.animation")
+                exclude(group = "org.jetbrains.compose.foundation")
+                exclude(group = "org.jetbrains.compose.material")
+                exclude(group = "org.jetbrains.compose.runtime")
+                exclude(group = "org.jetbrains.compose.ui")
+            }
 
             @OptIn(org.jetbrains.compose.ExperimentalComposeLibrary::class)
             implementation(compose.runtime)

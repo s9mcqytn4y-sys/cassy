@@ -90,4 +90,48 @@ class DesktopAppControllerTest {
             assertTrue(controller.state.value.catalog.products.isNotEmpty())
         }
     }
+
+    @Test
+    fun `invalid bootstrap input stays in bootstrap stage with honest feedback`() {
+        runBlocking {
+            val kernelDriver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+            val masterDataDriver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+            val salesDriver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+            val inventoryDriver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+            KernelDatabase.Schema.create(kernelDriver)
+            MasterDataDatabase.Schema.create(masterDataDriver)
+            SalesDatabase.Schema.create(salesDriver)
+            InventoryDatabase.Schema.create(inventoryDriver)
+
+            val kernelRepository = KernelRepository(KernelDatabase(kernelDriver), EmptyCoroutineContext, Clock.System)
+            val accessService = AccessService(kernelRepository, PinHasher(), Clock.System)
+            val controller = DesktopAppController(
+                accessService = accessService,
+                businessDayService = BusinessDayService(kernelRepository, accessService),
+                shiftService = ShiftService(kernelRepository, accessService),
+                productRepository = ProductRepository(MasterDataDatabase(masterDataDriver), EmptyCoroutineContext),
+                productLookupUseCase = ProductLookupUseCase(
+                    ProductLookupRepositoryImpl(MasterDataDatabase(masterDataDriver), EmptyCoroutineContext),
+                    BarcodeNormalizer()
+                ),
+                salesService = SalesService(
+                    salesRepository = SalesRepository(SalesDatabase(salesDriver), EmptyCoroutineContext, Clock.System),
+                    inventoryRepository = InventoryRepository(
+                        InventoryDatabase(inventoryDriver),
+                        EmptyCoroutineContext,
+                        Clock.System
+                    ),
+                    kernelRepository = kernelRepository,
+                    pricingEngine = PricingEngine(),
+                    clock = Clock.System
+                )
+            )
+
+            controller.load()
+            controller.bootstrapStore()
+
+            assertEquals(DesktopStage.Bootstrap, controller.state.value.stage)
+            assertEquals("Nama toko wajib diisi", controller.state.value.banner?.message)
+        }
+    }
 }

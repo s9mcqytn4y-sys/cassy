@@ -7,6 +7,7 @@ sqldelight {
     databases {
         create("InventoryDatabase") {
             packageName.set("id.azureenterprise.cassy.inventory.db")
+            module(project(":tooling:sqlite-worker-init"))
         }
     }
 }

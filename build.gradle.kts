@@ -12,6 +12,9 @@ plugins {
     alias(libs.plugins.cassy.kmp.shared).apply(false)
 }
 
+rootProject.file(".gradle/sqlite-native").mkdirs()
+System.setProperty("org.sqlite.tmpdir", rootProject.file(".gradle/sqlite-native").absolutePath)
+
 subprojects {
     apply(plugin = "io.gitlab.arturbosch.detekt")
 

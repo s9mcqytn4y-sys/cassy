@@ -30,7 +30,7 @@ jobs:
           distribution: 'temurin'
           cache: gradle
       - name: Run Detekt
-        run: ./gradlew detekt --scan --no-daemon
+        run: ./gradlew detekt --configuration-cache --scan --no-daemon
       - name: Upload Reports
         if: failure()
         uses: actions/upload-artifact@v4
@@ -50,7 +50,7 @@ jobs:
           distribution: 'temurin'
           cache: gradle
       - name: Check Dependencies
-        run: ./gradlew dependencyGuard --scan --no-daemon
+        run: ./gradlew dependencyGuard --configuration-cache --scan --no-daemon
 
   android-lane:
     name: Android POS
@@ -64,7 +64,7 @@ jobs:
           distribution: 'temurin'
           cache: gradle
       - name: Build and Test Android
-        run: ./gradlew :apps:android-pos:assembleDebug :apps:android-pos:testDebugUnitTest :apps:android-pos:lintDebug --scan --no-daemon
+        run: ./gradlew :apps:android-pos:assembleDebug :apps:android-pos:testDebugUnitTest :apps:android-pos:lintDebug --configuration-cache --scan --no-daemon
 
   desktop-lane:
     name: Desktop POS
@@ -78,7 +78,7 @@ jobs:
           distribution: 'temurin'
           cache: gradle
       - name: Build and Test Desktop
-        run: ./gradlew :apps:desktop-pos:build --scan --no-daemon
+        run: ./gradlew :apps:desktop-pos:build --configuration-cache --scan --no-daemon
 
   windows-package-evidence:
     name: Windows Package Evidence
@@ -91,13 +91,30 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
           cache: gradle
-      - name: Package Windows EXE
-        run: .\gradlew :apps:desktop-pos:packageDistributionForCurrentOS --scan --no-daemon
+      - name: Smoke Run Desktop Source
+        run: .\gradlew :apps:desktop-pos:smokeRun --configuration-cache --scan --no-daemon
+      - name: Build Windows Distribution
+        run: .\gradlew :apps:desktop-pos:createDistributable :apps:desktop-pos:packageDistributionForCurrentOS --configuration-cache --scan --no-daemon
+      - name: Smoke Run Windows Distribution
+        run: .\tooling\scripts\Invoke-DesktopDistributionSmoke.ps1
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: cassy-desktop-exe
           path: apps/desktop-pos/build/compose/binaries/main/exe/*.exe
+      - name: Upload Desktop Distribution
+        uses: actions/upload-artifact@v4
+        with:
+          name: cassy-desktop-app
+          path: apps/desktop-pos/build/compose/binaries/main/app/Cassy/**
+      - name: Upload Windows Failure Reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cassy-windows-debug
+          path: |
+            apps/desktop-pos/build/reports/**
+            build/reports/**
 
   linux-package-compat:
     name: Linux Package Compatibility
@@ -112,7 +129,7 @@ jobs:
           distribution: 'temurin'
           cache: gradle
       - name: Package Debian
-        run: ./gradlew :apps:desktop-pos:packageDeb --scan --no-daemon
+        run: ./gradlew :apps:desktop-pos:packageDeb --configuration-cache --scan --no-daemon
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:

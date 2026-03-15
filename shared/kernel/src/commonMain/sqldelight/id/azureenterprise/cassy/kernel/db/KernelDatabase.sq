@@ -75,6 +75,16 @@ CREATE TABLE Shift (
     FOREIGN KEY(businessDayId) REFERENCES BusinessDay(id)
 );
 
+CREATE INDEX OutboxEvent_status_timestamp_idx ON OutboxEvent(status, timestamp);
+CREATE INDEX AuditLog_timestamp_idx ON AuditLog(timestamp);
+CREATE INDEX OperatorAccount_active_role_name_idx ON OperatorAccount(isActive, role, displayName);
+CREATE INDEX AccessSession_status_updatedAt_idx ON AccessSession(status, updatedAt);
+CREATE UNIQUE INDEX AccessSession_active_unique_idx ON AccessSession(status) WHERE status = 'ACTIVE';
+CREATE INDEX BusinessDay_status_openedAt_idx ON BusinessDay(status, openedAt);
+CREATE UNIQUE INDEX BusinessDay_open_unique_idx ON BusinessDay(status) WHERE status = 'OPEN';
+CREATE INDEX Shift_businessDay_status_openedAt_idx ON Shift(businessDayId, status, openedAt);
+CREATE UNIQUE INDEX Shift_terminal_open_unique_idx ON Shift(terminalId) WHERE status = 'OPEN';
+
 -- Queries
 insertEvent:
 INSERT INTO OutboxEvent(id, timestamp, type, payload, status)

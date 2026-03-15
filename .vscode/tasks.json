@@ -1,0 +1,43 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Cassy Desktop Smoke Run",
+            "type": "shell",
+            "command": ".\\gradlew",
+            "args": [
+                ":apps:desktop-pos:run",
+                "--args=--smoke-run",
+                "--no-configuration-cache",
+                "--console=plain"
+            ],
+            "problemMatcher": []
+        },
+        {
+            "label": "Cassy Core Verify",
+            "type": "shell",
+            "command": ".\\gradlew",
+            "args": [
+                "build",
+                "test",
+                "detekt",
+                ":apps:android-pos:lintDebug",
+                "--no-configuration-cache",
+                "--console=plain"
+            ],
+            "problemMatcher": []
+        },
+        {
+            "label": "Cassy Windows Package",
+            "type": "shell",
+            "command": ".\\gradlew",
+            "args": [
+                ":apps:desktop-pos:createDistributable",
+                ":apps:desktop-pos:packageDistributionForCurrentOS",
+                "--no-configuration-cache",
+                "--console=plain"
+            ],
+            "problemMatcher": []
+        }
+    ]
+}

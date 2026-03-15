@@ -23,6 +23,8 @@ Read these files in order before planning, generating, refactoring, reviewing, o
 - Treat repository code as an implementation snapshot when it conflicts with prescriptive design docs.
 - Preserve local-first correctness, auditability, explicit sync state, and terminal-bound operational ownership.
 - Do not add new F&B or Service complexity into retail shipping flows unless the task explicitly targets prepared boundaries.
+- Desktop development and packaging must stay on JDK 17 only.
+- Configuration cache may be used in CI, but local/IDE workflow must stay honest and reliable first.
 
 ## Operational permission posture
 When the runtime/tool permits it, you are authorized in this repository to:

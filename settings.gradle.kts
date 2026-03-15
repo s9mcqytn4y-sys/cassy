@@ -14,6 +14,10 @@ pluginManagement {
     }
 }
 
+plugins {
+    id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
+}
+
 dependencyResolutionManagement {
     repositories {
         google()
@@ -30,3 +34,4 @@ include(":shared:kernel")
 include(":shared:masterdata")
 include(":shared:sales")
 include(":shared:inventory")
+include(":tooling:sqlite-worker-init")

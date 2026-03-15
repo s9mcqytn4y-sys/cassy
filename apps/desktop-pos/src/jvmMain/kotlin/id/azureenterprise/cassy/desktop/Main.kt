@@ -21,7 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -44,76 +44,97 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import id.azureenterprise.cassy.masterdata.domain.Product
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import org.koin.compose.KoinContext
 import org.koin.compose.koinInject
+import java.io.File
+import kotlin.system.exitProcess
 
-fun main() = application {
+fun main(args: Array<String>) = application {
+    val smokeMode = args.contains("--smoke-run")
+    val smokeMarkerPath = System.getenv("CASSY_SMOKE_MARKER")
     startDesktopKoin()
+    println("Cassy desktop runtime Java ${System.getProperty("java.version")} | smokeMode=$smokeMode")
 
     Window(
         onCloseRequest = ::exitApplication,
         title = "Cassy Foundation Desktop"
     ) {
-        KoinContext {
-            CassyDesktopTheme {
-                val controller: DesktopAppController = koinInject()
-                val state by controller.state.collectAsState()
-                val scope = rememberCoroutineScope()
+        CassyDesktopTheme {
+            val controller: DesktopAppController = koinInject()
+            val state by controller.state.collectAsState()
+            val scope = rememberCoroutineScope()
 
-                LaunchedEffect(Unit) {
-                    controller.load()
+            LaunchedEffect(Unit) {
+                controller.load()
+            }
+
+            LaunchedEffect(smokeMode, state.stage) {
+                if (!smokeMode || state.stage == DesktopStage.Loading) return@LaunchedEffect
+                delay(300)
+                when (val stage = state.stage) {
+                    is DesktopStage.FatalError -> {
+                        smokeMarkerPath?.let { writeSmokeMarker(it, "FAILED stage=${stage.message}") }
+                        System.err.println("CASSY_SMOKE_FAILED stage=${stage.message}")
+                        exitApplication()
+                        exitProcess(1)
+                    }
+                    else -> {
+                        smokeMarkerPath?.let { writeSmokeMarker(it, "OK stage=${state.stage::class.simpleName}") }
+                        println("CASSY_SMOKE_OK stage=${state.stage::class.simpleName}")
+                        exitApplication()
+                    }
                 }
+            }
 
-                Surface(modifier = Modifier.fillMaxSize()) {
-                    Row(modifier = Modifier.fillMaxSize()) {
-                        ShellRail(
+            Surface(modifier = Modifier.fillMaxSize()) {
+                Row(modifier = Modifier.fillMaxSize()) {
+                    ShellRail(
+                        state = state,
+                        onReload = { scope.launch { controller.load() } },
+                        onLogout = { scope.launch { controller.logout() } },
+                        onDismissBanner = controller::dismissBanner
+                    )
+                    HorizontalDivider(modifier = Modifier.fillMaxHeight().width(1.dp))
+                    when (val stage = state.stage) {
+                        DesktopStage.Loading -> LoadingStage()
+                        DesktopStage.Bootstrap -> BootstrapStage(
                             state = state,
-                            onReload = { scope.launch { controller.load() } },
-                            onLogout = { scope.launch { controller.logout() } },
-                            onDismissBanner = controller::dismissBanner
+                            onFieldChanged = controller::updateBootstrapField,
+                            onBootstrap = { scope.launch { controller.bootstrapStore() } }
                         )
-                        Divider(modifier = Modifier.fillMaxHeight().width(1.dp))
-                        when (val stage = state.stage) {
-                            DesktopStage.Loading -> LoadingStage()
-                            DesktopStage.Bootstrap -> BootstrapStage(
-                                state = state,
-                                onFieldChanged = controller::updateBootstrapField,
-                                onBootstrap = { scope.launch { controller.bootstrapStore() } }
-                            )
-                            DesktopStage.Login -> LoginStage(
-                                state = state,
-                                onSelectOperator = controller::selectOperator,
-                                onPinChanged = controller::updatePin,
-                                onLogin = { scope.launch { controller.login() } }
-                            )
-                            DesktopStage.OpenDay -> OpenDayStage(
-                                state = state,
-                                onOpenDay = { scope.launch { controller.openBusinessDay() } },
-                                onLogout = { scope.launch { controller.logout() } }
-                            )
-                            DesktopStage.StartShift -> StartShiftStage(
-                                state = state,
-                                onOpeningCashChanged = controller::updateOpeningCashInput,
-                                onStartShift = { scope.launch { controller.startShift() } }
-                            )
-                            DesktopStage.Catalog -> CatalogStage(
-                                state = state,
-                                onSearchChanged = { value -> scope.launch { controller.updateCatalogQuery(value) } },
-                                onBarcodeChanged = controller::updateBarcodeInput,
-                                onScanBarcode = { scope.launch { controller.scanBarcodeOrSku() } },
-                                onAddProduct = { product -> scope.launch { controller.addProduct(product) } },
-                                onIncrement = { product -> scope.launch { controller.incrementItem(product) } },
-                                onDecrement = { product, quantity -> scope.launch { controller.decrementItem(product, quantity) } },
-                                onClosingCashChanged = controller::updateClosingCashInput,
-                                onEndShift = { scope.launch { controller.endShift() } },
-                                onCloseDay = { scope.launch { controller.closeBusinessDay() } }
-                            )
-                            is DesktopStage.FatalError -> FatalStage(
-                                message = stage.message,
-                                onRetry = { scope.launch { controller.load() } }
-                            )
-                        }
+                        DesktopStage.Login -> LoginStage(
+                            state = state,
+                            onSelectOperator = controller::selectOperator,
+                            onPinChanged = controller::updatePin,
+                            onLogin = { scope.launch { controller.login() } }
+                        )
+                        DesktopStage.OpenDay -> OpenDayStage(
+                            state = state,
+                            onOpenDay = { scope.launch { controller.openBusinessDay() } },
+                            onLogout = { scope.launch { controller.logout() } }
+                        )
+                        DesktopStage.StartShift -> StartShiftStage(
+                            state = state,
+                            onOpeningCashChanged = controller::updateOpeningCashInput,
+                            onStartShift = { scope.launch { controller.startShift() } }
+                        )
+                        DesktopStage.Catalog -> CatalogStage(
+                            state = state,
+                            onSearchChanged = { value -> scope.launch { controller.updateCatalogQuery(value) } },
+                            onBarcodeChanged = controller::updateBarcodeInput,
+                            onScanBarcode = { scope.launch { controller.scanBarcodeOrSku() } },
+                            onAddProduct = { product -> scope.launch { controller.addProduct(product) } },
+                            onIncrement = { product -> scope.launch { controller.incrementItem(product) } },
+                            onDecrement = { product, quantity -> scope.launch { controller.decrementItem(product, quantity) } },
+                            onClosingCashChanged = controller::updateClosingCashInput,
+                            onEndShift = { scope.launch { controller.endShift() } },
+                            onCloseDay = { scope.launch { controller.closeBusinessDay() } }
+                        )
+                        is DesktopStage.FatalError -> FatalStage(
+                            message = stage.message,
+                            onRetry = { scope.launch { controller.load() } }
+                        )
                     }
                 }
             }
@@ -355,13 +376,13 @@ private fun CatalogStage(
                         }
                     }
                 }
-                Divider()
+            HorizontalDivider()
                 MetricBlock("Subtotal", "Rp ${state.catalog.basket.totals.subtotal}")
                 MetricBlock("Diskon", "Rp ${state.catalog.basket.totals.discountTotal}")
                 MetricBlock("Pajak", "Rp ${state.catalog.basket.totals.taxTotal}")
                 MetricBlock("Total", "Rp ${state.catalog.basket.totals.finalTotal}")
                 StatusChip("Checkout M6 belum dibuka", UiTone.Warning)
-                Divider()
+            HorizontalDivider()
                 FormField("Closing Cash", state.operations.closingCashInput, onValueChange = onClosingCashChanged)
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedButton(onClick = onEndShift, modifier = Modifier.weight(1f)) { Text("End Shift") }
@@ -446,4 +467,11 @@ private fun toneColor(tone: UiTone): Color = when (tone) {
     UiTone.Success -> Color(0xFF16A34A)
     UiTone.Warning -> Color(0xFFD97706)
     UiTone.Danger -> Color(0xFFDC2626)
+}
+
+private fun writeSmokeMarker(path: String, content: String) {
+    File(path).apply {
+        parentFile?.mkdirs()
+        writeText(content)
+    }
 }

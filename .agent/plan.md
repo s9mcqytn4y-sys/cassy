@@ -24,6 +24,7 @@ Cassy V1 foundation closure:
 3. Stabilize business day dan shift guardrail
 4. Keep catalog/cart/pricing usable tanpa membuka checkout breadth
 5. Raise Windows packaging evidence dari local truth ke CI truth
+6. Keep migration/index/repository hardening additive and reviewable
 
 ## Strategic bridge
 

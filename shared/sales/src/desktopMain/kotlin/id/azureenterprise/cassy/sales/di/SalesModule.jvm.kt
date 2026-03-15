@@ -11,9 +11,17 @@ actual val salesDatabaseModule: Module = module {
         val databasePath = File(System.getProperty("user.home"), ".cassy/sales.db")
         databasePath.parentFile.mkdirs()
         val driver = JdbcSqliteDriver("jdbc:sqlite:${databasePath.absolutePath}")
+        driver.harden()
         if (!databasePath.exists()) {
             SalesDatabase.Schema.create(driver)
         }
         SalesDatabase(driver)
     }
+}
+
+private fun JdbcSqliteDriver.harden() {
+    execute(null, "PRAGMA foreign_keys = ON", 0)
+    execute(null, "PRAGMA journal_mode = WAL", 0)
+    execute(null, "PRAGMA busy_timeout = 5000", 0)
+    execute(null, "PRAGMA synchronous = NORMAL", 0)
 }

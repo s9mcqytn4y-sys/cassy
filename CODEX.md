@@ -22,6 +22,8 @@ Use this file first when the agent is Codex or Codex-like.
 - surface repo gaps explicitly instead of painting over them
 - do not call M3/M4 done without build, test, smoke, and docs evidence
 - treat Windows packaging as unproven until an actual Windows artifact is built
+- keep Desktop on JDK 17 only; Java 21 drift in run/package/dev tooling is a defect
+- keep configuration cache opt-in for CI, not default-on for IDE/local path
 
 ## Allowed repo operations
 If runtime allows it, you may:
@@ -31,10 +33,12 @@ If runtime allows it, you may:
 - run build/test/lint commands relevant to the task
 
 ## Verification order
-1. `.\gradlew --version`
-2. `.\gradlew clean`
-3. `.\gradlew build`
-4. `.\gradlew test`
-5. `.\gradlew detekt`
-6. `.\gradlew :apps:android-pos:lintDebug`
-7. `.\gradlew :apps:desktop-pos:packageDistributionForCurrentOS`
+1. `.\gradlew :apps:desktop-pos:smokeRun`
+2. `.\gradlew --version`
+3. `.\gradlew clean`
+4. `.\gradlew build`
+5. `.\gradlew test`
+6. `.\gradlew detekt`
+7. `.\gradlew :apps:android-pos:lintDebug`
+8. `.\gradlew :apps:desktop-pos:createDistributable`
+9. `.\gradlew :apps:desktop-pos:packageDistributionForCurrentOS`
