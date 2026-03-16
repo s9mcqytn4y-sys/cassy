@@ -1,4 +1,4 @@
-# Cassy Gemini Entry
+# Cassy Gemini Entry (Updated 2026-03-20)
 
 Use this file first if the agent is Gemini or another agent that benefits from a compact repo policy file.
 
@@ -14,11 +14,11 @@ Use this file first if the agent is Gemini or another agent that benefits from a
 9. `.agent/plan.md`
 
 ## Working mode
-- prefer truthful scope over broad ambition
+- **Truthful Scope**: Prefer accurate implementation over broad ambition.
 - **Desktop-First**: Desktop is the primary operational and release target for V1.
-- do not overclaim cross-platform readiness
-- keep semantic parity across platforms while prioritizing Desktop execution
-- do not treat repo module count as proof of healthy boundaries
+- **Hardened Baseline**: M2, M3, M4, and Thin M5 are **DONE & STABLE**.
+- **JDK 17**: Mandatory for Desktop development and packaging.
+- **Basket Persistence**: Active basket must survive application restarts (M5 Hardening).
 
 ## Permission posture
 When tool/runtime allows, you may read, create, edit, move, rename, delete, and use normal git operations in this repository.

@@ -1,4 +1,4 @@
-# Cassy Agent Entry
+# Cassy Agent Entry (Updated 2026-03-20)
 
 Read these files in order before planning, generating, refactoring, reviewing, or deleting code.
 
@@ -11,36 +11,27 @@ Read these files in order before planning, generating, refactoring, reviewing, o
 7. `.agent/context/known_repo_gaps.md`
 8. `.agent/plan.md`
 
-## Strategic Lock (PDF v1.1)
+## Strategic Lock (PDF v1.1 - Hardened M5)
 - **Posture**: Desktop-First Retail Operating Core.
 - **V1 Scope**: POS Core + Inventory Basic + Sync Visibility + Migration Replay + Release Evidence.
 - **Release Lane**: Desktop is primary; Android is semantic parity lane.
-- **Model**: Solo Agile End-to-End (2-week sprints).
+- **Hardened Status**: M2, M3, M4, and Thin M5 are now **DONE & STABLE**.
 
 ## Hard rules
 - Do not bypass application boundaries for speed.
 - Do not invent flows that contradict the Cassy source-of-truth.
 - Treat repository code as an implementation snapshot when it conflicts with prescriptive design docs.
 - Preserve local-first correctness, auditability, explicit sync state, and terminal-bound operational ownership.
-- Do not add new F&B or Service complexity into retail shipping flows unless the task explicitly targets prepared boundaries.
-- Desktop development and packaging must stay on JDK 17 only.
-- Configuration cache may be used in CI, but local/IDE workflow must stay honest and reliable first.
-- Stock truth must stay inside `shared:inventory`; do not let sales or UI mutate ledger/balance directly.
+- Desktop development and packaging must stay on **JDK 17** only.
+- **Stock Truth**: Must stay inside `shared:inventory`; do not let sales or UI mutate ledger/balance directly.
+- **Basket Persistence**: Active basket must survive application restarts (M5 Hardening).
 
 ## Operational permission posture
-When the runtime/tool permits it, you are authorized in this repository to:
-- read any relevant repository file except intentionally excluded local noise
-- create files/folders
-- edit files/folders
-- move files/folders
-- rename files/folders
-- delete files/folders
-- run git status / diff / add / commit / branch actions
-- run build / test / lint / format commands
+You are authorized to:
+- Read/Create/Edit/Move/Rename/Delete files and folders.
+- Run git actions and build/test/lint/package commands.
 
 ## Destructive-change policy
-Allowed does not mean careless:
-- do not mass-delete without a checkpoint
-- do not rewrite git history unless explicitly asked
-- do not rename large trees cosmetically
-- do not claim Desktop readiness from placeholder scaffolding
+- Do not mass-delete without a checkpoint.
+- Do not rewrite git history unless explicitly asked.
+- Do not claim Desktop readiness from placeholder scaffolding; only from verified evidence.

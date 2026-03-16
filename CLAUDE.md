@@ -1,8 +1,8 @@
-# Cassy Claude Memory
+# Cassy Claude Entry (Updated 2026-03-20)
 
-Use `AGENTS.md` as the primary entrypoint.
+Use this file first when the agent is Claude or another Anthropic-like agent.
 
-Project memory loading order:
+## Start Here
 1. `AGENTS.md`
 2. `.agent/README.md`
 3. `.agent/rules/architecture_rules.md`
@@ -13,15 +13,15 @@ Project memory loading order:
 8. `.agent/context/known_repo_gaps.md`
 9. `.agent/plan.md`
 
-## Behavior rules
-- favor bounded-context ownership over convenience shortcuts
-- keep native app-shell and device-heavy integration outside shared business modules
-- **Desktop-First**: prioritize Desktop as the primary operational and release target for V1
-- never treat sync as a hidden background queue
-- sensitive flows must leave durable audit evidence
+## Strategic Context
+- **Posture**: Desktop-First Retail Operating Core.
+- **V1 Focus**: Access, Shift, Catalog, Cart, and Inventory Hardening.
+- **Hardened Status**: M2, M3, M4, and Thin M5 are **DONE & STABLE**.
+- **JDK 17**: Mandatory for Desktop development and packaging.
+- **Kotlin 2.3.20**: Current stable baseline.
 
-## Operational permission posture
-When runtime/tooling allows it, Claude may:
-- create/edit/move/rename/delete files
-- run git status/diff/add/commit/branch
-- update docs, code, context, prompts, and instructions
+## Operating Rules
+- Maintain application boundaries and stock mutation ownership.
+- Ensure active basket persistence for survival on restart.
+- Prioritize Desktop-first execution without neglecting Android parity.
+- Execute only from verified evidence (Build, Test, Smoke).
