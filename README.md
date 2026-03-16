@@ -1,90 +1,55 @@
 # Cassy
 
-Desktop-first retail operating core untuk single outlet. Fokus V1 saat ini adalah foundation cashier yang jujur: access gate, business day, shift, catalog, cart, dan pricing baseline.
+Desktop-first retail operating core untuk single outlet. Fokus V1 saat ini adalah cashier foundation yang tangguh: access gate, business day, shift, catalog, cart (basket), dan pricing baseline.
 
-## Repo truth
+## Repo Truth & Milestone Status (2026-03-20)
 
-- Primary release lane: desktop Windows
-- Android: parity/business-semantics lane
-- Desktop JDK policy: 17 only
-- Local/IDE default: configuration cache off
-- CI posture: configuration cache dipakai selektif per command, bukan dipaksa di semua lane
-- Shared scope: domain, application, data
-- Native scope: app shell, lifecycle, OS integration, printer/scanner/device-heavy concern
+Status milestone di bawah ini didasarkan pada bukti nyata di dalam repository (code, unit tests, dan manual smoke evidence).
 
-Status milestone aktif tidak boleh diambil dari UI semata. Gunakan:
-- `docs/execution/roadmap_bridge.md`
-- `docs/execution/windows_desktop_runbook.md`
-- `.agent/plan.md`
+- **M0 (Setup):** **DONE** (Control plane & Agent context stabil)
+- **M1 (Scope):** **DONE** (V1 functional scope terkunci)
+- **M2 (Arch):** **DONE** (Kotlin 2.3.20, Multi-module Gradle, Build Logic stabil)
+- **M3 (Bootstrap):** **DONE** (Desktop branding, Login, & State restore terverifikasi)
+- **M4 (Ops):** **DONE** (Business Day & Shift lifecycle guardrails terverifikasi)
+- **M5 (Catalog/Cart):** **DONE (Thin)** (Lookup barcode/SKU & Basket persistence stabil)
+- **M7 (Inventory):** **DONE (Thin)** (Integrasi mutasi stok otomatis saat checkout baseline)
 
-## Module map
+**Milestone Berikutnya:** **M6 (Checkout & Payment)** - Menutup gap transaksi hingga finalisasi pembayaran dan cetak struk (Lunas).
 
-- `apps/desktop-pos`: desktop cashier shell
-- `apps/android-pos`: Android parity lane
-- `shared:kernel`: access, terminal binding, business day, shift
-- `shared:masterdata`: catalog, search, barcode lookup
-- `shared:sales`: cart dan pricing baseline
-- `shared:inventory`: stock ownership baseline untuk ledger dan balance
-- `shared`: legacy bridge yang sedang disusutkan
+## Verifikasi & Evidence Lane
 
-## Current foundation flow
+Dokumentasi detail mengenai status dan cara verifikasi:
+- `docs/execution/roadmap_bridge.md`: **Source of Truth** status milestone saat ini.
+- `docs/execution/windows_installer_smoke_checklist.md`: Panduan verifikasi manual installer Windows.
+- `docs/execution/windows_desktop_runbook.md`: Langkah operasional untuk environment Desktop.
 
-1. bootstrap store dan terminal
-2. login dengan PIN baseline
-3. open business day
-4. start shift dengan opening cash
-5. browse/search catalog
-6. mutate cart dengan pricing baseline
+## Struktur Modul Utama
 
-Checkout penuh, payment state final, dan receipt final masih di luar closure foundation ini.
+- `apps/desktop-pos`: Shell utama kasir (Windows/Desktop-first).
+- `shared:kernel`: Inti operasional (Access, Business Day, Shift).
+- `shared:masterdata`: Manajemen katalog dan pencarian produk (Barcode/SKU).
+- `shared:sales`: Logika keranjang belanja (Basket) dan perhitungan harga baseline.
+- `shared:inventory`: Pengelolaan stok dan ledger transaksi inventaris.
 
-## Operational ownership
+## Quick Start Verification
 
-- access/day/shift guardrail hidup di `shared:kernel`
-- catalog/search/barcode contract hidup di `shared:masterdata`
-- cart/pricing baseline hidup di `shared:sales`
-- mutasi stok dari checkout baseline sekarang masuk lewat `shared:inventory:InventoryService`, bukan ditulis liar langsung dari sales
-
-## CI topology truth
-
-- `PR Gate`: fast verification untuk `pull_request`
-- `Mainline Evidence`: packaging Windows/Linux dan artifact evidence untuk `push` ke `main`
-- `Mainline Evidence`: packaging Windows dan artifact evidence untuk `push` ke `main`
-- `Nightly Integrity`: build + migration/integrity subset terjadwal
-- `Release Evidence`: manifest/manual evidence lane yang dipicu manual
-
-## Verification quick start
-
-Untuk evidence build/test/package yang dipakai repo saat ini:
+Jalankan perintah berikut untuk memverifikasi kesehatan repository secara lokal:
 
 ```powershell
+# Jalankan smoke test UI Desktop (Otomatis exit setelah load)
 .\gradlew :apps:desktop-pos:smokeRun
-.\gradlew :apps:desktop-pos:run --args="--smoke-run"
-.\gradlew --version
-.\gradlew clean
-.\gradlew build
+
+# Jalankan semua Unit Test (Shared & Desktop)
 .\gradlew test
-.\gradlew detekt
-.\gradlew :apps:android-pos:lintDebug
-.\tooling\scripts\Invoke-DesktopDistributionSmoke.ps1
-.\gradlew :apps:desktop-pos:packageDistributionForCurrentOS
+
+# Build installer Windows (EXE) secara lokal
+.\gradlew :apps:desktop-pos:packageExe
 ```
 
-Catatan:
-- Pastikan `JAVA_HOME` menunjuk ke JDK 17 sebelum run desktop.
-- Jalankan packaging Windows terakhir karena file lock Windows bisa mengganggu `clean`.
-- Jika Anda sedang melakukan sync/import IDE, biarkan `configuration-cache` tetap off secara default untuk local/dev path.
-- Artifact EXE lokal saat ini ada di `apps/desktop-pos/build/compose/binaries/main/exe/`.
-- App distribution folder untuk smoke runtime ada di `apps/desktop-pos/build/compose/binaries/main/app/Cassy/`.
-- Smoke distribution terotomasi memakai `tooling/scripts/Invoke-DesktopDistributionSmoke.ps1` agar runtime image Windows bisa diverifikasi tanpa bergantung pada launcher GUI `Cassy.exe`.
+## Catatan Penting
+- **JDK 17** adalah standar wajib untuk pengembangan Desktop.
+- **Active Basket Persistence:** M5 kini mendukung penyimpanan keranjang otomatis; jika aplikasi ditutup paksa, isi keranjang akan kembali saat dibuka (Survival on Restart).
+- **Checkout Baseline:** Checkout saat ini sudah mencatat transaksi ke database lokal dan memotong stok di `shared:inventory`, namun finalisasi pembayaran eksternal masih dalam pengembangan (M6).
 
-## Docs entry
-
-- `AGENTS.md`
-- `CODEX.md`
-- `README_INSTALLATION.md`
-- `docs/execution/roadmap_bridge.md`
-- `docs/execution/windows_desktop_runbook.md`
-- `docs/execution/workspace_jdk_guide.md`
-- `docs/execution/ci_topology_truth.md`
-- `docs/execution/windows_installer_smoke_checklist.md`
+---
+*Lihat `.agent/plan.md` untuk rencana eksekusi teknis mendalam.*

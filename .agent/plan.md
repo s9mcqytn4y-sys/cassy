@@ -1,32 +1,36 @@
 # Cassy Rolling Execution Plan
 
-## Current default focus
+## Current Default Focus
 
-Cassy V1 foundation closure:
-- M2 = control plane truth dan build verification
-- M3 = desktop access/bootstrap foundation
-- M4 = business day + shift foundation
-- thin M5 = catalog + cart + pricing baseline
+Cassy V1 Foundation Closure & Hardening:
+- **M2 (Hardened):** Control plane truth & build verification (Kotlin 2.3.20 sync).
+- **M3 (Hardened):** Desktop access & bootstrap foundation.
+- **M4 (Hardened):** Business day & shift guardrails.
+- **Thin M5 (Hardened):** Catalog lookup + Cart mutation + Basket persistence.
 
-## Current status posture
+## Current Status Posture
 
-- M0: done
-- M1: done
-- M2: partial / foundation
-- M3: partial / foundation
-- M4: partial / foundation
-- thin M5: partial / foundation
+- M0: **DONE**
+- M1: **DONE**
+- M2: **DONE**
+- M3: **DONE**
+- M4: **DONE**
+- Thin M5: **DONE**
+- M6: **PENDING** (Checkout & Payment Gap)
+- M7: **DONE (THIN)** (Inventory Integration)
 
-## Next planning order
+## Next Planning Order: M6 & M9 (Checkout & Visibility)
 
-1. Keep control plane, docs, dan command matrix jujur terhadap repo
-2. Stabilize desktop access bootstrap dan restore context
-3. Stabilize business day dan shift guardrail
-4. Keep catalog/cart/pricing usable tanpa membuka checkout breadth
-5. Raise Windows packaging evidence dari local truth ke CI truth lewat topology PR/Mainline/Nightly/Release yang stabil
-6. Push inventory ownership ke `shared:inventory` dan hentikan stock write langsung dari sales
-7. Keep migration/index/repository hardening additive and reviewable
+1. **M6: Checkout Finalization**
+   - Implement basic `PaymentProcessor` interface (Stubs for M6).
+   - Solidify `SaleStatus.COMPLETED` state in DB.
+   - Initial Receipt Template (Markdown-based).
+2. **M9: Sync & Replay**
+   - Outbox pattern audit for sales transactions.
+   - Sync status visibility in Desktop UI.
+3. **M10: CI Release Validation**
+   - Resolve hosted Windows runner limitations for automated installer verification.
 
-## Strategic bridge
+## Strategic Bridge
 
-Refer ke `docs/execution/roadmap_bridge.md` untuk status milestone yang boleh dipakai saat audit atau delivery.
+Refer ke `docs/execution/roadmap_bridge.md` untuk status milestone yang sinkron dengan repo truth.
