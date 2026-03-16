@@ -12,6 +12,7 @@ sourceSets {
     main {
         java.srcDir("src/jvmMain/kotlin")
         resources.srcDir("src/jvmMain/resources")
+        resources.srcDir("../../assets")
     }
 }
 

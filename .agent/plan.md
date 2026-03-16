@@ -1,36 +1,16 @@
-# Cassy Rolling Execution Plan
+# Cassy Rolling Execution Plan (Updated: UI Hardening Phase 2)
 
-## Current Default Focus
-
-Cassy V1 Foundation Closure & Hardening:
-- **M2 (Hardened):** Control plane truth & build verification (Kotlin 2.3.20 sync).
-- **M3 (Hardened):** Desktop access & bootstrap foundation.
-- **M4 (Hardened):** Business day & shift guardrails.
-- **Thin M5 (Hardened):** Catalog lookup + Cart mutation + Basket persistence.
+## Current Default Focus: Desktop Presentation Hardening
+Refining Cassy Desktop into a production-ready retail terminal.
+- **Phase 1 (DONE):** Shell Hardening (Slim Rail, Top Bar) & Input Hardening (CassyCurrencyInput).
+- **Phase 2 (IN PROGRESS):** Layout Density & Catalog Hardening. Redefining Product Grid/Row for maximum cashier throughput.
+- **Phase 3 (NEXT):** Human Error Prevention Matrix implementation (Confirmations, Guardrails).
 
 ## Current Status Posture
-
-- M0: **DONE**
-- M1: **DONE**
-- M2: **DONE**
-- M3: **DONE**
-- M4: **DONE**
-- Thin M5: **DONE**
-- M6: **PENDING** (Checkout & Payment Gap)
-- M7: **DONE (THIN)** (Inventory Integration)
-
-## Next Planning Order: M6 & M9 (Checkout & Visibility)
-
-1. **M6: Checkout Finalization**
-   - Implement basic `PaymentProcessor` interface (Stubs for M6).
-   - Solidify `SaleStatus.COMPLETED` state in DB.
-   - Initial Receipt Template (Markdown-based).
-2. **M9: Sync & Replay**
-   - Outbox pattern audit for sales transactions.
-   - Sync status visibility in Desktop UI.
-3. **M10: CI Release Validation**
-   - Resolve hosted Windows runner limitations for automated installer verification.
+- M0 - M5: **DONE & STABLE**
+- UI/UX Phase 1: **DONE**
+- UI/UX Phase 2: **EXECUTING**
+- M6 (Checkout): **PENDING**
 
 ## Strategic Bridge
-
-Refer ke `docs/execution/roadmap_bridge.md` untuk status milestone yang sinkron dengan repo truth.
+Refer to `docs/execution/roadmap_bridge.md` for synchronization with repo truth.
