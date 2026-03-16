@@ -73,7 +73,10 @@ class AccessServiceTest {
         val cashier = service.restoreContext().operators.find { it.role == OperatorRole.CASHIER }!!
         val loginResult = service.login(cashier.id, "wrong-pin")
 
-        assertTrue(loginResult is LoginResult.WrongPin)
-        assertEquals(2, (loginResult as LoginResult.WrongPin).remainingBeforeLock)
+        if (loginResult is LoginResult.WrongPin) {
+            assertEquals(2, loginResult.remainingBeforeLock)
+        } else {
+            assertTrue(false, "Result should be WrongPin")
+        }
     }
 }
