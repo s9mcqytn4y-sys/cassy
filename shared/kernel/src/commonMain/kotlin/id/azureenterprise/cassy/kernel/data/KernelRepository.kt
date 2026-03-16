@@ -12,19 +12,19 @@ import kotlin.coroutines.CoroutineContext
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 
-class KernelRepository(
-    private val database: KernelDatabase,
+open class KernelRepository(
+    private val database: KernelDatabase?,
     private val ioDispatcher: CoroutineContext,
     private val clock: Clock
 ) {
-    private val queries = database.kernelDatabaseQueries
+    private val queries = database?.kernelDatabaseQueries
 
-    suspend fun isBusinessDayOpen(): Boolean = withContext(ioDispatcher) {
-        queries.getActiveBusinessDay().executeAsOneOrNull() != null
+    open suspend fun isBusinessDayOpen(): Boolean = withContext(ioDispatcher) {
+        queries?.getActiveBusinessDay()?.executeAsOneOrNull() != null
     }
 
-    suspend fun getTerminalBinding(): TerminalBinding? = withContext(ioDispatcher) {
-        queries.getTerminalBinding().executeAsOneOrNull()?.let {
+    open suspend fun getTerminalBinding(): TerminalBinding? = withContext(ioDispatcher) {
+        queries?.getTerminalBinding()?.executeAsOneOrNull()?.let {
             TerminalBinding(
                 storeId = it.storeId,
                 storeName = it.storeName,
@@ -35,18 +35,37 @@ class KernelRepository(
         }
     }
 
-    suspend fun upsertTerminalBinding(binding: TerminalBinding) = withContext(ioDispatcher) {
-        queries.upsertTerminalBinding(
-            binding.terminalId,
-            binding.storeId,
-            binding.storeName,
-            binding.terminalName,
-            binding.boundAt.toEpochMilliseconds()
-        )
+    open suspend fun upsertTerminalBinding(binding: TerminalBinding) {
+        withContext(ioDispatcher) {
+            queries?.upsertTerminalBinding(
+                binding.terminalId,
+                binding.storeId,
+                binding.storeName,
+                binding.terminalName,
+                binding.boundAt.toEpochMilliseconds()
+            )
+        }
     }
 
-    suspend fun listActiveOperators(): List<OperatorAccount> = withContext(ioDispatcher) {
-        queries.listActiveOperators().executeAsList().map { record ->
+    open suspend fun listActiveOperators(): List<OperatorAccount> = withContext(ioDispatcher) {
+        queries?.listActiveOperators()?.executeAsList()?.map { record ->
+            OperatorAccount(
+                id = record.id,
+                employeeCode = record.employeeCode,
+                displayName = record.displayName,
+                role = OperatorRole.valueOf(record.role),
+                pinHash = record.pinHash,
+                pinSalt = record.pinSalt,
+                failedAttempts = record.failedAttempts.toInt(),
+                lockedUntil = record.lockedUntil?.let(Instant::fromEpochMilliseconds),
+                isActive = record.isActive,
+                lastLoginAt = record.lastLoginAt?.let(Instant::fromEpochMilliseconds)
+            )
+        } ?: emptyList()
+    }
+
+    open suspend fun getOperatorById(id: String): OperatorAccount? = withContext(ioDispatcher) {
+        queries?.selectOperatorById(id)?.executeAsOneOrNull()?.let { record ->
             OperatorAccount(
                 id = record.id,
                 employeeCode = record.employeeCode,
@@ -62,54 +81,41 @@ class KernelRepository(
         }
     }
 
-    suspend fun getOperatorById(id: String): OperatorAccount? = withContext(ioDispatcher) {
-        queries.selectOperatorById(id).executeAsOneOrNull()?.let { record ->
-            OperatorAccount(
-                id = record.id,
-                employeeCode = record.employeeCode,
-                displayName = record.displayName,
-                role = OperatorRole.valueOf(record.role),
-                pinHash = record.pinHash,
-                pinSalt = record.pinSalt,
-                failedAttempts = record.failedAttempts.toInt(),
-                lockedUntil = record.lockedUntil?.let(Instant::fromEpochMilliseconds),
-                isActive = record.isActive,
-                lastLoginAt = record.lastLoginAt?.let(Instant::fromEpochMilliseconds)
+    open suspend fun upsertOperator(operator: OperatorAccount) {
+        withContext(ioDispatcher) {
+            queries?.insertOperator(
+                operator.id,
+                operator.employeeCode,
+                operator.displayName,
+                operator.role.name,
+                operator.pinHash,
+                operator.pinSalt,
+                operator.failedAttempts.toLong(),
+                operator.lockedUntil?.toEpochMilliseconds(),
+                operator.isActive,
+                operator.lastLoginAt?.toEpochMilliseconds()
             )
         }
     }
 
-    suspend fun upsertOperator(operator: OperatorAccount) = withContext(ioDispatcher) {
-        queries.insertOperator(
-            operator.id,
-            operator.employeeCode,
-            operator.displayName,
-            operator.role.name,
-            operator.pinHash,
-            operator.pinSalt,
-            operator.failedAttempts.toLong(),
-            operator.lockedUntil?.toEpochMilliseconds(),
-            operator.isActive,
-            operator.lastLoginAt?.toEpochMilliseconds()
-        )
-    }
-
-    suspend fun updateOperatorAccessState(
+    open suspend fun updateOperatorAccessState(
         operatorId: String,
         failedAttempts: Int,
         lockedUntil: Instant?,
         lastLoginAt: Instant?
-    ) = withContext(ioDispatcher) {
-        queries.updateOperatorAccessState(
-            failedAttempts.toLong(),
-            lockedUntil?.toEpochMilliseconds(),
-            lastLoginAt?.toEpochMilliseconds(),
-            operatorId
-        )
+    ) {
+        withContext(ioDispatcher) {
+            queries?.updateOperatorAccessState(
+                failedAttempts.toLong(),
+                lockedUntil?.toEpochMilliseconds(),
+                lastLoginAt?.toEpochMilliseconds(),
+                operatorId
+            )
+        }
     }
 
-    suspend fun getActiveAccessSession(): AccessSession? = withContext(ioDispatcher) {
-        queries.getActiveAccessSession().executeAsOneOrNull()?.let { record ->
+    open suspend fun getActiveAccessSession(): AccessSession? = withContext(ioDispatcher) {
+        queries?.getActiveAccessSession()?.executeAsOneOrNull()?.let { record ->
             AccessSession(
                 id = record.id,
                 operatorId = record.operatorId,
@@ -123,25 +129,29 @@ class KernelRepository(
         }
     }
 
-    suspend fun createAccessSession(session: AccessSession) = withContext(ioDispatcher) {
-        queries.insertAccessSession(
-            session.id,
-            session.operatorId,
-            session.terminalId,
-            session.storeId,
-            session.authMode,
-            session.status,
-            session.createdAt.toEpochMilliseconds(),
-            session.updatedAt.toEpochMilliseconds()
-        )
+    open suspend fun createAccessSession(session: AccessSession) {
+        withContext(ioDispatcher) {
+            queries?.insertAccessSession(
+                session.id,
+                session.operatorId,
+                session.terminalId,
+                session.storeId,
+                session.authMode,
+                session.status,
+                session.createdAt.toEpochMilliseconds(),
+                session.updatedAt.toEpochMilliseconds()
+            )
+        }
     }
 
-    suspend fun clearActiveAccessSessions() = withContext(ioDispatcher) {
-        queries.clearActiveAccessSessions("TERMINATED", clock.now().toEpochMilliseconds())
+    open suspend fun clearActiveAccessSessions() {
+        withContext(ioDispatcher) {
+            queries?.clearActiveAccessSessions("TERMINATED", clock.now().toEpochMilliseconds())
+        }
     }
 
-    suspend fun getActiveBusinessDay(): BusinessDay? = withContext(ioDispatcher) {
-        queries.getActiveBusinessDay().executeAsOneOrNull()?.let { record ->
+    open suspend fun getActiveBusinessDay(): BusinessDay? = withContext(ioDispatcher) {
+        queries?.getActiveBusinessDay()?.executeAsOneOrNull()?.let { record ->
             BusinessDay(
                 id = record.id,
                 openedAt = Instant.fromEpochMilliseconds(record.openedAt),
@@ -151,34 +161,34 @@ class KernelRepository(
         }
     }
 
-    suspend fun openBusinessDay(id: String): BusinessDay = withContext(ioDispatcher) {
-        queries.insertBusinessDay(id, clock.now().toEpochMilliseconds(), "OPEN")
-        queries.getBusinessDayById(id).executeAsOne()
-            .let { record ->
+    open suspend fun openBusinessDay(id: String): BusinessDay = withContext(ioDispatcher) {
+        queries?.insertBusinessDay(id, clock.now().toEpochMilliseconds(), "OPEN")
+        queries?.getBusinessDayById(id)?.executeAsOne()
+            ?.let { record ->
                 BusinessDay(
                     id = record.id,
                     openedAt = Instant.fromEpochMilliseconds(record.openedAt),
                     closedAt = record.closedAt?.let(Instant::fromEpochMilliseconds),
                     status = record.status
                 )
-            }
+            } ?: error("Failed to open day")
     }
 
-    suspend fun closeBusinessDay(id: String): BusinessDay = withContext(ioDispatcher) {
+    open suspend fun closeBusinessDay(id: String): BusinessDay = withContext(ioDispatcher) {
         val closedAt = clock.now().toEpochMilliseconds()
-        queries.closeBusinessDay(closedAt, id)
-        queries.getBusinessDayById(id).executeAsOne().let { record ->
+        queries?.closeBusinessDay(closedAt, id)
+        queries?.getBusinessDayById(id)?.executeAsOne()?.let { record ->
             BusinessDay(
                 id = record.id,
                 openedAt = Instant.fromEpochMilliseconds(record.openedAt),
                 closedAt = record.closedAt?.let(Instant::fromEpochMilliseconds),
                 status = record.status
             )
-        }
+        } ?: error("Failed to close day")
     }
 
-    suspend fun getActiveShift(terminalId: String): Shift? = withContext(ioDispatcher) {
-        queries.getActiveShift(terminalId).executeAsOneOrNull()?.let { record ->
+    open suspend fun getActiveShift(terminalId: String): Shift? = withContext(ioDispatcher) {
+        queries?.getActiveShift(terminalId)?.executeAsOneOrNull()?.let { record ->
             Shift(
                 id = record.id,
                 businessDayId = record.businessDayId,
@@ -194,7 +204,7 @@ class KernelRepository(
         }
     }
 
-    suspend fun openShift(
+    open suspend fun openShift(
         id: String,
         businessDayId: String,
         terminalId: String,
@@ -202,8 +212,8 @@ class KernelRepository(
         openedBy: String
     ): Shift = withContext(ioDispatcher) {
         val openedAt = clock.now().toEpochMilliseconds()
-        queries.insertShift(id, businessDayId, terminalId, openedAt, openingCash, openedBy, "OPEN")
-        queries.getShiftById(id).executeAsOne().let { record ->
+        queries?.insertShift(id, businessDayId, terminalId, openedAt, openingCash, openedBy, "OPEN")
+        queries?.getShiftById(id)?.executeAsOne()?.let { record ->
             Shift(
                 id = record.id,
                 businessDayId = record.businessDayId,
@@ -216,13 +226,13 @@ class KernelRepository(
                 closedBy = record.closedBy,
                 status = record.status
             )
-        }
+        } ?: error("Failed to open shift")
     }
 
-    suspend fun closeShift(id: String, closingCash: Double, closedBy: String): Shift = withContext(ioDispatcher) {
+    open suspend fun closeShift(id: String, closingCash: Double, closedBy: String): Shift = withContext(ioDispatcher) {
         val closedAt = clock.now().toEpochMilliseconds()
-        queries.closeShift(closedAt, closingCash, closedBy, id)
-        queries.getShiftById(id).executeAsOne().let { record ->
+        queries?.closeShift(closedAt, closingCash, closedBy, id)
+        queries?.getShiftById(id)?.executeAsOne()?.let { record ->
             Shift(
                 id = record.id,
                 businessDayId = record.businessDayId,
@@ -235,14 +245,18 @@ class KernelRepository(
                 closedBy = record.closedBy,
                 status = record.status
             )
+        } ?: error("Failed to close shift")
+    }
+
+    open suspend fun insertAudit(id: String, message: String, level: String) {
+        withContext(ioDispatcher) {
+            queries?.insertAudit(id, clock.now().toEpochMilliseconds(), message, level)
         }
     }
 
-    suspend fun insertAudit(id: String, message: String, level: String) = withContext(ioDispatcher) {
-        queries.insertAudit(id, clock.now().toEpochMilliseconds(), message, level)
-    }
-
-    suspend fun insertEvent(id: String, type: String, payload: String) = withContext(ioDispatcher) {
-        queries.insertEvent(id, clock.now().toEpochMilliseconds(), type, payload, "PENDING")
+    open suspend fun insertEvent(id: String, type: String, payload: String) {
+        withContext(ioDispatcher) {
+            queries?.insertEvent(id, clock.now().toEpochMilliseconds(), type, payload, "PENDING")
+        }
     }
 }

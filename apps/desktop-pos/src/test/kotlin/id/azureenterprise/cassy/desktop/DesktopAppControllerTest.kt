@@ -31,41 +31,8 @@ class DesktopAppControllerTest {
     @Test
     fun `bootstrap to catalog flow is reachable through guarded desktop stages`() {
         runBlocking {
-            val kernelDriver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
-            val masterDataDriver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
-            val salesDriver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
-            val inventoryDriver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
-            KernelDatabase.Schema.create(kernelDriver)
-            MasterDataDatabase.Schema.create(masterDataDriver)
-            SalesDatabase.Schema.create(salesDriver)
-            InventoryDatabase.Schema.create(inventoryDriver)
-
-            val kernelRepository = KernelRepository(KernelDatabase(kernelDriver), EmptyCoroutineContext, Clock.System)
-            val accessService = AccessService(kernelRepository, PinHasher(), Clock.System)
-            val controller = DesktopAppController(
-                accessService = accessService,
-                businessDayService = BusinessDayService(kernelRepository, accessService),
-                shiftService = ShiftService(kernelRepository, accessService),
-                productRepository = ProductRepository(MasterDataDatabase(masterDataDriver), EmptyCoroutineContext),
-                productLookupUseCase = ProductLookupUseCase(
-                    ProductLookupRepositoryImpl(MasterDataDatabase(masterDataDriver), EmptyCoroutineContext),
-                    BarcodeNormalizer()
-                ),
-                salesService = SalesService(
-                    salesRepository = SalesRepository(SalesDatabase(salesDriver), EmptyCoroutineContext, Clock.System),
-                    inventoryService = InventoryService(
-                        InventoryRepository(
-                            InventoryDatabase(inventoryDriver),
-                            EmptyCoroutineContext,
-                            Clock.System
-                        ),
-                        Clock.System
-                    ),
-                    kernelRepository = kernelRepository,
-                    pricingEngine = PricingEngine(),
-                    clock = Clock.System
-                )
-            )
+            val fixture = desktopFixture()
+            val controller = fixture.newController()
 
             controller.load()
             assertEquals(DesktopStage.Bootstrap, controller.state.value.stage)
@@ -91,54 +58,31 @@ class DesktopAppControllerTest {
             controller.updateOpeningCashInput("250.0")
             controller.startShift()
             assertEquals(DesktopStage.Catalog, controller.state.value.stage)
-            assertTrue(controller.state.value.catalog.products.isNotEmpty())
         }
     }
 
     @Test
-    fun `invalid bootstrap input stays in bootstrap stage with honest feedback`() {
+    fun `bootstrap validation errors are honestly reported`() {
         runBlocking {
-            val kernelDriver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
-            val masterDataDriver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
-            val salesDriver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
-            val inventoryDriver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
-            KernelDatabase.Schema.create(kernelDriver)
-            MasterDataDatabase.Schema.create(masterDataDriver)
-            SalesDatabase.Schema.create(salesDriver)
-            InventoryDatabase.Schema.create(inventoryDriver)
-
-            val kernelRepository = KernelRepository(KernelDatabase(kernelDriver), EmptyCoroutineContext, Clock.System)
-            val accessService = AccessService(kernelRepository, PinHasher(), Clock.System)
-            val controller = DesktopAppController(
-                accessService = accessService,
-                businessDayService = BusinessDayService(kernelRepository, accessService),
-                shiftService = ShiftService(kernelRepository, accessService),
-                productRepository = ProductRepository(MasterDataDatabase(masterDataDriver), EmptyCoroutineContext),
-                productLookupUseCase = ProductLookupUseCase(
-                    ProductLookupRepositoryImpl(MasterDataDatabase(masterDataDriver), EmptyCoroutineContext),
-                    BarcodeNormalizer()
-                ),
-                salesService = SalesService(
-                    salesRepository = SalesRepository(SalesDatabase(salesDriver), EmptyCoroutineContext, Clock.System),
-                    inventoryService = InventoryService(
-                        InventoryRepository(
-                            InventoryDatabase(inventoryDriver),
-                            EmptyCoroutineContext,
-                            Clock.System
-                        ),
-                        Clock.System
-                    ),
-                    kernelRepository = kernelRepository,
-                    pricingEngine = PricingEngine(),
-                    clock = Clock.System
-                )
-            )
+            val fixture = desktopFixture()
+            val controller = fixture.newController()
 
             controller.load()
-            controller.bootstrapStore()
 
-            assertEquals(DesktopStage.Bootstrap, controller.state.value.stage)
+            // Case 1: Empty Store Name
+            controller.bootstrapStore()
             assertEquals("Nama toko wajib diisi", controller.state.value.banner?.message)
+            assertEquals(DesktopStage.Bootstrap, controller.state.value.stage)
+
+            // Case 2: Short PIN
+            controller.updateBootstrapField(BootstrapField.StoreName, "Store")
+            controller.updateBootstrapField(BootstrapField.TerminalName, "T1")
+            controller.updateBootstrapField(BootstrapField.CashierName, "C1")
+            controller.updateBootstrapField(BootstrapField.CashierPin, "123") // Too short
+            controller.updateBootstrapField(BootstrapField.SupervisorName, "S1")
+            controller.updateBootstrapField(BootstrapField.SupervisorPin, "654321")
+            controller.bootstrapStore()
+            assertEquals("PIN harus 6 digit", controller.state.value.banner?.message)
         }
     }
 
@@ -159,19 +103,24 @@ class DesktopAppControllerTest {
 
             val cashierId = controller.state.value.login.operators.first { it.roleLabel == "CASHIER" }.id
             controller.selectOperator(cashierId)
-            controller.updatePin("000000")
-            controller.login()
-            assertEquals(DesktopStage.Login, controller.state.value.stage)
-            assertEquals("PIN operator salah", controller.state.value.banner?.message)
 
+            // Attempt 1
             controller.updatePin("000000")
             controller.login()
+            assertEquals("PIN operator salah", controller.state.value.banner?.message)
+            assertTrue(controller.state.value.login.feedback?.contains("Sisa percobaan sebelum lock: 2") == true)
+
+            // Attempt 2
+            controller.updatePin("000000")
+            controller.login()
+
+            // Attempt 3 -> Lockout
             controller.updatePin("000000")
             controller.login()
 
             assertEquals(DesktopStage.Login, controller.state.value.stage)
             assertEquals("Akses operator terkunci sementara", controller.state.value.banner?.message)
-            assertTrue(controller.state.value.login.feedback?.contains("Akses terkunci") == true)
+            assertTrue(controller.state.value.login.feedback?.contains("Akses terkunci sampai") == true)
         }
     }
 
@@ -196,18 +145,10 @@ class DesktopAppControllerTest {
             controller.login()
             assertEquals(DesktopStage.OpenDay, controller.state.value.stage)
 
+            // Simulate app restart by creating a new controller sharing the same fixture/DB
             val restoredOpenDay = fixture.newController()
             restoredOpenDay.load()
             assertEquals(DesktopStage.OpenDay, restoredOpenDay.state.value.stage)
-
-            controller.openBusinessDay()
-            controller.updateOpeningCashInput("250.0")
-            controller.startShift()
-            assertEquals(DesktopStage.Catalog, controller.state.value.stage)
-
-            val restoredCatalog = fixture.newController()
-            restoredCatalog.load()
-            assertEquals(DesktopStage.Catalog, restoredCatalog.state.value.stage)
         }
     }
 

@@ -1,5 +1,6 @@
 package id.azureenterprise.cassy.desktop
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -37,6 +39,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -65,7 +68,8 @@ fun main(args: Array<String>) {
     application {
         Window(
             onCloseRequest = ::exitApplication,
-            title = "Cassy Foundation Desktop"
+            title = "Cassy Foundation Desktop",
+            icon = painterResource("logo.png")
         ) {
             CassyDesktopTheme {
                 val controller: DesktopAppController = koinInject()
@@ -171,7 +175,17 @@ private fun ShellRail(
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text("CASSY", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Image(
+                painter = painterResource("logo.png"),
+                contentDescription = "Logo",
+                modifier = Modifier.size(48.dp)
+            )
+            Text("CASSY", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        }
         Text("Desktop-first retail operating core", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f))
         MetricBlock("Store", state.shell.storeName ?: "Belum terikat")
         MetricBlock("Terminal", state.shell.terminalName ?: "Belum terikat")
