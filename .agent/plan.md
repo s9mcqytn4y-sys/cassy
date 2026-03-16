@@ -23,8 +23,9 @@ Cassy V1 foundation closure:
 2. Stabilize desktop access bootstrap dan restore context
 3. Stabilize business day dan shift guardrail
 4. Keep catalog/cart/pricing usable tanpa membuka checkout breadth
-5. Raise Windows packaging evidence dari local truth ke CI truth
-6. Keep migration/index/repository hardening additive and reviewable
+5. Raise Windows packaging evidence dari local truth ke CI truth lewat topology PR/Mainline/Nightly/Release yang stabil
+6. Push inventory ownership ke `shared:inventory` dan hentikan stock write langsung dari sales
+7. Keep migration/index/repository hardening additive and reviewable
 
 ## Strategic bridge
 

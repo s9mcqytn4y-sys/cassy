@@ -46,97 +46,111 @@ import androidx.compose.ui.window.application
 import id.azureenterprise.cassy.masterdata.domain.Product
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import org.koin.compose.koinInject
+import org.koin.core.context.GlobalContext
 import java.io.File
 import kotlin.system.exitProcess
 
-fun main(args: Array<String>) = application {
+fun main(args: Array<String>) {
     val smokeMode = args.contains("--smoke-run")
-    val smokeMarkerPath = System.getenv("CASSY_SMOKE_MARKER")
+    if (smokeMode) {
+        runHeadlessSmoke()
+        return
+    }
+
     startDesktopKoin()
     println("Cassy desktop runtime Java ${System.getProperty("java.version")} | smokeMode=$smokeMode")
 
-    Window(
-        onCloseRequest = ::exitApplication,
-        title = "Cassy Foundation Desktop"
-    ) {
-        CassyDesktopTheme {
-            val controller: DesktopAppController = koinInject()
-            val state by controller.state.collectAsState()
-            val scope = rememberCoroutineScope()
+    application {
+        Window(
+            onCloseRequest = ::exitApplication,
+            title = "Cassy Foundation Desktop"
+        ) {
+            CassyDesktopTheme {
+                val controller: DesktopAppController = koinInject()
+                val state by controller.state.collectAsState()
+                val scope = rememberCoroutineScope()
 
-            LaunchedEffect(Unit) {
-                controller.load()
-            }
+                LaunchedEffect(Unit) {
+                    controller.load()
+                }
 
-            LaunchedEffect(smokeMode, state.stage) {
-                if (!smokeMode || state.stage == DesktopStage.Loading) return@LaunchedEffect
-                delay(300)
-                when (val stage = state.stage) {
-                    is DesktopStage.FatalError -> {
-                        smokeMarkerPath?.let { writeSmokeMarker(it, "FAILED stage=${stage.message}") }
-                        System.err.println("CASSY_SMOKE_FAILED stage=${stage.message}")
-                        exitApplication()
-                        exitProcess(1)
-                    }
-                    else -> {
-                        smokeMarkerPath?.let { writeSmokeMarker(it, "OK stage=${state.stage::class.simpleName}") }
-                        println("CASSY_SMOKE_OK stage=${state.stage::class.simpleName}")
-                        exitApplication()
+                Surface(modifier = Modifier.fillMaxSize()) {
+                    Row(modifier = Modifier.fillMaxSize()) {
+                        ShellRail(
+                            state = state,
+                            onReload = { scope.launch { controller.load() } },
+                            onLogout = { scope.launch { controller.logout() } },
+                            onDismissBanner = controller::dismissBanner
+                        )
+                        HorizontalDivider(modifier = Modifier.fillMaxHeight().width(1.dp))
+                        when (val stage = state.stage) {
+                            DesktopStage.Loading -> LoadingStage()
+                            DesktopStage.Bootstrap -> BootstrapStage(
+                                state = state,
+                                onFieldChanged = controller::updateBootstrapField,
+                                onBootstrap = { scope.launch { controller.bootstrapStore() } }
+                            )
+                            DesktopStage.Login -> LoginStage(
+                                state = state,
+                                onSelectOperator = controller::selectOperator,
+                                onPinChanged = controller::updatePin,
+                                onLogin = { scope.launch { controller.login() } }
+                            )
+                            DesktopStage.OpenDay -> OpenDayStage(
+                                state = state,
+                                onOpenDay = { scope.launch { controller.openBusinessDay() } },
+                                onLogout = { scope.launch { controller.logout() } }
+                            )
+                            DesktopStage.StartShift -> StartShiftStage(
+                                state = state,
+                                onOpeningCashChanged = controller::updateOpeningCashInput,
+                                onStartShift = { scope.launch { controller.startShift() } }
+                            )
+                            DesktopStage.Catalog -> CatalogStage(
+                                state = state,
+                                onSearchChanged = { value -> scope.launch { controller.updateCatalogQuery(value) } },
+                                onBarcodeChanged = controller::updateBarcodeInput,
+                                onScanBarcode = { scope.launch { controller.scanBarcodeOrSku() } },
+                                onAddProduct = { product -> scope.launch { controller.addProduct(product) } },
+                                onIncrement = { product -> scope.launch { controller.incrementItem(product) } },
+                                onDecrement = { product, quantity -> scope.launch { controller.decrementItem(product, quantity) } },
+                                onClosingCashChanged = controller::updateClosingCashInput,
+                                onEndShift = { scope.launch { controller.endShift() } },
+                                onCloseDay = { scope.launch { controller.closeBusinessDay() } }
+                            )
+                            is DesktopStage.FatalError -> FatalStage(
+                                message = stage.message,
+                                onRetry = { scope.launch { controller.load() } }
+                            )
+                        }
                     }
                 }
             }
+        }
+    }
+}
 
-            Surface(modifier = Modifier.fillMaxSize()) {
-                Row(modifier = Modifier.fillMaxSize()) {
-                    ShellRail(
-                        state = state,
-                        onReload = { scope.launch { controller.load() } },
-                        onLogout = { scope.launch { controller.logout() } },
-                        onDismissBanner = controller::dismissBanner
-                    )
-                    HorizontalDivider(modifier = Modifier.fillMaxHeight().width(1.dp))
-                    when (val stage = state.stage) {
-                        DesktopStage.Loading -> LoadingStage()
-                        DesktopStage.Bootstrap -> BootstrapStage(
-                            state = state,
-                            onFieldChanged = controller::updateBootstrapField,
-                            onBootstrap = { scope.launch { controller.bootstrapStore() } }
-                        )
-                        DesktopStage.Login -> LoginStage(
-                            state = state,
-                            onSelectOperator = controller::selectOperator,
-                            onPinChanged = controller::updatePin,
-                            onLogin = { scope.launch { controller.login() } }
-                        )
-                        DesktopStage.OpenDay -> OpenDayStage(
-                            state = state,
-                            onOpenDay = { scope.launch { controller.openBusinessDay() } },
-                            onLogout = { scope.launch { controller.logout() } }
-                        )
-                        DesktopStage.StartShift -> StartShiftStage(
-                            state = state,
-                            onOpeningCashChanged = controller::updateOpeningCashInput,
-                            onStartShift = { scope.launch { controller.startShift() } }
-                        )
-                        DesktopStage.Catalog -> CatalogStage(
-                            state = state,
-                            onSearchChanged = { value -> scope.launch { controller.updateCatalogQuery(value) } },
-                            onBarcodeChanged = controller::updateBarcodeInput,
-                            onScanBarcode = { scope.launch { controller.scanBarcodeOrSku() } },
-                            onAddProduct = { product -> scope.launch { controller.addProduct(product) } },
-                            onIncrement = { product -> scope.launch { controller.incrementItem(product) } },
-                            onDecrement = { product, quantity -> scope.launch { controller.decrementItem(product, quantity) } },
-                            onClosingCashChanged = controller::updateClosingCashInput,
-                            onEndShift = { scope.launch { controller.endShift() } },
-                            onCloseDay = { scope.launch { controller.closeBusinessDay() } }
-                        )
-                        is DesktopStage.FatalError -> FatalStage(
-                            message = stage.message,
-                            onRetry = { scope.launch { controller.load() } }
-                        )
-                    }
-                }
+private fun runHeadlessSmoke() {
+    val smokeMarkerPath = System.getenv("CASSY_SMOKE_MARKER")
+    startDesktopKoin()
+    println("Cassy desktop runtime Java ${System.getProperty("java.version")} | smokeMode=true")
+
+    runBlocking {
+        val controller = GlobalContext.get().get<DesktopAppController>()
+        controller.load()
+        delay(300)
+
+        when (val stage = controller.state.value.stage) {
+            is DesktopStage.FatalError -> {
+                smokeMarkerPath?.let { writeSmokeMarker(it, "FAILED stage=${stage.message}") }
+                System.err.println("CASSY_SMOKE_FAILED stage=${stage.message}")
+                exitProcess(1)
+            }
+            else -> {
+                smokeMarkerPath?.let { writeSmokeMarker(it, "OK stage=${stage::class.simpleName}") }
+                println("CASSY_SMOKE_OK stage=${stage::class.simpleName}")
             }
         }
     }

@@ -17,6 +17,7 @@ CREATE TABLE StockLedger (
 CREATE INDEX StockLedger_product_timestamp_idx ON StockLedger(productId, timestamp DESC);
 CREATE INDEX StockLedger_reference_idx ON StockLedger(referenceId);
 CREATE INDEX StockLedger_terminal_timestamp_idx ON StockLedger(terminalId, timestamp DESC);
+CREATE UNIQUE INDEX StockLedger_reference_product_type_uidx ON StockLedger(referenceId, productId, type) WHERE referenceId IS NOT NULL;
 
 -- Queries
 updateBalance:

@@ -1,8 +1,7 @@
 package id.azureenterprise.cassy.sales.application
 
-import id.azureenterprise.cassy.inventory.data.InventoryRepository
-import id.azureenterprise.cassy.inventory.domain.InventoryTransaction
-import id.azureenterprise.cassy.inventory.domain.TransactionType
+import id.azureenterprise.cassy.inventory.application.InventoryService
+import id.azureenterprise.cassy.inventory.application.SaleInventoryLine
 import id.azureenterprise.cassy.kernel.data.KernelRepository
 import id.azureenterprise.cassy.kernel.domain.IdGenerator
 import id.azureenterprise.cassy.masterdata.domain.Product
@@ -17,7 +16,7 @@ import kotlinx.datetime.Clock
 
 class SalesService(
     private val salesRepository: SalesRepository,
-    private val inventoryRepository: InventoryRepository,
+    private val inventoryService: InventoryService,
     private val kernelRepository: KernelRepository,
     private val pricingEngine: PricingEngine,
     private val clock: Clock
@@ -96,19 +95,16 @@ class SalesService(
         val receiptContent = buildReceiptContent(currentBasket, localNumber)
         salesRepository.finalizeSale(saleId, receiptContent)
 
-        currentBasket.items.forEach { item ->
-            inventoryRepository.recordTransaction(
-                InventoryTransaction(
-                    id = IdGenerator.nextId("inv"),
-                    productId = item.product.id,
-                    quantity = -item.quantity,
-                    type = TransactionType.SALE,
-                    referenceId = saleId,
-                    timestamp = clock.now(),
-                    terminalId = binding.terminalId
+        inventoryService.recordSaleCompletion(
+            saleId = saleId,
+            terminalId = binding.terminalId,
+            lines = currentBasket.items.map {
+                SaleInventoryLine(
+                    productId = it.product.id,
+                    quantity = it.quantity
                 )
-            )
-        }
+            }
+        ).getOrThrow()
 
         _basket.value = Basket()
         activeSaleId = null

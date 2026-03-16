@@ -16,6 +16,7 @@ Dokumen ini hanya mencatat jalur yang benar-benar relevan untuk pilot Windows da
 ```powershell
 .\gradlew :apps:desktop-pos:run
 .\gradlew :apps:desktop-pos:smokeRun
+.\gradlew :apps:desktop-pos:run --args="--smoke-run"
 ```
 
 Yang harus terlihat dari flow foundation:
@@ -31,6 +32,7 @@ Gunakan urutan ini:
 
 ```powershell
 .\gradlew :apps:desktop-pos:smokeRun
+.\gradlew :apps:desktop-pos:run --args="--smoke-run"
 .\gradlew --version
 .\gradlew clean
 .\gradlew build
@@ -49,6 +51,7 @@ Catatan operasional:
 ## Artifact packaging yang sudah terbukti lokal
 
 - Source smoke task: `:apps:desktop-pos:smokeRun`
+- Headless run-task smoke: `:apps:desktop-pos:run --args="--smoke-run"`
 - Distribution smoke path: `tooling/scripts/Invoke-DesktopDistributionSmoke.ps1`
 - Distribution app folder: `apps/desktop-pos/build/compose/binaries/main/app/Cassy/`
 - Task: `:apps:desktop-pos:packageDistributionForCurrentOS`
@@ -56,9 +59,9 @@ Catatan operasional:
 - Artifact path: `apps/desktop-pos/build/compose/binaries/main/exe/Cassy-0.1.0.exe`
 - Embedded runtime evidence: `apps/desktop-pos/build/compose/binaries/main/app/Cassy/runtime/release`
 
-## Gap yang masih harus diakui
+## Hosted CI dan gap yang masih harus diakui
 
-- Packaging Windows sudah terbukti lokal, tetapi belum punya hosted CI execution evidence yang bisa saya lihat dari environment ini.
+- Hosted `PR Gate #15` pada 2026-03-16 gagal di workflow lama. Repo sekarang memisahkan lane `PR Gate`, `Mainline Evidence`, `Nightly Integrity`, dan `Release Evidence`, tetapi hosted rerun baru masih perlu diverifikasi.
 - Smoke installer install/uninstall Windows belum tervalidasi di repo ini; automation yang terbukti baru source smoke dan distribution runtime smoke.
 - Launcher GUI `Cassy.exe` dari app image belum memberi output smoke CLI yang stabil di environment lokal ini, sehingga smoke otomatis menggunakan classpath distribusi dari `app/Cassy.cfg` dan fallback ke `JAVA_HOME` JDK 17 saat app image tidak menyertakan `java.exe`.
 - Debian package pada Ubuntu hanya compatibility artifact; bukan release truth untuk pilot Windows.
@@ -73,6 +76,8 @@ Catatan operasional:
 6. Pastikan catalog tampil dan cart menerima item.
 7. Logout/login ulang untuk cek restore context baseline.
 8. Coba PIN salah berulang sampai lockout baseline muncul.
+
+Checklist installer detail dan log manual ada di `docs/execution/windows_installer_smoke_checklist.md`.
 
 ## Troubleshooting
 

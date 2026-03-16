@@ -24,6 +24,7 @@ Use this file first when the agent is Codex or Codex-like.
 - treat Windows packaging as unproven until an actual Windows artifact is built
 - keep Desktop on JDK 17 only; Java 21 drift in run/package/dev tooling is a defect
 - keep configuration cache opt-in for CI, not default-on for IDE/local path
+- keep stock mutation ownership inside `shared:inventory`; `shared:sales` may request inventory effects but should not own stock writes directly
 
 ## Allowed repo operations
 If runtime allows it, you may:
@@ -34,11 +35,13 @@ If runtime allows it, you may:
 
 ## Verification order
 1. `.\gradlew :apps:desktop-pos:smokeRun`
-2. `.\gradlew --version`
-3. `.\gradlew clean`
-4. `.\gradlew build`
-5. `.\gradlew test`
-6. `.\gradlew detekt`
-7. `.\gradlew :apps:android-pos:lintDebug`
-8. `.\gradlew :apps:desktop-pos:createDistributable`
-9. `.\gradlew :apps:desktop-pos:packageDistributionForCurrentOS`
+2. `.\gradlew :apps:desktop-pos:run --args="--smoke-run"`
+3. `.\gradlew --version`
+4. `.\gradlew clean`
+5. `.\gradlew build`
+6. `.\gradlew test`
+7. `.\gradlew detekt`
+8. `.\gradlew :apps:android-pos:lintDebug`
+9. `.\gradlew :apps:desktop-pos:createDistributable`
+10. `.\gradlew :apps:desktop-pos:packageDistributionForCurrentOS`
+11. `.\tooling\scripts\Invoke-DesktopDistributionSmoke.ps1`

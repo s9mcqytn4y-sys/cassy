@@ -1,0 +1,31 @@
+name: Release Evidence
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release-evidence:
+    name: release-evidence
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create Release Evidence Manifest
+        run: |
+          mkdir -p build/release-evidence
+          {
+            echo "commit=${GITHUB_SHA}"
+            echo "generated_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "required_pr_checks=validate-wrapper,shared-fast,android-pos-fast,desktop-fast,pr-gate-summary"
+            echo "mainline_artifacts=cassy-desktop-exe,cassy-desktop-app,cassy-desktop-deb,cassy-mainline-evidence"
+            echo "installer-smoke=manual-required"
+            echo "windows-pilot-truth=local-package-plus-hosted-mainline"
+          } > build/release-evidence/release-evidence-manifest.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cassy-release-evidence
+          path: build/release-evidence/release-evidence-manifest.txt
+          retention-days: 30

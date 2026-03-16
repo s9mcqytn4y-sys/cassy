@@ -25,6 +25,7 @@ Read these files in order before planning, generating, refactoring, reviewing, o
 - Do not add new F&B or Service complexity into retail shipping flows unless the task explicitly targets prepared boundaries.
 - Desktop development and packaging must stay on JDK 17 only.
 - Configuration cache may be used in CI, but local/IDE workflow must stay honest and reliable first.
+- Stock truth must stay inside `shared:inventory`; do not let sales or UI mutate ledger/balance directly.
 
 ## Operational permission posture
 When the runtime/tool permits it, you are authorized in this repository to:

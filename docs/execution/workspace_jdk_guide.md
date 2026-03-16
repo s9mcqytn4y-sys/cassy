@@ -13,9 +13,11 @@ Dokumen ini mengunci jalur local development agar tidak diam-diam lari ke Java 2
 ## VS Code
 
 - Gunakan task workspace di `.vscode/tasks.json`
-- `Cassy Desktop Smoke Run` untuk cek runtime cepat
+- `Cassy Desktop Smoke Run` untuk cek lane `run` dengan argumen smoke di JDK 17
+- `Cassy Desktop Source Smoke` untuk smoke cepat tanpa window
 - `Cassy Core Verify` untuk build/test/lint utama
 - `Cassy Windows Package` untuk createDistributable + EXE packaging
+- `Cassy Windows Distribution Smoke` untuk verifikasi app distribution hasil packaging
 
 ## Android Studio / IntelliJ
 
@@ -27,6 +29,7 @@ Dokumen ini mengunci jalur local development agar tidak diam-diam lari ke Java 2
 
 - `desktop-pos:run` crash `UnsatisfiedLinkError`:
   - cek `.\gradlew --version` dan pastikan daemon criteria = Java 17
+  - cek `.\gradlew :apps:desktop-pos:run --args="--smoke-run"`; lane ini harus mencetak `CASSY_SMOKE_OK`
   - jalankan `.\gradlew :apps:desktop-pos:dependencyInsight --dependency skiko --configuration runtimeClasspath`
   - pastikan `skiko` Java dan runtime berada pada versi yang sama
 - Sync/import terasa aneh:

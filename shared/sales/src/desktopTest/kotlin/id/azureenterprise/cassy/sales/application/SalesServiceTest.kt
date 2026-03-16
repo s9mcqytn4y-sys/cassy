@@ -1,6 +1,7 @@
 package id.azureenterprise.cassy.sales.application
 
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
+import id.azureenterprise.cassy.inventory.application.InventoryService
 import id.azureenterprise.cassy.inventory.data.InventoryRepository
 import id.azureenterprise.cassy.inventory.db.InventoryDatabase
 import id.azureenterprise.cassy.kernel.data.KernelRepository
@@ -52,6 +53,29 @@ class SalesServiceTest {
         }
     }
 
+    @Test
+    fun `checkout records stock through inventory owner boundary`() {
+        runBlocking {
+            val fixture = salesFixture()
+            fixture.kernelRepository.upsertTerminalBinding(fixture.binding)
+            fixture.kernelRepository.openBusinessDay("bd_1")
+            fixture.kernelRepository.openShift(
+                id = "shift_1",
+                businessDayId = "bd_1",
+                terminalId = fixture.binding.terminalId,
+                openingCash = 100.0,
+                openedBy = "operator_1"
+            )
+
+            fixture.service.addProduct(sampleProduct(), quantity = 2.0).getOrThrow()
+            val checkout = fixture.service.checkout("CASH")
+
+            assertTrue(checkout.isSuccess)
+            assertEquals(-2.0, fixture.inventoryRepository.getStockLevel("product_1"))
+            assertEquals(1, fixture.inventoryRepository.getLedgerByProduct("product_1").size)
+        }
+    }
+
     private fun salesFixture(): SalesFixture {
         val kernelDriver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
         val salesDriver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
@@ -61,15 +85,22 @@ class SalesServiceTest {
         InventoryDatabase.Schema.create(inventoryDriver)
 
         val kernelRepository = KernelRepository(KernelDatabase(kernelDriver), EmptyCoroutineContext, Clock.System)
+        val inventoryRepository = InventoryRepository(
+            InventoryDatabase(inventoryDriver),
+            EmptyCoroutineContext,
+            Clock.System
+        )
+
         return SalesFixture(
             service = SalesService(
                 salesRepository = SalesRepository(SalesDatabase(salesDriver), EmptyCoroutineContext, Clock.System),
-                inventoryRepository = InventoryRepository(InventoryDatabase(inventoryDriver), EmptyCoroutineContext, Clock.System),
+                inventoryService = InventoryService(inventoryRepository, Clock.System),
                 kernelRepository = kernelRepository,
                 pricingEngine = PricingEngine(),
                 clock = Clock.System
             ),
             kernelRepository = kernelRepository,
+            inventoryRepository = inventoryRepository,
             binding = id.azureenterprise.cassy.kernel.domain.TerminalBinding(
                 storeId = "store_1",
                 storeName = "Toko Test",
@@ -92,5 +123,6 @@ class SalesServiceTest {
 private data class SalesFixture(
     val service: SalesService,
     val kernelRepository: KernelRepository,
+    val inventoryRepository: InventoryRepository,
     val binding: id.azureenterprise.cassy.kernel.domain.TerminalBinding
 )

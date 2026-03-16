@@ -26,7 +26,17 @@ kotlin {
             implementation(libs.sqldelight.android.driver)
         }
 
+        commonTest.dependencies {
+            implementation(libs.kotlin.test)
+        }
+
         val desktopMain by getting {
+            dependencies {
+                implementation(libs.sqldelight.sqlite.driver)
+            }
+        }
+
+        val desktopTest by getting {
             dependencies {
                 implementation(libs.sqldelight.sqlite.driver)
             }

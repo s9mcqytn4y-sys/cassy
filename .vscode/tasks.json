@@ -14,6 +14,17 @@
             "problemMatcher": []
         },
         {
+            "label": "Cassy Desktop Source Smoke",
+            "type": "shell",
+            "command": ".\\gradlew",
+            "args": [
+                ":apps:desktop-pos:smokeRun",
+                "--no-configuration-cache",
+                "--console=plain"
+            ],
+            "problemMatcher": []
+        },
+        {
             "label": "Cassy Core Verify",
             "type": "shell",
             "command": ".\\gradlew",
@@ -36,6 +47,18 @@
                 ":apps:desktop-pos:packageDistributionForCurrentOS",
                 "--no-configuration-cache",
                 "--console=plain"
+            ],
+            "problemMatcher": []
+        },
+        {
+            "label": "Cassy Windows Distribution Smoke",
+            "type": "shell",
+            "command": "powershell",
+            "args": [
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                "tooling/scripts/Invoke-DesktopDistributionSmoke.ps1"
             ],
             "problemMatcher": []
         }

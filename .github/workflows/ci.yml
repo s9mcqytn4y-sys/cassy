@@ -1,10 +1,9 @@
-name: CI Safety Net End-to-End
+name: PR Gate
 
 on:
-  push:
-    branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -12,52 +11,44 @@ concurrency:
 
 jobs:
   validate-wrapper:
-    name: Validate Wrapper
+    name: validate-wrapper
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: gradle/wrapper-validation-action@v3
 
-  static-analysis:
-    name: Static Analysis
+  shared-fast:
+    name: shared-fast
     needs: validate-wrapper
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Prepare Gradle Wrapper
+        run: chmod +x ./gradlew
       - uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
           cache: gradle
-      - name: Run Detekt
-        run: ./gradlew detekt --configuration-cache --scan --no-daemon
+      - name: Shared Fast Gate
+        run: ./gradlew dependencyGuard test detekt --configuration-cache --scan --no-daemon
       - name: Upload Reports
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: analysis-reports
-          path: "**/build/reports/detekt/*.xml"
+          name: pr-gate-shared-debug
+          path: |
+            **/build/reports/**
+            **/build/test-results/**
 
-  dependency-guard:
-    name: Dependency Guard
+  android-pos-fast:
+    name: android-pos-fast
     needs: validate-wrapper
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-          cache: gradle
-      - name: Check Dependencies
-        run: ./gradlew dependencyGuard --configuration-cache --scan --no-daemon
-
-  android-lane:
-    name: Android POS
-    needs: validate-wrapper
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+      - name: Prepare Gradle Wrapper
+        run: chmod +x ./gradlew
       - uses: actions/setup-java@v4
         with:
           java-version: '17'
@@ -66,72 +57,35 @@ jobs:
       - name: Build and Test Android
         run: ./gradlew :apps:android-pos:assembleDebug :apps:android-pos:testDebugUnitTest :apps:android-pos:lintDebug --configuration-cache --scan --no-daemon
 
-  desktop-lane:
-    name: Desktop POS
+  desktop-fast:
+    name: desktop-fast
     needs: validate-wrapper
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Prepare Gradle Wrapper
+        run: chmod +x ./gradlew
       - uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
           cache: gradle
       - name: Build and Test Desktop
-        run: ./gradlew :apps:desktop-pos:build --configuration-cache --scan --no-daemon
+        run: ./gradlew :apps:desktop-pos:build :apps:desktop-pos:smokeRun --configuration-cache --scan --no-daemon
 
-  windows-package-evidence:
-    name: Windows Package Evidence
-    needs: validate-wrapper
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-          cache: gradle
-      - name: Smoke Run Desktop Source
-        run: .\gradlew :apps:desktop-pos:smokeRun --configuration-cache --scan --no-daemon
-      - name: Build Windows Distribution
-        run: .\gradlew :apps:desktop-pos:createDistributable :apps:desktop-pos:packageDistributionForCurrentOS --configuration-cache --scan --no-daemon
-      - name: Smoke Run Windows Distribution
-        run: .\tooling\scripts\Invoke-DesktopDistributionSmoke.ps1
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: cassy-desktop-exe
-          path: apps/desktop-pos/build/compose/binaries/main/exe/*.exe
-      - name: Upload Desktop Distribution
-        uses: actions/upload-artifact@v4
-        with:
-          name: cassy-desktop-app
-          path: apps/desktop-pos/build/compose/binaries/main/app/Cassy/**
-      - name: Upload Windows Failure Reports
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: cassy-windows-debug
-          path: |
-            apps/desktop-pos/build/reports/**
-            build/reports/**
-
-  linux-package-compat:
-    name: Linux Package Compatibility
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [android-lane, desktop-lane, windows-package-evidence]
+  pr-gate-summary:
+    name: pr-gate-summary
+    if: always()
+    needs: [validate-wrapper, shared-fast, android-pos-fast, desktop-fast]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-          cache: gradle
-      - name: Package Debian
-        run: ./gradlew :apps:desktop-pos:packageDeb --configuration-cache --scan --no-daemon
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: cassy-desktop-deb
-          path: "apps/desktop-pos/build/compose/binaries/main/deb/*.deb"
+      - name: Summarize PR Gate
+        run: |
+          echo "validate-wrapper=${{ needs.validate-wrapper.result }}"
+          echo "shared-fast=${{ needs.shared-fast.result }}"
+          echo "android-pos-fast=${{ needs.android-pos-fast.result }}"
+          echo "desktop-fast=${{ needs.desktop-fast.result }}"
+          test "${{ needs.validate-wrapper.result }}" = "success"
+          test "${{ needs.shared-fast.result }}" = "success"
+          test "${{ needs.android-pos-fast.result }}" = "success"
+          test "${{ needs.desktop-fast.result }}" = "success"

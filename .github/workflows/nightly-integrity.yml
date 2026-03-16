@@ -1,0 +1,44 @@
+name: Nightly Integrity
+
+on:
+  schedule:
+    - cron: '0 18 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  nightly-integrity:
+    name: nightly-integrity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare Gradle Wrapper
+        run: chmod +x ./gradlew
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+      - name: Run Nightly Integrity Suite
+        run: >
+          ./gradlew
+          build
+          :shared:kernel:verifyCommonMainKernelDatabaseMigration
+          :shared:masterdata:verifyCommonMainMasterDataDatabaseMigration
+          :shared:sales:verifyCommonMainSalesDatabaseMigration
+          :shared:inventory:verifyCommonMainInventoryDatabaseMigration
+          --configuration-cache
+          --scan
+          --no-daemon
+      - name: Upload Nightly Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cassy-nightly-integrity
+          path: |
+            **/build/reports/**
+            **/build/test-results/**
+          retention-days: 14

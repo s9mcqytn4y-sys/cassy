@@ -24,7 +24,7 @@ Status milestone aktif tidak boleh diambil dari UI semata. Gunakan:
 - `shared:kernel`: access, terminal binding, business day, shift
 - `shared:masterdata`: catalog, search, barcode lookup
 - `shared:sales`: cart dan pricing baseline
-- `shared:inventory`: stock repository baseline
+- `shared:inventory`: stock ownership baseline untuk ledger dan balance
 - `shared`: legacy bridge yang sedang disusutkan
 
 ## Current foundation flow
@@ -38,18 +38,34 @@ Status milestone aktif tidak boleh diambil dari UI semata. Gunakan:
 
 Checkout penuh, payment state final, dan receipt final masih di luar closure foundation ini.
 
+## Operational ownership
+
+- access/day/shift guardrail hidup di `shared:kernel`
+- catalog/search/barcode contract hidup di `shared:masterdata`
+- cart/pricing baseline hidup di `shared:sales`
+- mutasi stok dari checkout baseline sekarang masuk lewat `shared:inventory:InventoryService`, bukan ditulis liar langsung dari sales
+
+## CI topology truth
+
+- `PR Gate`: fast verification untuk `pull_request`
+- `Mainline Evidence`: packaging Windows/Linux dan artifact evidence untuk `push` ke `main`
+- `Nightly Integrity`: build + migration/integrity subset terjadwal
+- `Release Evidence`: manifest/manual evidence lane yang dipicu manual
+
 ## Verification quick start
 
 Untuk evidence build/test/package yang dipakai repo saat ini:
 
 ```powershell
 .\gradlew :apps:desktop-pos:smokeRun
+.\gradlew :apps:desktop-pos:run --args="--smoke-run"
 .\gradlew --version
 .\gradlew clean
 .\gradlew build
 .\gradlew test
 .\gradlew detekt
 .\gradlew :apps:android-pos:lintDebug
+.\tooling\scripts\Invoke-DesktopDistributionSmoke.ps1
 .\gradlew :apps:desktop-pos:packageDistributionForCurrentOS
 ```
 
@@ -69,3 +85,5 @@ Catatan:
 - `docs/execution/roadmap_bridge.md`
 - `docs/execution/windows_desktop_runbook.md`
 - `docs/execution/workspace_jdk_guide.md`
+- `docs/execution/ci_topology_truth.md`
+- `docs/execution/windows_installer_smoke_checklist.md`

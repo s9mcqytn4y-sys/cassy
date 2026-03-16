@@ -8,12 +8,12 @@ Dokumen ini adalah bridge antara roadmap PDF, context agent, dan repo reality. R
 |:---|:---|:---|:---|:---|
 | M0 | Program setup | DONE | `AGENTS.md`, `CODEX.md`, `.agent/`, Gradle wrapper | Control plane dasar ada |
 | M1 | Scope lock V1 | DONE | `AGENTS.md`, `.agent/context/project_overview.md` | Desktop-first retail core terkunci |
-| M2 | Architecture control plane | PARTIAL / FOUNDATION | multi-module Gradle, build-logic Java 17, SQLDelight bounded context | `:shared` aggregator dan legacy bridge masih ada |
-| M3 | Desktop access bootstrap | PARTIAL / FOUNDATION | `apps/desktop-pos`, `AccessService`, desktop controller test | Sebelumnya false-ready karena source set desktop belum benar-benar dibuild |
-| M4 | Business day & shift | PARTIAL / FOUNDATION | `BusinessDayService`, `ShiftService`, service tests, desktop guarded flow | Guardrail inti hidup, tetapi belum layak disebut fully done |
-| M5 | Catalog + cart + pricing baseline | PARTIAL / FOUNDATION | `SalesService`, `PricingEngine`, product lookup tests | Checkout penuh, receipt, dan payment state belum dibuka |
+| M2 | Architecture control plane | PARTIAL / FOUNDATION | multi-module Gradle, build-logic Java 17, headless source smoke, PR/Mainline/Nightly/Release workflow split | `:shared` aggregator masih ada dan hosted rerun baru belum terbukti |
+| M3 | Desktop access bootstrap | PARTIAL / FOUNDATION | `apps/desktop-pos`, `AccessService`, desktop controller tests untuk bootstrap/wrong pin/restore | Installer smoke manual dan hosted rerun belum lunas |
+| M4 | Business day & shift | PARTIAL / FOUNDATION | `BusinessDayService`, `ShiftService`, service tests, desktop guarded flow | Guardrail inti hidup, tetapi smoke lifecycle desktop penuh belum tertutup |
+| M5 | Catalog + cart + pricing baseline | PARTIAL / FOUNDATION | `SalesService`, `PricingEngine`, product lookup tests, catalog/cart shell | Checkout penuh, receipt, dan payment state belum dibuka |
 | M6 | Checkout + receipt | PENDING | - | Hanya placeholder jujur di desktop shell |
-| M7 | Inventory basic | PARTIAL / FOUNDATION | `:shared:inventory` module, repository wiring | Belum terbukti end-to-end ke closing/checkout |
+| M7 | Inventory basic | PARTIAL / FOUNDATION | `:shared:inventory`, `InventoryService`, sales checkout memakai inventory boundary | Reporting, replay, dan close-day integrity belum terbukti |
 | M8 | Reporting dasar | PENDING | - | Belum ada evidence runtime |
 | M9 | Sync visibility + replay | PENDING | outbox/infra parsial | Belum ada closure evidence |
 | M10 | Release + hypercare | PENDING | CI dasar + local Windows package evidence | Windows pilot CI belum terbukti di hosted runner |
@@ -24,6 +24,7 @@ Dokumen ini adalah bridge antara roadmap PDF, context agent, dan repo reality. R
 - M3 dan M4 sempat ditandai done hanya karena screen/navigasi tampil, bukan karena access/day/shift guardrail benar-benar hidup.
 - Packaging malam di CI hanya menghasilkan Debian package pada Ubuntu; itu bukan evidence kesiapan distribusi Windows.
 - desktop run sempat bocor ke Java 21 daemon criteria dan crash karena mixed Compose/Skiko runtime; lane ini sekarang dipaksa kembali ke JDK 17 only dan punya smoke run eksplisit.
+- Hosted `PR Gate #15` pada 2026-03-16 gagal di lane lama: Ubuntu jobs exit `126` karena wrapper permission dan Windows package lane exit `1`; repo sekarang memisahkan topology dan menambahkan smoke headless, tetapi hosted rerun baru masih diperlukan.
 
 ## Definition of done minimum per lane foundation
 
@@ -58,6 +59,7 @@ Dokumen ini adalah bridge antara roadmap PDF, context agent, dan repo reality. R
 
 - `.\gradlew --version`
 - `.\gradlew :apps:desktop-pos:smokeRun`
+- `.\gradlew :apps:desktop-pos:run --args="--smoke-run"`
 - `.\gradlew clean`
 - `.\gradlew build`
 - `.\gradlew test`
@@ -65,6 +67,6 @@ Dokumen ini adalah bridge antara roadmap PDF, context agent, dan repo reality. R
 - `.\gradlew :apps:android-pos:lintDebug`
 - `.\gradlew :apps:desktop-pos:createDistributable`
 - `.\gradlew :apps:desktop-pos:packageDistributionForCurrentOS`
-- `.\tooling\scripts\Invoke-DesktopDistributionSmoke.ps1`
+- `powershell -ExecutionPolicy Bypass -File tooling/scripts/Invoke-DesktopDistributionSmoke.ps1`
 
-Lihat `docs/execution/windows_desktop_runbook.md` dan `docs/execution/workspace_jdk_guide.md` untuk command matrix, artifact path, JDK 17 policy, dan gap packaging Windows.
+Lihat `docs/execution/windows_desktop_runbook.md`, `docs/execution/workspace_jdk_guide.md`, `docs/execution/ci_topology_truth.md`, dan `docs/execution/windows_installer_smoke_checklist.md` untuk command matrix, artifact path, JDK 17 policy, hosted CI topology, dan gap packaging Windows.
