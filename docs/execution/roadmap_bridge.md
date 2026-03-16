@@ -10,7 +10,7 @@ Dokumen ini adalah bridge antara roadmap PDF, context agent, dan repo reality. R
 | M1 | Scope lock V1 | DONE | `AGENTS.md`, `.agent/context/project_overview.md` | Desktop-first retail core terkunci |
 | M2 | Architecture control plane | DONE | multi-module Gradle, build-logic Java 17, hosted Windows evidence sukses | `:shared` aggregator masih ada, tetapi sunset path dan control-plane truth sudah tegas |
 | M3 | Desktop access bootstrap | DONE | `Main.kt` branding, `DesktopAppControllerTest` | Bootstrap, Login, Restore, dan Lockout terverifikasi |
-| M4 | Business day & shift | FOUNDATION-CLOSED | `BusinessDayServiceTest`, `ShiftServiceTest` | Guardrails terverifikasi di commonTest |
+| M4 | Business day & shift | DONE | `DesktopAppControllerTest` lifecycle coverage | Open/Start/End/Close dan Guardrails terverifikasi |
 | M5 | Catalog + cart + pricing baseline | FOUNDATION-CLOSED | `SalesService`, desktop catalog flow | Cart mutation terverifikasi |
 | M6 | Checkout + receipt | PENDING | - | Hanya placeholder jujur di desktop shell |
 | M7 | Inventory basic | PARTIAL / FOUNDATION | `:shared:inventory`, `InventoryService` | Sales checkout memakai inventory boundary |
@@ -22,6 +22,6 @@ Dokumen ini adalah bridge antara roadmap PDF, context agent, dan repo reality. R
 
 - `.\gradlew :shared:kernel:desktopTest` (13 tests passed)
 - `.\gradlew :apps:desktop-pos:run --args="--smoke-run"`
-- `.\gradlew :apps:desktop-pos:test` (Controller logic evidence)
+- `.\gradlew :apps:desktop-pos:test` (Controller lifecycle evidence)
 
 Lihat `docs/execution/windows_desktop_runbook.md`, `docs/execution/workspace_jdk_guide.md`, `docs/execution/ci_topology_truth.md`, dan `docs/execution/windows_installer_smoke_checklist.md`.

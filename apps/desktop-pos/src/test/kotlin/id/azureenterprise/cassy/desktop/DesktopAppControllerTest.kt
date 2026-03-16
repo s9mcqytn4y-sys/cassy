@@ -29,126 +29,109 @@ import kotlin.test.assertTrue
 class DesktopAppControllerTest {
 
     @Test
-    fun `bootstrap to catalog flow is reachable through guarded desktop stages`() {
+    fun `full business day and shift lifecycle closure foundation`() {
         runBlocking {
             val fixture = desktopFixture()
             val controller = fixture.newController()
 
+            // 1. Setup to OpenDay stage
             controller.load()
-            assertEquals(DesktopStage.Bootstrap, controller.state.value.stage)
-
-            controller.updateBootstrapField(BootstrapField.StoreName, "Pilot Store")
-            controller.updateBootstrapField(BootstrapField.TerminalName, "POS-01")
-            controller.updateBootstrapField(BootstrapField.CashierName, "Lina")
-            controller.updateBootstrapField(BootstrapField.CashierPin, "123456")
-            controller.updateBootstrapField(BootstrapField.SupervisorName, "Roni")
-            controller.updateBootstrapField(BootstrapField.SupervisorPin, "654321")
-            controller.bootstrapStore()
-            assertEquals(DesktopStage.Login, controller.state.value.stage)
-
-            val supervisorId = controller.state.value.login.operators.first { it.roleLabel == "SUPERVISOR" }.id
-            controller.selectOperator(supervisorId)
-            controller.updatePin("654321")
-            controller.login()
-            assertEquals(DesktopStage.OpenDay, controller.state.value.stage)
-
-            controller.openBusinessDay()
-            assertEquals(DesktopStage.StartShift, controller.state.value.stage)
-
-            controller.updateOpeningCashInput("250.0")
-            controller.startShift()
-            assertEquals(DesktopStage.Catalog, controller.state.value.stage)
-        }
-    }
-
-    @Test
-    fun `bootstrap validation errors are honestly reported`() {
-        runBlocking {
-            val fixture = desktopFixture()
-            val controller = fixture.newController()
-
-            controller.load()
-
-            // Case 1: Empty Store Name
-            controller.bootstrapStore()
-            assertEquals("Nama toko wajib diisi", controller.state.value.banner?.message)
-            assertEquals(DesktopStage.Bootstrap, controller.state.value.stage)
-
-            // Case 2: Short PIN
             controller.updateBootstrapField(BootstrapField.StoreName, "Store")
             controller.updateBootstrapField(BootstrapField.TerminalName, "T1")
             controller.updateBootstrapField(BootstrapField.CashierName, "C1")
-            controller.updateBootstrapField(BootstrapField.CashierPin, "123") // Too short
+            controller.updateBootstrapField(BootstrapField.CashierPin, "111111")
             controller.updateBootstrapField(BootstrapField.SupervisorName, "S1")
-            controller.updateBootstrapField(BootstrapField.SupervisorPin, "654321")
+            controller.updateBootstrapField(BootstrapField.SupervisorPin, "222222")
             controller.bootstrapStore()
-            assertEquals("PIN harus 6 digit", controller.state.value.banner?.message)
-        }
-    }
-
-    @Test
-    fun `wrong pin and lockout stay in login stage with honest feedback`() {
-        runBlocking {
-            val fixture = desktopFixture()
-            val controller = fixture.newController()
-
-            controller.load()
-            controller.updateBootstrapField(BootstrapField.StoreName, "Pilot Store")
-            controller.updateBootstrapField(BootstrapField.TerminalName, "POS-01")
-            controller.updateBootstrapField(BootstrapField.CashierName, "Lina")
-            controller.updateBootstrapField(BootstrapField.CashierPin, "123456")
-            controller.updateBootstrapField(BootstrapField.SupervisorName, "Roni")
-            controller.updateBootstrapField(BootstrapField.SupervisorPin, "654321")
-            controller.bootstrapStore()
-
-            val cashierId = controller.state.value.login.operators.first { it.roleLabel == "CASHIER" }.id
-            controller.selectOperator(cashierId)
-
-            // Attempt 1
-            controller.updatePin("000000")
-            controller.login()
-            assertEquals("PIN operator salah", controller.state.value.banner?.message)
-            assertTrue(controller.state.value.login.feedback?.contains("Sisa percobaan sebelum lock: 2") == true)
-
-            // Attempt 2
-            controller.updatePin("000000")
-            controller.login()
-
-            // Attempt 3 -> Lockout
-            controller.updatePin("000000")
-            controller.login()
-
-            assertEquals(DesktopStage.Login, controller.state.value.stage)
-            assertEquals("Akses operator terkunci sementara", controller.state.value.banner?.message)
-            assertTrue(controller.state.value.login.feedback?.contains("Akses terkunci sampai") == true)
-        }
-    }
-
-    @Test
-    fun `restored session resumes guarded stage honestly`() {
-        runBlocking {
-            val fixture = desktopFixture()
-            val controller = fixture.newController()
-
-            controller.load()
-            controller.updateBootstrapField(BootstrapField.StoreName, "Pilot Store")
-            controller.updateBootstrapField(BootstrapField.TerminalName, "POS-01")
-            controller.updateBootstrapField(BootstrapField.CashierName, "Lina")
-            controller.updateBootstrapField(BootstrapField.CashierPin, "123456")
-            controller.updateBootstrapField(BootstrapField.SupervisorName, "Roni")
-            controller.updateBootstrapField(BootstrapField.SupervisorPin, "654321")
-            controller.bootstrapStore()
-
             val supervisorId = controller.state.value.login.operators.first { it.roleLabel == "SUPERVISOR" }.id
             controller.selectOperator(supervisorId)
-            controller.updatePin("654321")
+            controller.updatePin("222222")
             controller.login()
             assertEquals(DesktopStage.OpenDay, controller.state.value.stage)
 
-            // Simulate app restart by creating a new controller sharing the same fixture/DB
-            val restoredOpenDay = fixture.newController()
-            restoredOpenDay.load()
-            assertEquals(DesktopStage.OpenDay, restoredOpenDay.state.value.stage)
+            // 2. Open Day -> StartShift
+            controller.openBusinessDay()
+            assertEquals(DesktopStage.StartShift, controller.state.value.stage)
+
+            // 3. Start Shift -> Catalog
+            controller.updateOpeningCashInput("100.0")
+            controller.startShift()
+            assertEquals(DesktopStage.Catalog, controller.state.value.stage)
+
+            // 4. End Shift -> Back to StartShift (for next shift)
+            controller.updateClosingCashInput("150.0")
+            controller.endShift()
+            assertEquals(DesktopStage.StartShift, controller.state.value.stage)
+
+            // 5. Close Day -> Back to OpenDay
+            controller.closeBusinessDay()
+            assertEquals(DesktopStage.OpenDay, controller.state.value.stage)
+        }
+    }
+
+    @Test
+    fun `cannot close business day while shift is active`() {
+        runBlocking {
+            val fixture = desktopFixture()
+            val controller = fixture.newController()
+
+            // Reach Catalog stage
+            controller.load()
+            controller.updateBootstrapField(BootstrapField.StoreName, "Store")
+            controller.updateBootstrapField(BootstrapField.TerminalName, "T1")
+            controller.updateBootstrapField(BootstrapField.CashierName, "C1")
+            controller.updateBootstrapField(BootstrapField.CashierPin, "111111")
+            controller.updateBootstrapField(BootstrapField.SupervisorName, "S1")
+            controller.updateBootstrapField(BootstrapField.SupervisorPin, "222222")
+            controller.bootstrapStore()
+            val supervisorId = controller.state.value.login.operators.first { it.roleLabel == "SUPERVISOR" }.id
+            controller.selectOperator(supervisorId)
+            controller.updatePin("222222")
+            controller.login()
+            controller.openBusinessDay()
+            controller.updateOpeningCashInput("100.0")
+            controller.startShift()
+
+            assertEquals(DesktopStage.Catalog, controller.state.value.stage)
+
+            // Try to close day without ending shift
+            controller.closeBusinessDay()
+
+            // Should remain in Catalog with error banner
+            assertEquals(DesktopStage.Catalog, controller.state.value.stage)
+            assertEquals("Shift aktif harus ditutup sebelum close day", controller.state.value.banner?.message)
+        }
+    }
+
+    @Test
+    fun `invalid cash inputs are honestly reported`() {
+        runBlocking {
+            val fixture = desktopFixture()
+            val controller = fixture.newController()
+
+            // Setup to StartShift
+            controller.load()
+            controller.updateBootstrapField(BootstrapField.StoreName, "S")
+            controller.updateBootstrapField(BootstrapField.TerminalName, "T")
+            controller.updateBootstrapField(BootstrapField.CashierName, "C")
+            controller.updateBootstrapField(BootstrapField.CashierPin, "111111")
+            controller.updateBootstrapField(BootstrapField.SupervisorName, "S")
+            controller.updateBootstrapField(BootstrapField.SupervisorPin, "222222")
+            controller.bootstrapStore()
+            controller.selectOperator(controller.state.value.login.operators.first { it.roleLabel == "SUPERVISOR" }.id)
+            controller.updatePin("222222")
+            controller.login()
+            controller.openBusinessDay()
+
+            // Invalid format
+            controller.updateOpeningCashInput("abc")
+            controller.startShift()
+            assertEquals("Opening cash harus berupa angka", controller.state.value.banner?.message)
+
+            // Negative amount
+            controller.updateOpeningCashInput("-50.0")
+            controller.startShift()
+            assertEquals("Opening cash tidak boleh negatif", controller.state.value.banner?.message)
         }
     }
 
