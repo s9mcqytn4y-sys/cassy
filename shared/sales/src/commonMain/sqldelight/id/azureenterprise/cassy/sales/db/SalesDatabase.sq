@@ -42,6 +42,12 @@ CREATE TABLE ReceiptSnapshot (
     FOREIGN KEY(saleId) REFERENCES Sale(id)
 );
 
+CREATE TABLE ActiveBasket (
+    id INTEGER PRIMARY KEY CHECK (id = 1), -- Single row enforcement
+    content TEXT NOT NULL, -- JSON serialized Basket
+    updatedAt INTEGER NOT NULL
+);
+
 CREATE UNIQUE INDEX Sale_terminal_local_unique_idx ON Sale(terminalId, localNumber);
 CREATE INDEX Sale_shift_timestamp_idx ON Sale(shiftId, timestamp);
 CREATE INDEX Sale_status_timestamp_idx ON Sale(status, timestamp);
@@ -76,3 +82,13 @@ VALUES (?, ?, ?);
 
 getReceiptSnapshot:
 SELECT * FROM ReceiptSnapshot WHERE saleId = ?;
+
+insertOrUpdateActiveBasket:
+INSERT OR REPLACE INTO ActiveBasket(id, content, updatedAt)
+VALUES (1, ?, ?);
+
+getActiveBasket:
+SELECT content FROM ActiveBasket WHERE id = 1;
+
+clearActiveBasket:
+DELETE FROM ActiveBasket WHERE id = 1;

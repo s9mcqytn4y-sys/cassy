@@ -5,6 +5,8 @@ import id.azureenterprise.cassy.inventory.application.SaleInventoryLine
 import id.azureenterprise.cassy.kernel.data.KernelRepository
 import id.azureenterprise.cassy.kernel.domain.IdGenerator
 import id.azureenterprise.cassy.masterdata.domain.Product
+import id.azureenterprise.cassy.masterdata.domain.ProductLookupUseCase
+import id.azureenterprise.cassy.masterdata.domain.ProductLookupResult
 import id.azureenterprise.cassy.sales.data.SalesRepository
 import id.azureenterprise.cassy.sales.domain.Basket
 import id.azureenterprise.cassy.sales.domain.BasketItem
@@ -19,12 +21,29 @@ class SalesService(
     private val inventoryService: InventoryService,
     private val kernelRepository: KernelRepository,
     private val pricingEngine: PricingEngine,
+    private val productLookupUseCase: ProductLookupUseCase,
     private val clock: Clock
 ) {
     private val _basket = MutableStateFlow(Basket())
     val basket: StateFlow<Basket> = _basket.asStateFlow()
 
     private var activeSaleId: String? = null
+
+    suspend fun initialize() {
+        salesRepository.getActiveBasket()?.let {
+            _basket.value = it
+        }
+    }
+
+    suspend fun addProductByLookup(input: String, quantity: Double = 1.0): Result<Basket> {
+        val lookupResult = productLookupUseCase.execute(input)
+        return when (lookupResult) {
+            is ProductLookupResult.FoundSingle -> addProduct(lookupResult.product, quantity)
+            is ProductLookupResult.NotFound -> Result.failure(Exception("Produk tidak ditemukan"))
+            is ProductLookupResult.InvalidInput -> Result.failure(Exception(lookupResult.message))
+            else -> Result.failure(Exception("Gagal mencari produk: hasil tidak unik atau tidak tersedia"))
+        }
+    }
 
     suspend fun addProduct(product: Product, quantity: Double = 1.0): Result<Basket> {
         requireOperationalContext().getOrElse { return Result.failure(it) }
@@ -69,11 +88,17 @@ class SalesService(
         return Result.success(_basket.value)
     }
 
-    private fun updateBasket(items: List<BasketItem>) {
+    private suspend fun updateBasket(items: List<BasketItem>) {
         val newTotals = pricingEngine.calculateTotals(items)
-        _basket.value = Basket(items = items, totals = newTotals)
+        val newBasket = Basket(items = items, totals = newTotals)
+        _basket.value = newBasket
+        salesRepository.saveActiveBasket(newBasket)
     }
 
+    /**
+     * M5 Note: Checkout logic is baseline only.
+     * Complex payment orchestration and receipt finalization deferred to M6.
+     */
     suspend fun checkout(paymentMethod: String): Result<String> {
         val currentBasket = _basket.value
         if (currentBasket.items.isEmpty()) return Result.failure(Exception("Cart is empty"))
@@ -87,14 +112,18 @@ class SalesService(
         val saleId = activeSaleId ?: IdGenerator.nextId("sale")
         val localNumber = "INV-${clock.now().toEpochMilliseconds()}"
 
+        // Save Sale & Items
         salesRepository.saveSale(saleId, localNumber, shift.id, binding.terminalId, currentBasket)
 
+        // M5: Basic Payment Recording
         val paymentId = IdGenerator.nextId("pay")
         salesRepository.recordPayment(paymentId, saleId, paymentMethod, currentBasket.totals.finalTotal, "SUCCESS", null)
 
-        val receiptContent = buildReceiptContent(currentBasket, localNumber)
+        // M5: Basic Receipt Content
+        val receiptContent = "Order: $localNumber\nTotal: ${currentBasket.totals.finalTotal}"
         salesRepository.finalizeSale(saleId, receiptContent)
 
+        // Update Inventory
         inventoryService.recordSaleCompletion(
             saleId = saleId,
             terminalId = binding.terminalId,
@@ -106,27 +135,23 @@ class SalesService(
             }
         ).getOrThrow()
 
-        _basket.value = Basket()
+        clearCart()
         activeSaleId = null
 
         return Result.success(saleId)
     }
 
-    private fun buildReceiptContent(basket: Basket, orderNumber: String): String {
-        return "Order: $orderNumber\nTotal: ${basket.totals.finalTotal}"
-    }
-
     suspend fun suspendSale(): Result<Unit> {
         val saleId = activeSaleId ?: return Result.failure(Exception("No active sale to suspend"))
         salesRepository.suspendSale(saleId)
-        _basket.value = Basket()
+        clearCart()
         activeSaleId = null
         return Result.success(Unit)
     }
 
     suspend fun clearCart(): Result<Basket> {
-        requireOperationalContext().getOrElse { return Result.failure(it) }
         _basket.value = Basket()
+        salesRepository.clearActiveBasket()
         return Result.success(_basket.value)
     }
 

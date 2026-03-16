@@ -1,7 +1,9 @@
 package id.azureenterprise.cassy.sales.domain
 
 import id.azureenterprise.cassy.masterdata.domain.Product
+import kotlinx.serialization.Serializable
 
+@Serializable
 data class BasketItem(
     val product: Product,
     val quantity: Double,
@@ -12,6 +14,7 @@ data class BasketItem(
     val totalPrice: Double get() = (unitPrice * quantity) - discountAmount + taxAmount
 }
 
+@Serializable
 data class BasketTotals(
     val subtotal: Double,
     val taxTotal: Double,
@@ -19,6 +22,7 @@ data class BasketTotals(
     val finalTotal: Double
 )
 
+@Serializable
 data class Basket(
     val items: List<BasketItem> = emptyList(),
     val totals: BasketTotals = BasketTotals(0.0, 0.0, 0.0, 0.0)

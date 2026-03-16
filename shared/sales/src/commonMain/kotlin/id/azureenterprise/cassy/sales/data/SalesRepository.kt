@@ -5,11 +5,14 @@ import id.azureenterprise.cassy.sales.domain.Basket
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
 import kotlinx.datetime.Clock
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.encodeToString
 
 class SalesRepository(
     private val database: SalesDatabase,
     private val ioDispatcher: CoroutineContext,
-    private val clock: Clock
+    private val clock: Clock,
+    private val json: Json = Json
 ) {
     private val queries = database.salesDatabaseQueries
 
@@ -91,6 +94,18 @@ class SalesRepository(
         )
     }
 
-    // Shift retrieval moved to KernelRepository/Service or kept as bridge
-    // For now, SalesService will need a way to check shift.
+    suspend fun saveActiveBasket(basket: Basket) = withContext(ioDispatcher) {
+        val content = json.encodeToString(basket)
+        queries.insertOrUpdateActiveBasket(content, clock.now().toEpochMilliseconds())
+    }
+
+    suspend fun getActiveBasket(): Basket? = withContext(ioDispatcher) {
+        queries.getActiveBasket().executeAsOneOrNull()?.let {
+            json.decodeFromString<Basket>(it)
+        }
+    }
+
+    suspend fun clearActiveBasket() = withContext(ioDispatcher) {
+        queries.clearActiveBasket()
+    }
 }

@@ -1,6 +1,7 @@
 plugins {
     id("cassy.kmp.shared")
     alias(libs.plugins.sqlDelight)
+    alias(libs.plugins.kotlinSerialization)
 }
 
 sqldelight {
@@ -20,6 +21,7 @@ kotlin {
             implementation(project(":shared:inventory"))
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.datetime)
+            implementation(libs.kotlinx.serialization.json)
             implementation(libs.koin.core)
             api(libs.sqldelight.runtime)
         }

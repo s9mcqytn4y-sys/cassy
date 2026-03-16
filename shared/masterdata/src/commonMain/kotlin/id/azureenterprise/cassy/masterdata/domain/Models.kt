@@ -1,5 +1,8 @@
 package id.azureenterprise.cassy.masterdata.domain
 
+import kotlinx.serialization.Serializable
+
+@Serializable
 data class Product(
     val id: String,
     val name: String,
@@ -10,6 +13,7 @@ data class Product(
     val isActive: Boolean = true
 )
 
+@Serializable
 data class Category(
     val id: String,
     val name: String,

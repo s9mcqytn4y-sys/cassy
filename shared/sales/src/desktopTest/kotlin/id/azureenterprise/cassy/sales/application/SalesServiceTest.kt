@@ -6,7 +6,11 @@ import id.azureenterprise.cassy.inventory.data.InventoryRepository
 import id.azureenterprise.cassy.inventory.db.InventoryDatabase
 import id.azureenterprise.cassy.kernel.data.KernelRepository
 import id.azureenterprise.cassy.kernel.db.KernelDatabase
+import id.azureenterprise.cassy.masterdata.data.ProductLookupRepositoryImpl
+import id.azureenterprise.cassy.masterdata.db.MasterDataDatabase
+import id.azureenterprise.cassy.masterdata.domain.BarcodeNormalizer
 import id.azureenterprise.cassy.masterdata.domain.Product
+import id.azureenterprise.cassy.masterdata.domain.ProductLookupUseCase
 import id.azureenterprise.cassy.sales.data.SalesRepository
 import id.azureenterprise.cassy.sales.db.SalesDatabase
 import id.azureenterprise.cassy.sales.domain.PricingEngine
@@ -80,9 +84,12 @@ class SalesServiceTest {
         val kernelDriver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
         val salesDriver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
         val inventoryDriver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+        val masterDataDriver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+
         KernelDatabase.Schema.create(kernelDriver)
         SalesDatabase.Schema.create(salesDriver)
         InventoryDatabase.Schema.create(inventoryDriver)
+        MasterDataDatabase.Schema.create(masterDataDriver)
 
         val kernelRepository = KernelRepository(KernelDatabase(kernelDriver), EmptyCoroutineContext, Clock.System)
         val inventoryRepository = InventoryRepository(
@@ -91,12 +98,18 @@ class SalesServiceTest {
             Clock.System
         )
 
+        val productLookupUseCase = ProductLookupUseCase(
+            repository = ProductLookupRepositoryImpl(MasterDataDatabase(masterDataDriver), EmptyCoroutineContext),
+            normalizer = BarcodeNormalizer()
+        )
+
         return SalesFixture(
             service = SalesService(
                 salesRepository = SalesRepository(SalesDatabase(salesDriver), EmptyCoroutineContext, Clock.System),
                 inventoryService = InventoryService(inventoryRepository, Clock.System),
                 kernelRepository = kernelRepository,
                 pricingEngine = PricingEngine(),
+                productLookupUseCase = productLookupUseCase,
                 clock = Clock.System
             ),
             kernelRepository = kernelRepository,
