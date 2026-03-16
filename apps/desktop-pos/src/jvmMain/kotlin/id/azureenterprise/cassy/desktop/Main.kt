@@ -69,7 +69,7 @@ fun main(args: Array<String>) {
         Window(
             onCloseRequest = ::exitApplication,
             title = "Cassy Foundation Desktop",
-            icon = painterResource("logo.png")
+            icon = painterResource("logo/cassandra-logo-main-512.png")
         ) {
             CassyDesktopTheme {
                 val controller: DesktopAppController = koinInject()
@@ -122,7 +122,7 @@ fun main(args: Array<String>) {
                                 onDecrement = { product, quantity -> scope.launch { controller.decrementItem(product, quantity) } },
                                 onClosingCashChanged = controller::updateClosingCashInput,
                                 onEndShift = { scope.launch { controller.endShift() } },
-                                onCloseDay = { scope.launch { controller.closeBusinessDay() } }
+                                onClosingDay = { scope.launch { controller.closeBusinessDay() } }
                             )
                             is DesktopStage.FatalError -> FatalStage(
                                 message = stage.message,
@@ -180,7 +180,7 @@ private fun ShellRail(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Image(
-                painter = painterResource("logo.png"),
+                painter = painterResource("logo/cassandra-logo-main-512.png"),
                 contentDescription = "Logo",
                 modifier = Modifier.size(48.dp)
             )
@@ -343,7 +343,7 @@ private fun CatalogStage(
     onDecrement: (Product, Double) -> Unit,
     onClosingCashChanged: (String) -> Unit,
     onEndShift: () -> Unit,
-    onCloseDay: () -> Unit
+    onClosingDay: () -> Unit
 ) {
     Row(
         modifier = Modifier.fillMaxSize().padding(24.dp),
@@ -414,7 +414,7 @@ private fun CatalogStage(
                 FormField("Closing Cash", state.operations.closingCashInput, onValueChange = onClosingCashChanged)
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedButton(onClick = onEndShift, modifier = Modifier.weight(1f)) { Text("End Shift") }
-                    Button(onClick = onCloseDay, modifier = Modifier.weight(1f)) { Text("Close Day") }
+                    Button(onClick = onClosingDay, modifier = Modifier.weight(1f)) { Text("Close Day") }
                 }
             }
         }

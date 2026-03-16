@@ -1,4 +1,4 @@
-# Cassy AI Exclude V2 - Standardized
+# Cassy AI Exclude V2.1 - Hardened
 # Keep context useful. Remove noise, not signal.
 
 # IDE / local
@@ -72,6 +72,9 @@ artifacts/
 test-results/
 snapshot-output/
 
+# Documentation source (excluded if already rendered in context)
+# docs/ai/**
+
 # Intentionally NOT excluded:
 # - AGENTS.md
 # - CODEX.md
@@ -81,10 +84,11 @@ snapshot-output/
 # - .github/**
 # - apps/**
 # - shared/**
-# - docs/**
+# - docs/** (Execution docs are vital signal)
 # - tooling/**
 # - gradle/**
 # - *.md
 # - settings.gradle.kts
 # - build.gradle.kts
 # - gradle/libs.versions.toml
+# - assets/logo/** (Metadata for UI branding)
