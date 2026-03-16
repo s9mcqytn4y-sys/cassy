@@ -9,12 +9,13 @@ import java.io.File
 actual val databaseModule: Module = module {
     single {
         val databasePath = File(System.getProperty("user.home"), ".cassy/kernel.db")
+        val databaseAlreadyExists = databasePath.exists()
         if (!databasePath.parentFile.exists()) {
             databasePath.parentFile.mkdirs()
         }
         val driver = JdbcSqliteDriver("jdbc:sqlite:${databasePath.absolutePath}")
         driver.harden()
-        if (!databasePath.exists()) {
+        if (!databaseAlreadyExists) {
             KernelDatabase.Schema.create(driver)
         }
         KernelDatabase(driver)

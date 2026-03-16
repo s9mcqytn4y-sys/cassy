@@ -9,10 +9,11 @@ import java.io.File
 actual val masterDataDatabaseModule: Module = module {
     single {
         val databasePath = File(System.getProperty("user.home"), ".cassy/masterdata.db")
+        val databaseAlreadyExists = databasePath.exists()
         databasePath.parentFile.mkdirs()
         val driver = JdbcSqliteDriver("jdbc:sqlite:${databasePath.absolutePath}")
         driver.harden()
-        if (!databasePath.exists()) {
+        if (!databaseAlreadyExists) {
             MasterDataDatabase.Schema.create(driver)
         }
         MasterDataDatabase(driver)

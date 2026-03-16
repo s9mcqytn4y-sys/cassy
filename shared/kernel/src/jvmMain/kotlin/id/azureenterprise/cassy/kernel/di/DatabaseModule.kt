@@ -9,16 +9,22 @@ import java.io.File
 actual val databaseModule: Module = module {
     single {
         val databasePath = File(System.getProperty("user.home"), ".cassy/kernel.db")
+        val databaseAlreadyExists = databasePath.exists()
         if (!databasePath.parentFile.exists()) {
             databasePath.parentFile.mkdirs()
         }
         val driver = JdbcSqliteDriver("jdbc:sqlite:${databasePath.absolutePath}")
-        try {
+        driver.harden()
+        if (!databaseAlreadyExists) {
             KernelDatabase.Schema.create(driver)
-        } catch (e: Exception) {
-            // Database already exists
         }
         KernelDatabase(driver)
     }
 }
-// This is an actual declaration for JVM (Desktop)
+
+private fun JdbcSqliteDriver.harden() {
+    execute(null, "PRAGMA foreign_keys = ON", 0)
+    execute(null, "PRAGMA journal_mode = WAL", 0)
+    execute(null, "PRAGMA busy_timeout = 5000", 0)
+    execute(null, "PRAGMA synchronous = NORMAL", 0)
+}
