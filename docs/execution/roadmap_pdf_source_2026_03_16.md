@@ -22,7 +22,7 @@ Primary pilot OS: Windows
 3. Debian package pernah terlihat seperti readiness desktop, padahal pilot utama adalah Windows.
 4. Desktop run sempat bocor ke Java 21 dan crash di Skiko; lane ini sekarang dipaksa ke JDK 17 only.
 5. Hosted `PR Gate #15` pada 2026-03-16 gagal di lane lama; repo sekarang sudah dipecah ke lane `PR Gate`, `Mainline Evidence`, `Nightly Integrity`, dan `Release Evidence`, tetapi hosted rerun baru masih perlu dibuktikan.
-6. Hosted `Mainline Evidence` untuk commit `3522efd` juga gagal pada step `Smoke Run Desktop Source`; lane hosted Windows belum bisa disebut stabil.
+6. Hosted `Mainline Evidence` untuk commit `3522efd` sempat gagal pada step `Smoke Run Desktop Source`, tetapi rerun setelah hardening init database dan smoke lane akhirnya sukses untuk commit `a27ddc7`.
 
 ## Current evidence
 
@@ -39,10 +39,11 @@ Primary pilot OS: Windows
 - `powershell -ExecutionPolicy Bypass -File tooling/scripts/Invoke-DesktopDistributionSmoke.ps1` sukses dan memverifikasi distribution runtime.
 - SQLDelight migration verification Windows sukses setelah worker migration diberi initializer sqlite khusus.
 - Mutasi stok dari checkout baseline sekarang melewati `shared:inventory:InventoryService`, bukan langsung dari `SalesService` ke repository stock.
+- Hosted `Mainline Evidence` run `23142319550` sukses dan mengunggah artifact `cassy-desktop-exe`, `cassy-desktop-app`, dan `cassy-mainline-evidence`.
 
 ## Remaining gaps
 
-- Hosted Windows CI execution evidence baru belum stabil; failure terbaru ada pada `Mainline Evidence` commit `3522efd`.
+- Hosted Windows CI execution evidence sekarang sudah ada untuk `Mainline Evidence` commit `a27ddc7`.
 - Installer smoke install/uninstall Windows belum tervalidasi end-to-end.
 - `:shared` masih menjadi legacy bridge yang harus terus disusutkan.
 - Checkout final, payment final, receipt final, reporting dasar, sync visibility, dan migration replay belum bisa diklaim done.

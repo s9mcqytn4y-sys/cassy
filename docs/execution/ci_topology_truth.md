@@ -42,5 +42,5 @@ Dokumen ini mencatat topology workflow yang benar-benar dimaksud repo setelah ha
 
 ## Gap yang masih tersisa
 
-- Hosted rerun setelah hardening ini belum punya evidence completion dari environment lokal ini.
+- Hosted `Mainline Evidence` run `23142319550` untuk commit `a27ddc7` sudah sukses dan menghasilkan artifact Windows.
 - Installer EXE install/uninstall tetap soft blocker manual dan tidak boleh diganti oleh artifact upload semata.

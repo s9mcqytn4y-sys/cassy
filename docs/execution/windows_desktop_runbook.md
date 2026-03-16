@@ -61,7 +61,7 @@ Catatan operasional:
 
 ## Hosted CI dan gap yang masih harus diakui
 
-- Hosted `PR Gate #15` pada 2026-03-16 gagal di workflow lama. Repo sekarang memisahkan lane `PR Gate`, `Mainline Evidence`, `Nightly Integrity`, dan `Release Evidence`, tetapi hosted rerun baru masih perlu diverifikasi.
+- Hosted `Mainline Evidence` run `23142319550` untuk commit `a27ddc7` sukses pada 2026-03-16 dan mengunggah artifact `cassy-desktop-exe`, `cassy-desktop-app`, serta `cassy-mainline-evidence`.
 - Smoke installer install/uninstall Windows belum tervalidasi di repo ini; automation yang terbukti baru source smoke dan distribution runtime smoke.
 - Launcher GUI `Cassy.exe` dari app image belum memberi output smoke CLI yang stabil di environment lokal ini, sehingga smoke otomatis menggunakan classpath distribusi dari `app/Cassy.cfg` dan fallback ke `JAVA_HOME` JDK 17 saat app image tidak menyertakan `java.exe`.
 - Debian package pada Ubuntu hanya compatibility artifact; bukan release truth untuk pilot Windows.
