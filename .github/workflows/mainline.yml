@@ -22,10 +22,10 @@ jobs:
           cache: gradle
       - name: Smoke Run Desktop Source
         shell: cmd
-        run: gradlew.bat :apps:desktop-pos:smokeRun --configuration-cache --scan --no-daemon
+        run: gradlew.bat :apps:desktop-pos:run --args=--smoke-run --no-daemon
       - name: Build Windows Distribution
         shell: cmd
-        run: gradlew.bat :apps:desktop-pos:createDistributable :apps:desktop-pos:packageDistributionForCurrentOS --configuration-cache --scan --no-daemon
+        run: gradlew.bat :apps:desktop-pos:createDistributable :apps:desktop-pos:packageDistributionForCurrentOS --no-daemon
       - name: Smoke Run Windows Distribution
         shell: pwsh
         run: powershell -ExecutionPolicy Bypass -File tooling/scripts/Invoke-DesktopDistributionSmoke.ps1
@@ -52,30 +52,9 @@ jobs:
             build/reports/**
           retention-days: 14
 
-  linux-package-compat:
-    name: linux-package-compat
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Prepare Gradle Wrapper
-        run: chmod +x ./gradlew
-      - uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-          cache: gradle
-      - name: Package Debian
-        run: ./gradlew :apps:desktop-pos:packageDeb --configuration-cache --scan --no-daemon
-      - name: Upload Debian Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: cassy-desktop-deb
-          path: apps/desktop-pos/build/compose/binaries/main/deb/*.deb
-          retention-days: 14
-
   mainline-evidence-manifest:
     name: mainline-evidence-manifest
-    needs: [windows-package-evidence, linux-package-compat]
+    needs: [windows-package-evidence]
     runs-on: ubuntu-latest
     steps:
       - name: Create Manifest
@@ -85,10 +64,9 @@ jobs:
             echo "commit=${GITHUB_SHA}"
             echo "workflow=${GITHUB_WORKFLOW}"
             echo "windows-package-evidence=${{ needs.windows-package-evidence.result }}"
-            echo "linux-package-compat=${{ needs.linux-package-compat.result }}"
             echo "desktop-jdk-policy=17"
             echo "local-config-cache=off"
-            echo "ci-config-cache=on-per-command"
+            echo "ci-config-cache=selective"
           } > build/mainline-evidence/release-manifest.txt
       - uses: actions/upload-artifact@v4
         with:

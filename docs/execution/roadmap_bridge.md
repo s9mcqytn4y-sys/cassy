@@ -8,7 +8,7 @@ Dokumen ini adalah bridge antara roadmap PDF, context agent, dan repo reality. R
 |:---|:---|:---|:---|:---|
 | M0 | Program setup | DONE | `AGENTS.md`, `CODEX.md`, `.agent/`, Gradle wrapper | Control plane dasar ada |
 | M1 | Scope lock V1 | DONE | `AGENTS.md`, `.agent/context/project_overview.md` | Desktop-first retail core terkunci |
-| M2 | Architecture control plane | PARTIAL / FOUNDATION | multi-module Gradle, build-logic Java 17, headless source smoke, PR/Mainline/Nightly/Release workflow split | `:shared` aggregator masih ada dan hosted rerun baru belum terbukti |
+| M2 | Architecture control plane | PARTIAL / FOUNDATION | multi-module Gradle, build-logic Java 17, headless source smoke, PR/Mainline/Nightly/Release workflow split | `:shared` aggregator masih ada dan hosted Windows rerun masih gagal |
 | M3 | Desktop access bootstrap | PARTIAL / FOUNDATION | `apps/desktop-pos`, `AccessService`, desktop controller tests untuk bootstrap/wrong pin/restore | Installer smoke manual dan hosted rerun belum lunas |
 | M4 | Business day & shift | PARTIAL / FOUNDATION | `BusinessDayService`, `ShiftService`, service tests, desktop guarded flow | Guardrail inti hidup, tetapi smoke lifecycle desktop penuh belum tertutup |
 | M5 | Catalog + cart + pricing baseline | PARTIAL / FOUNDATION | `SalesService`, `PricingEngine`, product lookup tests, catalog/cart shell | Checkout penuh, receipt, dan payment state belum dibuka |
@@ -24,7 +24,8 @@ Dokumen ini adalah bridge antara roadmap PDF, context agent, dan repo reality. R
 - M3 dan M4 sempat ditandai done hanya karena screen/navigasi tampil, bukan karena access/day/shift guardrail benar-benar hidup.
 - Packaging malam di CI hanya menghasilkan Debian package pada Ubuntu; itu bukan evidence kesiapan distribusi Windows.
 - desktop run sempat bocor ke Java 21 daemon criteria dan crash karena mixed Compose/Skiko runtime; lane ini sekarang dipaksa kembali ke JDK 17 only dan punya smoke run eksplisit.
-- Hosted `PR Gate #15` pada 2026-03-16 gagal di lane lama: Ubuntu jobs exit `126` karena wrapper permission dan Windows package lane exit `1`; repo sekarang memisahkan topology dan menambahkan smoke headless, tetapi hosted rerun baru masih diperlukan.
+- Hosted `PR Gate #15` pada 2026-03-16 gagal di lane lama: Ubuntu jobs exit `126` karena wrapper permission dan Windows package lane exit `1`.
+- Hosted `Mainline Evidence` untuk commit `3522efd` pada 2026-03-16 juga masih gagal: `windows-package-evidence` gagal pada step `Smoke Run Desktop Source`; repo lalu dipersempit lagi agar smoke memakai task `run --args="--smoke-run"` dan packaging mainline fokus ke Windows pilot.
 
 ## Definition of done minimum per lane foundation
 

@@ -8,7 +8,7 @@ Dokumen ini mengunci jalur local development agar tidak diam-diam lari ke Java 2
 - `JAVA_HOME` wajib menunjuk ke JDK 17
 - `gradle/gradle-daemon-jvm.properties` saat ini mengunci daemon ke Java 17
 - `org.gradle.configuration-cache=false` adalah default local/dev
-- CI mengaktifkan configuration cache secara eksplisit per command
+- CI hanya mengaktifkan configuration cache pada lane yang sudah terbukti stabil
 
 ## VS Code
 

@@ -9,7 +9,7 @@ Dokumen ini mencatat topology workflow yang benar-benar dimaksud repo setelah ha
   - tujuan: fast gate yang stabil untuk wrapper, shared-fast, android-fast, desktop-fast, lalu summary job
 - `Mainline Evidence` di `.github/workflows/mainline.yml`
   - trigger: `push` ke `main/master`, `workflow_dispatch`
-  - tujuan: packaging Windows, compatibility packaging Linux, upload artifact, dan manifest evidence
+  - tujuan: packaging Windows, upload artifact, dan manifest evidence
 - `Nightly Integrity` di `.github/workflows/nightly-integrity.yml`
   - trigger: schedule harian dan manual
   - tujuan: build penuh + subset migration verification yang jujur
@@ -27,6 +27,7 @@ Dokumen ini mencatat topology workflow yang benar-benar dimaksud repo setelah ha
   - `chmod +x ./gradlew` untuk runner Ubuntu
   - source smoke desktop dibuat headless dan bisa dijalankan lewat `:apps:desktop-pos:smokeRun` maupun `:apps:desktop-pos:run --args="--smoke-run"`
   - topology dipisah agar required checks tidak macet oleh packaging/release lane yang tidak relevan untuk PR
+  - mainline dipersempit ke evidence Windows; Debian compatibility tidak lagi menjadi blocker jalur pilot Windows
 
 ## Required-check posture yang jujur
 

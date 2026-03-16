@@ -8,7 +8,7 @@ Desktop-first retail operating core untuk single outlet. Fokus V1 saat ini adala
 - Android: parity/business-semantics lane
 - Desktop JDK policy: 17 only
 - Local/IDE default: configuration cache off
-- CI default: configuration cache on per command
+- CI posture: configuration cache dipakai selektif per command, bukan dipaksa di semua lane
 - Shared scope: domain, application, data
 - Native scope: app shell, lifecycle, OS integration, printer/scanner/device-heavy concern
 
@@ -49,6 +49,7 @@ Checkout penuh, payment state final, dan receipt final masih di luar closure fou
 
 - `PR Gate`: fast verification untuk `pull_request`
 - `Mainline Evidence`: packaging Windows/Linux dan artifact evidence untuk `push` ke `main`
+- `Mainline Evidence`: packaging Windows dan artifact evidence untuk `push` ke `main`
 - `Nightly Integrity`: build + migration/integrity subset terjadwal
 - `Release Evidence`: manifest/manual evidence lane yang dipicu manual
 
