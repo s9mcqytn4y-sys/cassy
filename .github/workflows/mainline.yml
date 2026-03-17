@@ -14,8 +14,8 @@ jobs:
     name: windows-package-evidence
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
         with:
           java-version: '17'
           distribution: 'temurin'
@@ -30,20 +30,20 @@ jobs:
         shell: pwsh
         run: powershell -ExecutionPolicy Bypass -File tooling/scripts/Invoke-DesktopDistributionSmoke.ps1
       - name: Upload Windows Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: cassy-desktop-exe
           path: apps/desktop-pos/build/compose/binaries/main/exe/*.exe
           retention-days: 14
       - name: Upload Desktop Distribution
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: cassy-desktop-app
           path: apps/desktop-pos/build/compose/binaries/main/app/Cassy/**
           retention-days: 14
       - name: Upload Windows Failure Reports
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: cassy-windows-debug
           path: |
@@ -68,7 +68,7 @@ jobs:
             echo "local-config-cache=off"
             echo "ci-config-cache=selective"
           } > build/mainline-evidence/release-manifest.txt
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: cassy-mainline-evidence
           path: build/mainline-evidence/release-manifest.txt
