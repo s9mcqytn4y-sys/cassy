@@ -3,6 +3,8 @@ package id.azureenterprise.cassy.desktop
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -44,10 +46,22 @@ fun BootstrapStage(
     ) {
         item {
             Text("Pengaturan Awal Toko", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-            Text("Lengkapi data toko dan terminal sebelum memulai operasional.", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+            Text("Terminal adalah perangkat komputer ini yang akan digunakan untuk transaksi.", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
         }
-        item { FormField("Nama Toko", state.bootstrap.storeName) { onFieldChanged(BootstrapField.StoreName, it) } }
-        item { FormField("Nama Terminal", state.bootstrap.terminalName) { onFieldChanged(BootstrapField.TerminalName, it) } }
+        item {
+            FormField(
+                label = "Nama Toko",
+                value = state.bootstrap.storeName,
+                helperText = "Nama bisnis Anda (misal: Toko Berkah Jaya)"
+            ) { onFieldChanged(BootstrapField.StoreName, it) }
+        }
+        item {
+            FormField(
+                label = "ID Terminal / Kasir",
+                value = state.bootstrap.terminalName,
+                helperText = "Nama unik komputer ini (misal: Kasir-01)"
+            ) { onFieldChanged(BootstrapField.TerminalName, it) }
+        }
         item { FormField("Nama Kasir", state.bootstrap.cashierName) { onFieldChanged(BootstrapField.CashierName, it) } }
         item { FormField("PIN Kasir (6 digit)", state.bootstrap.cashierPin, masked = true) { onFieldChanged(BootstrapField.CashierPin, it) } }
         item { FormField("Nama Supervisor", state.bootstrap.supervisorName) { onFieldChanged(BootstrapField.SupervisorName, it) } }
@@ -112,7 +126,7 @@ fun OpenDayStage(
 ) {
     CenterPanel(
         title = "Hari Bisnis Belum Dibuka",
-        subtitle = state.operations.blockingMessage ?: "Tekan tombol di bawah untuk membuka hari bisnis.",
+        subtitle = state.operations.blockingMessage ?: "Tekan tombol di bawah untuk membuka operasional toko hari ini.",
         action = {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (state.operations.canOpenDay) {
@@ -134,7 +148,7 @@ fun StartShiftStage(
     onStartShift: () -> Unit
 ) {
     CenterPanel(
-        title = "Mulai Shift Baru",
+        title = "Buka Kasir",
         subtitle = "Masukkan saldo kas awal (Modal Awal) sebelum memulai transaksi.",
         action = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -142,7 +156,7 @@ fun StartShiftStage(
                     label = "Modal Awal Tunai",
                     value = state.operations.openingCashInput,
                     onValueChange = onOpeningCashChanged,
-                    helperText = "Uang tunai yang tersedia di laci kas saat ini.",
+                    helperText = "Jumlah uang tunai yang ada di laci kas saat ini.",
                     onImeAction = onStartShift
                 )
                 state.operations.blockingMessage?.let { Text(it, color = MaterialTheme.colorScheme.error) }
@@ -177,16 +191,27 @@ private fun FormField(
     value: String,
     modifier: Modifier = Modifier.fillMaxWidth(),
     masked: Boolean = false,
+    helperText: String? = null,
     onValueChange: (String) -> Unit
 ) {
-    OutlinedTextField(
-        modifier = modifier,
-        value = value,
-        onValueChange = onValueChange,
-        label = { Text(label) },
-        singleLine = true,
-        visualTransformation = if (masked) PasswordVisualTransformation() else VisualTransformation.None
-    )
+    Column(modifier = modifier) {
+        OutlinedTextField(
+            modifier = Modifier.fillMaxWidth(),
+            value = value,
+            onValueChange = onValueChange,
+            label = { Text(label) },
+            singleLine = true,
+            visualTransformation = if (masked) PasswordVisualTransformation() else VisualTransformation.None
+        )
+        if (helperText != null) {
+            Text(
+                text = helperText,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                modifier = Modifier.padding(top = 4.dp, start = 4.dp)
+            )
+        }
+    }
 }
 
 @Composable
@@ -207,7 +232,7 @@ fun BannerCard(banner: UiBanner, onDismiss: () -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(banner.message, modifier = Modifier.weight(1f))
-            TextButton(onClick = onDismiss) { Text("OK") }
+            IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, contentDescription = "Close") }
         }
     }
 }

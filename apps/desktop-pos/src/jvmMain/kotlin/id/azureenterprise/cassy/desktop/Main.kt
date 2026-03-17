@@ -9,7 +9,9 @@ import androidx.compose.ui.input.key.*
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.application
+import androidx.compose.ui.window.rememberWindowState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -29,9 +31,13 @@ fun main(args: Array<String>) {
     println("Cassy desktop runtime Java ${System.getProperty("java.version")} | smokeMode=$smokeMode")
 
     application {
+        // 1. SCREEN FIT HARDENING: Start Maximized
+        val windowState = rememberWindowState(placement = WindowPlacement.Maximized)
+
         Window(
             onCloseRequest = ::exitApplication,
             title = "Cassy POS",
+            state = windowState,
             icon = painterResource("logo/cassandra-logo-main-512.png")
         ) {
             CassyDesktopTheme {
@@ -54,11 +60,6 @@ fun main(args: Array<String>) {
                                 Key.F1, Key.F5 -> { scope.launch { controller.load() }; true }
                                 Key.F12 -> { showCloseDayDialog = true; true }
                                 Key.F11 -> { showEndShiftDialog = true; true }
-                                // Enter on Numpad for fast submission
-                                Key.NumPadEnter -> {
-                                    // Context-aware enter action could be added here
-                                    false
-                                }
                                 else -> false
                             }
                         } else false
@@ -126,7 +127,12 @@ fun main(args: Array<String>) {
                                         )
                                     }
 
+                                    // 2. FEEDBACK HARDENING: Auto-close after 3s
                                     state.banner?.let { banner ->
+                                        LaunchedEffect(banner) {
+                                            delay(3000)
+                                            controller.dismissBanner()
+                                        }
                                         Box(modifier = Modifier.padding(16.dp).align(Alignment.BottomEnd)) {
                                             BannerCard(banner = banner, onDismiss = controller::dismissBanner)
                                         }
@@ -136,11 +142,12 @@ fun main(args: Array<String>) {
                         }
                     }
 
+                    // 3. SAFETY GATES: Human-friendly warnings
                     if (showEndShiftDialog) {
                         CassySafetyDialog(
-                            title = "Tutup Shift?",
-                            message = "Anda akan menutup shift saat ini. Pastikan saldo kas akhir sudah diinput dengan benar.",
-                            confirmLabel = "Tutup Shift",
+                            title = "Tutup Shift (Selesai Kerja)",
+                            message = "Gunakan ini saat Anda akan pulang atau bergantian dengan kasir lain. Pastikan uang kas sudah dihitung.",
+                            confirmLabel = "Ya, Tutup Shift",
                             onConfirm = {
                                 showEndShiftDialog = false
                                 scope.launch { controller.endShift() }
@@ -151,9 +158,9 @@ fun main(args: Array<String>) {
 
                     if (showCloseDayDialog) {
                         CassySafetyDialog(
-                            title = "Tutup Hari Bisnis?",
-                            message = "Tindakan ini akan mengakhiri semua operasional hari ini secara permanen. Lanjutkan?",
-                            confirmLabel = "Tutup Hari",
+                            title = "Tutup Hari (Toko Tutup)",
+                            message = "PERINGATAN: Gunakan ini HANYA saat toko benar-benar tutup untuk hari ini. Semua data hari ini akan dikunci.",
+                            confirmLabel = "Ya, Tutup Hari",
                             tone = UiTone.Danger,
                             onConfirm = {
                                 showCloseDayDialog = false
