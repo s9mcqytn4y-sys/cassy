@@ -112,10 +112,13 @@ fun main(args: Array<String>) {
                                                     state = state.catalog,
                                                     closingCashInput = state.operations.closingCashInput,
                                                     onClosingCashChanged = controller::updateClosingCashInput,
+                                                    onCashReceivedChanged = controller::updateCashReceivedInput,
                                                     onIncrement = { p -> scope.launch { controller.incrementItem(p) } },
                                                     onDecrement = { p, q -> scope.launch { controller.decrementItem(p, q) } },
                                                     onCheckoutCash = { scope.launch { controller.checkoutCash() } },
+                                                    onPrintLastReceipt = { scope.launch { controller.printLastReceipt() } },
                                                     onReprintLastReceipt = { scope.launch { controller.reprintLastReceipt() } },
+                                                    onCancelSale = { scope.launch { controller.cancelCurrentSale() } },
                                                     onEndShift = { showEndShiftDialog = true },
                                                     onClosingDay = { showCloseDayDialog = true }
                                                 )

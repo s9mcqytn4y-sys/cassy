@@ -22,6 +22,7 @@ import id.azureenterprise.cassy.sales.application.SalesService
 import id.azureenterprise.cassy.sales.data.SalesRepository
 import id.azureenterprise.cassy.sales.db.SalesDatabase
 import id.azureenterprise.cassy.sales.domain.PaymentStatus
+import id.azureenterprise.cassy.sales.domain.ReceiptPrintState
 import id.azureenterprise.cassy.sales.domain.ReceiptPrintStatus
 import id.azureenterprise.cassy.sales.domain.PricingEngine
 import kotlinx.coroutines.runBlocking
@@ -163,12 +164,17 @@ class DesktopAppControllerTest {
 
             val product = controller.state.value.catalog.products.first()
             controller.addProduct(product)
+            controller.updateCashReceivedInput("20000")
             controller.checkoutCash()
 
             assertEquals(DesktopStage.Catalog, controller.state.value.stage)
             assertTrue(controller.state.value.catalog.basket.items.isEmpty())
             assertTrue(controller.state.value.catalog.lastFinalizedSaleId != null)
             assertTrue(controller.state.value.catalog.lastReceiptPreview?.contains("No. Struk:") == true)
+            assertEquals(
+                "Preview struk final siap ditinjau",
+                controller.state.value.catalog.receiptPreview.availabilityMessage
+            )
 
             val readback = fixture.salesService
                 .getCompletedSaleReadback(controller.state.value.catalog.lastFinalizedSaleId!!)
@@ -182,7 +188,7 @@ class DesktopAppControllerTest {
 
             controller.reprintLastReceipt()
 
-            assertEquals("Struk final siap dicetak ulang", controller.state.value.banner?.message)
+            assertEquals(ReceiptPrintStatus.PRINTED, controller.state.value.catalog.printState.status)
             assertTrue(controller.state.value.catalog.lastReceiptPreview?.contains(product.name) == true)
         }
     }
@@ -213,11 +219,67 @@ class DesktopAppControllerTest {
             controller.startShift()
 
             controller.addProduct(controller.state.value.catalog.products.first())
+            controller.updateCashReceivedInput("10000")
             controller.checkoutCash()
 
             val saleId = controller.state.value.catalog.lastFinalizedSaleId!!
             assertEquals("Cash drawer tidak merespons, transaksi tetap sah", controller.state.value.banner?.message)
-            assertEquals(PaymentStatus.SUCCESS, fixture.salesService.getCompletedSaleReadback(saleId).getOrThrow().receiptSnapshot.payment.state.status)
+            assertEquals(
+                PaymentStatus.SUCCESS,
+                fixture.salesService
+                    .getCompletedSaleReadback(saleId)
+                    .getOrThrow()
+                    .receiptSnapshot
+                    .payment
+                    .state
+                    .status
+            )
+        }
+    }
+
+    @Test
+    fun `print failure is visible and finalized sale stays valid`() {
+        runBlocking {
+            val fixture = desktopFixture(
+                hardwarePort = FakeCashierHardwarePort(
+                    printState = ReceiptPrintState(
+                        status = ReceiptPrintStatus.FAILED,
+                        detailMessage = "Printer offline. Struk final tetap aman untuk reprint nanti."
+                    )
+                )
+            )
+            val controller = fixture.newController()
+
+            controller.load()
+            controller.updateBootstrapField(BootstrapField.StoreName, "Store")
+            controller.updateBootstrapField(BootstrapField.TerminalName, "T1")
+            controller.updateBootstrapField(BootstrapField.CashierName, "C1")
+            controller.updateBootstrapField(BootstrapField.CashierPin, "111111")
+            controller.updateBootstrapField(BootstrapField.SupervisorName, "S1")
+            controller.updateBootstrapField(BootstrapField.SupervisorPin, "222222")
+            controller.bootstrapStore()
+            controller.selectOperator(controller.state.value.login.operators.first { it.roleLabel == "SUPERVISOR" }.id)
+            controller.updatePin("222222")
+            controller.login()
+            controller.openBusinessDay()
+            controller.updateOpeningCashInput("100.0")
+            controller.startShift()
+
+            controller.addProduct(controller.state.value.catalog.products.first())
+            controller.updateCashReceivedInput("10000")
+            controller.checkoutCash()
+            controller.printLastReceipt()
+
+            val saleId = controller.state.value.catalog.lastFinalizedSaleId!!
+            assertEquals(ReceiptPrintStatus.FAILED, controller.state.value.catalog.printState.status)
+            assertEquals(
+                "Printer offline. Struk final tetap aman untuk reprint nanti.",
+                controller.state.value.banner?.message
+            )
+            assertEquals(
+                PaymentStatus.SUCCESS,
+                fixture.salesService.getCompletedSaleReadback(saleId).getOrThrow().receiptSnapshot.payment.state.status
+            )
         }
     }
 
@@ -329,7 +391,11 @@ private class FakeDesktopPaymentGatewayPort : PaymentGatewayPort {
 
 private class FakeCashierHardwarePort(
     private val snapshot: CashierHardwareSnapshot = CashierHardwareSnapshot(),
-    private val postFinalizationWarning: String? = null
+    private val postFinalizationWarning: String? = null,
+    private val printState: ReceiptPrintState = ReceiptPrintState(
+        status = ReceiptPrintStatus.PRINTED,
+        detailMessage = "Struk berhasil dicetak"
+    )
 ) : CashierHardwarePort {
     override suspend fun getSnapshot(): CashierHardwareSnapshot = snapshot
 
@@ -340,6 +406,15 @@ private class FakeCashierHardwarePort(
         return HardwarePostFinalizationResult(
             snapshot = snapshot,
             warningMessage = postFinalizationWarning
+        )
+    }
+
+    override suspend fun printReceipt(
+        receiptPayload: id.azureenterprise.cassy.sales.domain.ReceiptPrintPayload
+    ): HardwarePrintExecutionResult {
+        return HardwarePrintExecutionResult(
+            snapshot = snapshot,
+            printState = printState
         )
     }
 }

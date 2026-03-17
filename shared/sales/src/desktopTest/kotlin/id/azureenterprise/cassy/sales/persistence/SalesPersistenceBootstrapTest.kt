@@ -40,12 +40,12 @@ class SalesPersistenceBootstrapTest {
     }
 
     @Test
-    fun `upgrade path migrates v2 sales schema to latest without losing persisted receipt`() {
+    fun `upgrade path migrates v5 sales schema to latest without losing persisted receipt`() {
         val dbPath = Files.createTempFile("cassy-sales-upgrade", ".db").toFile()
 
         DriverManager.getConnection("jdbc:sqlite:${dbPath.absolutePath}").use { connection ->
             connection.createStatement().use { stmt ->
-                stmt.execute("PRAGMA user_version = 3")
+                stmt.execute("PRAGMA user_version = 5")
                 stmt.execute(
                     """
                     CREATE TABLE Sale (
@@ -69,6 +69,7 @@ class SalesPersistenceBootstrapTest {
                         id TEXT NOT NULL PRIMARY KEY,
                         saleId TEXT NOT NULL,
                         productId TEXT NOT NULL,
+                        productName TEXT NOT NULL,
                         unitPrice REAL NOT NULL,
                         quantity REAL NOT NULL,
                         totalPrice REAL NOT NULL,
@@ -99,6 +100,9 @@ class SalesPersistenceBootstrapTest {
                     CREATE TABLE ReceiptSnapshot (
                         saleId TEXT NOT NULL PRIMARY KEY,
                         content TEXT NOT NULL,
+                        snapshotVersion INTEGER NOT NULL,
+                        templateId TEXT NOT NULL,
+                        paperWidthMm INTEGER NOT NULL,
                         createdAt INTEGER NOT NULL,
                         FOREIGN KEY(saleId) REFERENCES Sale(id)
                     )
@@ -115,7 +119,7 @@ class SalesPersistenceBootstrapTest {
                 )
                 stmt.execute("INSERT INTO Sale(id, localNumber, shiftId, terminalId, timestamp, totalAmount, taxAmount, discountAmount, finalAmount, status) VALUES ('sale_1', 'INV-1', 'shift_1', 'terminal_1', 1, 100, 0, 0, 100, 'COMPLETED')")
                 stmt.execute("INSERT INTO SalePayment(id, saleId, method, amount, status, timestamp) VALUES ('pay_1', 'sale_1', 'CASH', 100, 'SUCCESS', 1)")
-                stmt.execute("INSERT INTO ReceiptSnapshot(saleId, content, createdAt) VALUES ('sale_1', '{\"version\":1,\"saleId\":\"sale_1\",\"localNumber\":\"INV-1\",\"shiftId\":\"shift_1\",\"terminalId\":\"terminal_1\",\"finalizedAtEpochMs\":1,\"payment\":{\"method\":\"CASH\",\"amount\":100.0,\"state\":{\"status\":\"SUCCESS\"}},\"totals\":{\"subtotal\":100.0,\"taxTotal\":0.0,\"discountTotal\":0.0,\"finalTotal\":100.0},\"items\":[]}', 1)")
+                stmt.execute("INSERT INTO ReceiptSnapshot(saleId, content, snapshotVersion, templateId, paperWidthMm, createdAt) VALUES ('sale_1', '{\"version\":1,\"saleId\":\"sale_1\",\"localNumber\":\"INV-1\",\"shiftId\":\"shift_1\",\"terminalId\":\"terminal_1\",\"finalizedAtEpochMs\":1,\"payment\":{\"method\":\"CASH\",\"amount\":100.0,\"state\":{\"status\":\"SUCCESS\"}},\"totals\":{\"subtotal\":100.0,\"taxTotal\":0.0,\"discountTotal\":0.0,\"finalTotal\":100.0},\"items\":[]}', 1, 'thermal-80mm-v1', 80, 1)")
             }
         }
 
@@ -131,6 +135,9 @@ class SalesPersistenceBootstrapTest {
                     assertEquals("thermal-80mm-v1", rs.getString("templateId"))
                     assertEquals(80, rs.getInt("paperWidthMm"))
                     assertEquals(1, rs.getInt("snapshotVersion"))
+                }
+                stmt.executeQuery("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'FinalizationBundle'").use { rs ->
+                    assertTrue(rs.next())
                 }
             }
         }

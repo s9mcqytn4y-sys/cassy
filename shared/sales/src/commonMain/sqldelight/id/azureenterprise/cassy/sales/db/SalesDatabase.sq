@@ -49,6 +49,29 @@ CREATE TABLE ReceiptSnapshot (
     FOREIGN KEY(saleId) REFERENCES Sale(id) ON DELETE CASCADE
 );
 
+CREATE TABLE FinalizationBundle (
+    saleId TEXT NOT NULL PRIMARY KEY,
+    paymentId TEXT NOT NULL,
+    state TEXT NOT NULL CHECK (state IN ('PREPARED', 'APPLYING', 'COMPLETED')),
+    receiptContent TEXT NOT NULL CHECK (length(trim(receiptContent)) > 0),
+    paymentStatus TEXT NOT NULL CHECK (paymentStatus IN ('PENDING', 'SUCCESS', 'FAILED', 'CANCELLED')),
+    paymentDetailCode TEXT,
+    paymentDetailMessage TEXT,
+    providerReference TEXT,
+    inventoryContent TEXT NOT NULL CHECK (length(trim(inventoryContent)) > 0),
+    auditId TEXT NOT NULL,
+    auditMessage TEXT NOT NULL,
+    eventId TEXT NOT NULL,
+    eventType TEXT NOT NULL,
+    eventPayload TEXT NOT NULL,
+    lastError TEXT,
+    preparedAt INTEGER NOT NULL,
+    updatedAt INTEGER NOT NULL,
+    FOREIGN KEY(saleId) REFERENCES Sale(id) ON DELETE CASCADE,
+    FOREIGN KEY(paymentId) REFERENCES SalePayment(id) ON DELETE CASCADE,
+    CHECK (paymentStatus NOT IN ('PENDING', 'FAILED') OR paymentDetailCode IS NOT NULL)
+);
+
 CREATE TABLE ActiveBasket (
     id INTEGER PRIMARY KEY CHECK (id = 1), -- Single row enforcement
     content TEXT NOT NULL, -- JSON serialized Basket
@@ -63,6 +86,7 @@ CREATE INDEX SalePayment_sale_timestamp_idx ON SalePayment(saleId, timestamp);
 CREATE INDEX SalePayment_status_timestamp_idx ON SalePayment(status, timestamp);
 CREATE INDEX ReceiptSnapshot_createdAt_idx ON ReceiptSnapshot(createdAt);
 CREATE INDEX ReceiptSnapshot_template_createdAt_idx ON ReceiptSnapshot(templateId, createdAt);
+CREATE INDEX FinalizationBundle_state_updatedAt_idx ON FinalizationBundle(state, updatedAt);
 
 -- Queries
 insertSale:
@@ -108,6 +132,41 @@ VALUES (?, ?, ?, ?, ?, ?);
 
 getReceiptSnapshot:
 SELECT * FROM ReceiptSnapshot WHERE saleId = ?;
+
+insertOrIgnoreFinalizationBundle:
+INSERT OR IGNORE INTO FinalizationBundle(
+    saleId,
+    paymentId,
+    state,
+    receiptContent,
+    paymentStatus,
+    paymentDetailCode,
+    paymentDetailMessage,
+    providerReference,
+    inventoryContent,
+    auditId,
+    auditMessage,
+    eventId,
+    eventType,
+    eventPayload,
+    lastError,
+    preparedAt,
+    updatedAt
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+updateFinalizationBundleState:
+UPDATE FinalizationBundle
+SET state = ?, lastError = ?, updatedAt = ?
+WHERE saleId = ?;
+
+getFinalizationBundle:
+SELECT * FROM FinalizationBundle WHERE saleId = ? LIMIT 1;
+
+getIncompleteFinalizationBundles:
+SELECT * FROM FinalizationBundle
+WHERE state != 'COMPLETED'
+ORDER BY updatedAt ASC;
 
 insertOrUpdateActiveBasket:
 INSERT OR REPLACE INTO ActiveBasket(id, content, updatedAt)

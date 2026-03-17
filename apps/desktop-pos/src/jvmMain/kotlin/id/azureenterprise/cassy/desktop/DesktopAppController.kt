@@ -13,7 +13,10 @@ import id.azureenterprise.cassy.masterdata.domain.ProductLookupResult
 import id.azureenterprise.cassy.masterdata.domain.ProductLookupUseCase
 import id.azureenterprise.cassy.sales.application.SalesService
 import id.azureenterprise.cassy.sales.domain.Basket
+import id.azureenterprise.cassy.sales.domain.CashTenderQuote
 import id.azureenterprise.cassy.sales.domain.CompleteSaleOutcome
+import id.azureenterprise.cassy.sales.domain.ReceiptPrintState
+import id.azureenterprise.cassy.sales.domain.ReceiptPrintStatus
 import id.azureenterprise.cassy.sales.domain.SaleHistoryEntry
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -195,14 +198,74 @@ class DesktopAppController(
         val banner = when (val result = productLookupUseCase.execute(input)) {
             is ProductLookupResult.FoundSingle -> {
                 salesService.addProduct(result.product).fold(
-                    onSuccess = { UiBanner(UiTone.Success, "${result.product.name} ditambahkan ke cart") },
+                    onSuccess = {
+                        _state.update {
+                            it.copy(
+                                catalog = it.catalog.copy(
+                                    lookupFeedback = LookupFeedback(
+                                        tone = UiTone.Success,
+                                        message = "${result.product.name} ditambahkan. Scan berulang otomatis menambah qty."
+                                    )
+                                )
+                            )
+                        }
+                        UiBanner(UiTone.Success, "${result.product.name} ditambahkan ke cart")
+                    },
                     onFailure = { UiBanner(UiTone.Danger, it.message ?: "Gagal menambah item") }
                 )
             }
-            ProductLookupResult.Collision -> UiBanner(UiTone.Warning, "Barcode bentrok. Gunakan pencarian manual.")
-            ProductLookupResult.NotFound -> UiBanner(UiTone.Warning, "Barang tidak ditemukan untuk input: $input")
-            ProductLookupResult.Unavailable -> UiBanner(UiTone.Warning, "Barang sedang tidak tersedia")
-            is ProductLookupResult.InvalidInput -> UiBanner(UiTone.Warning, result.message)
+            ProductLookupResult.Collision -> {
+                _state.update {
+                    it.copy(
+                        catalog = it.catalog.copy(
+                            lookupFeedback = LookupFeedback(
+                                tone = UiTone.Warning,
+                                message = "Kode bentrok. Pakai pencarian nama produk agar tidak salah scan."
+                            )
+                        )
+                    )
+                }
+                UiBanner(UiTone.Warning, "Barcode bentrok. Gunakan pencarian manual.")
+            }
+            ProductLookupResult.NotFound -> {
+                _state.update {
+                    it.copy(
+                        catalog = it.catalog.copy(
+                            lookupFeedback = LookupFeedback(
+                                tone = UiTone.Warning,
+                                message = "Produk belum ditemukan. Cek barcode/SKU atau daftarkan lebih dulu."
+                            )
+                        )
+                    )
+                }
+                UiBanner(UiTone.Warning, "Barang tidak ditemukan untuk input: $input")
+            }
+            ProductLookupResult.Unavailable -> {
+                _state.update {
+                    it.copy(
+                        catalog = it.catalog.copy(
+                            lookupFeedback = LookupFeedback(
+                                tone = UiTone.Warning,
+                                message = "Produk sedang tidak tersedia untuk dijual."
+                            )
+                        )
+                    )
+                }
+                UiBanner(UiTone.Warning, "Barang sedang tidak tersedia")
+            }
+            is ProductLookupResult.InvalidInput -> {
+                _state.update {
+                    it.copy(
+                        catalog = it.catalog.copy(
+                            lookupFeedback = LookupFeedback(
+                                tone = UiTone.Warning,
+                                message = result.message
+                            )
+                        )
+                    )
+                }
+                UiBanner(UiTone.Warning, result.message)
+            }
         }
         _state.update { it.copy(catalog = it.catalog.copy(barcodeInput = "")) }
         refreshStage(banner)
@@ -232,6 +295,16 @@ class DesktopAppController(
 
     suspend fun checkoutCash() {
         mutateBusy(true)
+        val tenderQuote = currentCashTenderQuote()
+            ?: return pushBanner(UiBanner(UiTone.Warning, "Masukkan uang diterima pelanggan terlebih dahulu"))
+        if (!tenderQuote.isSufficient) {
+            return pushBanner(
+                UiBanner(
+                    UiTone.Warning,
+                    "Uang pelanggan kurang Rp ${tenderQuote.shortageAmount.toInt()}"
+                )
+            )
+        }
         val result = salesService.completeSale("CASH")
         result.fold(
             onSuccess = { outcome ->
@@ -248,7 +321,7 @@ class DesktopAppController(
                             UiBanner(
                                 tone = if (hardwareResult.warningMessage == null) UiTone.Success else UiTone.Warning,
                                 message = hardwareResult.warningMessage
-                                    ?: "Transaksi ${finalizedSale.receiptSnapshot.localNumber} selesai"
+                                    ?: "Transaksi ${finalizedSale.receiptSnapshot.localNumber} selesai. Kembalian Rp ${tenderQuote.changeAmount.toInt()}"
                             )
                         )
                         _state.update {
@@ -257,7 +330,17 @@ class DesktopAppController(
                                 catalog = it.catalog.copy(
                                     lastFinalizedSaleId = saleId,
                                     lastReceiptPreview = receiptPreview.renderedContent,
-                                    recentSales = loadSaleHistory()
+                                    recentSales = loadSaleHistory(),
+                                    cashReceivedInput = "",
+                                    cashTenderQuote = null,
+                                    receiptPreview = ReceiptPreviewState(
+                                        saleId = saleId,
+                                        localNumber = finalizedSale.receiptSnapshot.localNumber,
+                                        content = receiptPreview.renderedContent,
+                                        availabilityMessage = "Preview struk final siap ditinjau"
+                                    ),
+                                    printState = receiptPreview.printState,
+                                    lookupFeedback = null
                                 )
                             )
                         }
@@ -286,18 +369,42 @@ class DesktopAppController(
         )
     }
 
-    suspend fun reprintLastReceipt() {
+    suspend fun printLastReceipt() {
         val saleId = state.value.catalog.lastFinalizedSaleId
-            ?: return pushBanner(UiBanner(UiTone.Warning, "Belum ada struk final untuk dicetak ulang"))
+            ?: return pushBanner(UiBanner(UiTone.Warning, "Belum ada struk final yang siap dicetak"))
         mutateBusy(true)
-        val result = salesService.getReceiptForPrint(saleId, isReprint = true)
+        _state.update {
+            it.copy(
+                catalog = it.catalog.copy(
+                    printState = ReceiptPrintState(
+                        status = ReceiptPrintStatus.NOT_REQUESTED,
+                        detailMessage = "Mengirim struk ke printer..."
+                    )
+                )
+            )
+        }
+        val result = salesService.getReceiptForPrint(saleId)
         result.fold(
             onSuccess = { receipt ->
+                val printResult = hardwarePort.printReceipt(receipt)
                 _state.update {
                     it.copy(
                         isBusy = false,
-                        catalog = it.catalog.copy(lastReceiptPreview = receipt.renderedContent),
-                        banner = UiBanner(UiTone.Info, "Struk final siap dicetak ulang")
+                        hardware = printResult.snapshot,
+                        catalog = it.catalog.copy(
+                            lastReceiptPreview = receipt.renderedContent,
+                            receiptPreview = ReceiptPreviewState(
+                                saleId = saleId,
+                                localNumber = receipt.snapshot.localNumber,
+                                content = receipt.renderedContent,
+                                availabilityMessage = "Preview struk final siap ditinjau"
+                            ),
+                            printState = printResult.printState
+                        ),
+                        banner = UiBanner(
+                            tone = if (printResult.printState.status == ReceiptPrintStatus.PRINTED) UiTone.Success else UiTone.Warning,
+                            message = printResult.printState.detailMessage ?: "Status print berubah"
+                        )
                     )
                 }
             },
@@ -307,12 +414,71 @@ class DesktopAppController(
         )
     }
 
+    suspend fun reprintLastReceipt() {
+        val saleId = state.value.catalog.lastFinalizedSaleId
+            ?: return pushBanner(UiBanner(UiTone.Warning, "Belum ada struk final untuk dicetak ulang"))
+        mutateBusy(true)
+        val result = salesService.getReceiptForPrint(saleId, isReprint = true)
+        result.fold(
+            onSuccess = { receipt ->
+                val printResult = hardwarePort.printReceipt(receipt)
+                _state.update {
+                    it.copy(
+                        isBusy = false,
+                        hardware = printResult.snapshot,
+                        catalog = it.catalog.copy(
+                            lastReceiptPreview = receipt.renderedContent,
+                            receiptPreview = ReceiptPreviewState(
+                                saleId = saleId,
+                                localNumber = receipt.snapshot.localNumber,
+                                content = receipt.renderedContent,
+                                availabilityMessage = "Preview struk final hasil reprint siap ditinjau"
+                            ),
+                            printState = printResult.printState
+                        ),
+                        banner = UiBanner(
+                            tone = if (printResult.printState.status == ReceiptPrintStatus.PRINTED) UiTone.Success else UiTone.Warning,
+                            message = printResult.printState.detailMessage ?: "Struk final siap dicetak ulang"
+                        )
+                    )
+                }
+            },
+            onFailure = { error ->
+                pushBanner(UiBanner(UiTone.Danger, error.message ?: "Gagal memuat struk final"))
+            }
+        )
+    }
+
+    suspend fun cancelCurrentSale() {
+        mutateBusy(true)
+        val result = salesService.cancelActiveSale()
+        refreshStage(
+            result.fold(
+                onSuccess = { UiBanner(UiTone.Info, "Pesanan draft dibatalkan. Struk final sebelumnya tetap aman.") },
+                onFailure = { UiBanner(UiTone.Danger, it.message ?: "Gagal membatalkan pesanan") }
+            )
+        )
+    }
+
     fun updateOpeningCashInput(value: String) {
         _state.update { it.copy(operations = it.operations.copy(openingCashInput = value)) }
     }
 
     fun updateClosingCashInput(value: String) {
         _state.update { it.copy(operations = it.operations.copy(closingCashInput = value)) }
+    }
+
+    fun updateCashReceivedInput(value: String) {
+        val digitsOnly = value.filter { it.isDigit() }
+        val receivedAmount = digitsOnly.toDoubleOrNull() ?: 0.0
+        _state.update {
+            it.copy(
+                catalog = it.catalog.copy(
+                    cashReceivedInput = digitsOnly,
+                    cashTenderQuote = salesService.quoteCashTender(receivedAmount).getOrNull()
+                )
+            )
+        }
     }
 
     fun dismissBanner() {
@@ -338,6 +504,20 @@ class DesktopAppController(
             activeShift == null -> DesktopStage.StartShift
             else -> DesktopStage.Catalog
         }
+        var resolvedBanner = banner
+        if (stage == DesktopStage.Catalog) {
+            val recoveredCount = salesService.recoverIncompleteFinalizations().getOrDefault(0)
+            if (recoveredCount > 0) {
+                resolvedBanner = UiBanner(
+                    UiTone.Info,
+                    "Finalisasi transaksi tertunda berhasil dipulihkan tanpa efek ganda"
+                )
+            }
+        }
+        val refreshedBasket = salesService.basket.value
+        val refreshedCashQuote = salesService.quoteCashTender(
+            state.value.catalog.cashReceivedInput.toDoubleOrNull() ?: 0.0
+        ).getOrNull()
 
         _state.update {
             it.copy(
@@ -372,11 +552,12 @@ class DesktopAppController(
                 ),
                 catalog = it.catalog.copy(
                     products = products,
-                    basket = salesService.basket.value,
-                    recentSales = loadSaleHistory()
+                    basket = refreshedBasket,
+                    recentSales = loadSaleHistory(),
+                    cashTenderQuote = refreshedCashQuote
                 ),
                 hardware = hardwarePort.getSnapshot(),
-                banner = banner
+                banner = resolvedBanner
             )
         }
     }
@@ -404,6 +585,10 @@ class DesktopAppController(
 
     private suspend fun loadSaleHistory(): List<SaleHistoryEntry> {
         return salesService.getSaleHistory().getOrDefault(emptyList()).take(5)
+    }
+
+    private fun currentCashTenderQuote(): CashTenderQuote? {
+        return state.value.catalog.cashTenderQuote
     }
 }
 
@@ -483,9 +668,29 @@ data class DesktopCatalogState(
     val barcodeInput: String = "",
     val products: List<Product> = emptyList(),
     val basket: Basket = Basket(),
+    val cashReceivedInput: String = "",
+    val cashTenderQuote: CashTenderQuote? = null,
     val lastFinalizedSaleId: String? = null,
     val lastReceiptPreview: String? = null,
-    val recentSales: List<SaleHistoryEntry> = emptyList()
+    val recentSales: List<SaleHistoryEntry> = emptyList(),
+    val receiptPreview: ReceiptPreviewState = ReceiptPreviewState(),
+    val printState: ReceiptPrintState = ReceiptPrintState(
+        status = ReceiptPrintStatus.NOT_REQUESTED,
+        detailMessage = "Belum ada struk final"
+    ),
+    val lookupFeedback: LookupFeedback? = null
+)
+
+data class ReceiptPreviewState(
+    val saleId: String? = null,
+    val localNumber: String? = null,
+    val content: String? = null,
+    val availabilityMessage: String = "Preview struk final belum tersedia"
+)
+
+data class LookupFeedback(
+    val tone: UiTone,
+    val message: String
 )
 
 enum class UiTone {

@@ -12,7 +12,7 @@ Dokumen ini adalah bridge antara roadmap PDF, context agent, dan repo reality. R
 | M3 | Desktop Bootstrap | **DONE** | `Main.kt` branding, `DesktopAppControllerTest` | Flow Login, Restore, dan Lockout telah terverifikasi. |
 | M4 | Business Day & Shift | **DONE** | `ShiftService`, Guardrail Lifecycle | Lifecycle Open/Start/End/Close tervalidasi dengan guardrail operasional. |
 | M5 | Thin M5 (Catalog/Cart) | **DONE (BASELINES)** | `SalesService`, `ActiveBasket` persistence | Catalog lookup, cart mutation, dan basket persistence (survival on restart) sudah stabil. |
-| M6 | Checkout & Receipt | **DONE (DESKTOP-FIRST R1)** | `SalesService`, `SalesRepository`, `DesktopAppController`, sales DB migrations | Finality transaksi, snapshot struk final, readback/reprint dari source final, complete-sale facade, payment callback/idempotency guard, dan separation print vs settlement validity sudah tervalidasi untuk lane desktop. |
+| M6 | Checkout & Receipt | **DONE (DESKTOP-FIRST R1)** | `SalesService`, `SalesRepository`, `DesktopAppController`, sales DB migrations | Finality transaksi, snapshot struk final, readback/reprint dari source final, complete-sale facade, payment callback/idempotency guard, durable finalization bundle, crash/replay proof, cash tender helper, preview/print status, dan separation print vs settlement validity sudah tervalidasi untuk lane desktop. |
 | M7 | Inventory Basic | **DONE (THIN)** | `InventoryService`, `recordSaleCompletion` | Integrasi transaksi stok otomatis saat checkout baseline sudah aktif. |
 | M8 | Reporting Dasar | **PENDING** | - | Belum ada implementasi runtime atau UI reporting. |
 | M9 | Sync Visibility | **PENDING** | outbox/infra parsial | Replay mechanism dan sync state visibility belum di-close. |
@@ -36,7 +36,7 @@ Dokumen ini adalah bridge antara roadmap PDF, context agent, dan repo reality. R
 
 ## Milestone Berikutnya: Post-R1 Hardening
 **Target:** Menutup area di luar kontrak minimum R1 tanpa merusak desktop cashier lane.
-- hardening audit/outbox bundling jika ada partial failure non-settlement
+- hardening bundle lebih lanjut hanya bila ingin satu coordinator lintas context yang lebih luas dari R1
 - hosted installer evidence yang repeatable
 - Android parity follow-up tanpa memindahkan ownership ke `:shared`
 - pembuktian atomicity lintas `sales` / `inventory` / `kernel` bila memang ingin diklaim ACID penuh

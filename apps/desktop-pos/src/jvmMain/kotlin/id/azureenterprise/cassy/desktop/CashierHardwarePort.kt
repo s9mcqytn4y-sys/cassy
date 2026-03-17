@@ -1,6 +1,8 @@
 package id.azureenterprise.cassy.desktop
 
 import id.azureenterprise.cassy.sales.domain.ReceiptPrintPayload
+import id.azureenterprise.cassy.sales.domain.ReceiptPrintState
+import id.azureenterprise.cassy.sales.domain.ReceiptPrintStatus
 
 enum class HardwareDeviceStatus {
     READY,
@@ -38,6 +40,11 @@ data class HardwarePostFinalizationResult(
     val warningMessage: String? = null
 )
 
+data class HardwarePrintExecutionResult(
+    val snapshot: CashierHardwareSnapshot,
+    val printState: ReceiptPrintState
+)
+
 interface CashierHardwarePort {
     suspend fun getSnapshot(): CashierHardwareSnapshot
 
@@ -45,6 +52,10 @@ interface CashierHardwarePort {
         paymentMethod: String,
         receiptPayload: ReceiptPrintPayload
     ): HardwarePostFinalizationResult
+
+    suspend fun printReceipt(
+        receiptPayload: ReceiptPrintPayload
+    ): HardwarePrintExecutionResult
 }
 
 class DesktopNoopCashierHardwarePort : CashierHardwarePort {
@@ -56,4 +67,14 @@ class DesktopNoopCashierHardwarePort : CashierHardwarePort {
         paymentMethod: String,
         receiptPayload: ReceiptPrintPayload
     ): HardwarePostFinalizationResult = HardwarePostFinalizationResult(snapshot = snapshot)
+
+    override suspend fun printReceipt(receiptPayload: ReceiptPrintPayload): HardwarePrintExecutionResult {
+        return HardwarePrintExecutionResult(
+            snapshot = snapshot,
+            printState = ReceiptPrintState(
+                status = ReceiptPrintStatus.FAILED,
+                detailMessage = "Printer belum terhubung. Struk final tetap aman dan bisa dicetak ulang nanti."
+            )
+        )
+    }
 }

@@ -8,12 +8,16 @@ import id.azureenterprise.cassy.masterdata.domain.ProductLookupResult
 import id.azureenterprise.cassy.sales.data.SalesRepository
 import id.azureenterprise.cassy.sales.domain.Basket
 import id.azureenterprise.cassy.sales.domain.BasketItem
+import id.azureenterprise.cassy.sales.domain.CashTenderQuote
 import id.azureenterprise.cassy.sales.domain.CompleteSaleOutcome
 import id.azureenterprise.cassy.sales.domain.CompletedSaleReadback
+import id.azureenterprise.cassy.sales.domain.FinalizationBundleState
+import id.azureenterprise.cassy.sales.domain.FinalizationInventoryLine
 import id.azureenterprise.cassy.sales.domain.PendingSaleReadback
 import id.azureenterprise.cassy.sales.domain.PaymentState
 import id.azureenterprise.cassy.sales.domain.PaymentStatusDetailCode
 import id.azureenterprise.cassy.sales.domain.PricingEngine
+import id.azureenterprise.cassy.sales.domain.PreparedSaleFinalizationBundle
 import id.azureenterprise.cassy.sales.domain.ReceiptPrintPayload
 import id.azureenterprise.cassy.sales.domain.ReceiptPrintState
 import id.azureenterprise.cassy.sales.domain.ReceiptPrintStatus
@@ -37,7 +41,8 @@ class SalesService(
     private val paymentGatewayPort: PaymentGatewayPort,
     private val pricingEngine: PricingEngine,
     private val productLookupUseCase: ProductLookupUseCase,
-    private val clock: Clock
+    private val clock: Clock,
+    private val finalizationHooks: SalesFinalizationHooks = NoopSalesFinalizationHooks
 ) {
     private val json = Json
     private var idSequence: Long = 0
@@ -50,6 +55,19 @@ class SalesService(
         salesRepository.getActiveBasket()?.let {
             _basket.value = it
         }
+    }
+
+    fun quoteCashTender(receivedAmount: Double): Result<CashTenderQuote> = runCatching {
+        require(receivedAmount >= 0.0) { "Uang diterima tidak boleh negatif" }
+        val totalAmount = _basket.value.totals.finalTotal
+        require(totalAmount > 0.0) { "Belum ada transaksi untuk dihitung" }
+        val shortage = (totalAmount - receivedAmount).coerceAtLeast(0.0)
+        CashTenderQuote(
+            totalAmount = totalAmount,
+            receivedAmount = receivedAmount,
+            changeAmount = (receivedAmount - totalAmount).coerceAtLeast(0.0),
+            shortageAmount = shortage
+        )
     }
 
     suspend fun addProductByLookup(input: String, quantity: Double = 1.0): Result<Basket> {
@@ -145,6 +163,10 @@ class SalesService(
             operationalContext = operationalContext
         ).getOrElse { return Result.failure(it) }
 
+        salesRepository.getFinalizationBundle(session.saleId)?.let { existingBundle ->
+            return resumePreparedFinalization(existingBundle)
+        }
+
         salesRepository.getCompletedSaleReadback(session.saleId)?.let { completed ->
             ensureFinalizationIntent(completed.receiptSnapshot)
             activeSession = null
@@ -213,6 +235,10 @@ class SalesService(
         val payment = pendingSale.payment
             ?: return Result.failure(IllegalStateException("Payment callback tidak ditemukan"))
 
+        salesRepository.getFinalizationBundle(request.saleId)?.let { existingBundle ->
+            return resumePreparedFinalization(existingBundle)
+        }
+
         return applyGatewayResult(
             saleId = pendingSale.sale.id,
             paymentId = payment.id,
@@ -280,6 +306,31 @@ class SalesService(
                 isReprint = isReprint
             )
         )
+    }
+
+    suspend fun cancelActiveSale(): Result<Unit> {
+        val session = activeSession ?: return clearCart().map { Unit }
+        val pendingSale = salesRepository.getPendingSaleReadback(session.saleId)
+            ?: return clearCart().map { Unit }
+        val providerReference = pendingSale.payment?.providerReference
+        salesRepository.failCheckout(
+            saleId = session.saleId,
+            paymentId = session.paymentId,
+            paymentState = PaymentState.cancelled(
+                detailMessage = "Transaksi dibatalkan operator sebelum final"
+            ),
+            providerReference = providerReference
+        )
+        clearCart()
+        activeSession = null
+        return Result.success(Unit)
+    }
+
+    suspend fun recoverIncompleteFinalizations(): Result<Int> = runCatching {
+        salesRepository.getIncompleteFinalizationBundles().count { bundle ->
+            resumePreparedFinalization(bundle).getOrThrow()
+            true
+        }
     }
 
     private suspend fun ensureFinalizationIntent(receiptSnapshot: ReceiptSnapshotDocument) {
@@ -400,6 +451,24 @@ class SalesService(
         }
     }
 
+    private suspend fun resumePreparedFinalization(
+        bundle: PreparedSaleFinalizationBundle
+    ): Result<CompleteSaleOutcome> {
+        salesRepository.getCompletedSaleReadback(bundle.saleId)?.let { completed ->
+            ensureFinalizationIntent(completed.receiptSnapshot)
+            if (activeSession?.saleId == bundle.saleId) {
+                activeSession = null
+            }
+            return Result.success(
+                CompleteSaleOutcome.Completed(
+                    result = completionResultFrom(completed),
+                    replayed = true
+                )
+            )
+        }
+        return executePreparedFinalization(bundle)
+    }
+
     private suspend fun finalizeCompletedSale(
         pendingSale: PendingSaleReadback,
         paymentId: String,
@@ -407,6 +476,27 @@ class SalesService(
         paymentState: PaymentState,
         providerReference: String?
     ): Result<CompleteSaleOutcome> {
+        val bundle = buildPreparedFinalizationBundle(
+            pendingSale = pendingSale,
+            paymentId = paymentId,
+            paymentMethod = paymentMethod,
+            paymentState = paymentState,
+            providerReference = providerReference
+        )
+        salesRepository.prepareFinalizationBundle(bundle)
+        finalizationHooks.afterBundlePrepared(bundle.saleId)
+        return executePreparedFinalization(
+            salesRepository.getFinalizationBundle(bundle.saleId) ?: bundle
+        )
+    }
+
+    private suspend fun buildPreparedFinalizationBundle(
+        pendingSale: PendingSaleReadback,
+        paymentId: String,
+        paymentMethod: String,
+        paymentState: PaymentState,
+        providerReference: String?
+    ): PreparedSaleFinalizationBundle {
         val contextualInfo = kernelPort.getOperationalContext()
         val receiptSnapshot = ReceiptSnapshotDocument(
             saleId = pendingSale.sale.id,
@@ -437,40 +527,77 @@ class SalesService(
             },
             footerLines = listOf("Terima kasih", "Simpan struk ini sebagai bukti pembayaran")
         )
-
-        inventoryService.recordSaleCompletion(
+        return PreparedSaleFinalizationBundle(
             saleId = pendingSale.sale.id,
-            terminalId = pendingSale.sale.terminalId,
-            lines = pendingSale.items.map {
-                SaleInventoryLine(
+            paymentId = paymentId,
+            state = FinalizationBundleState.PREPARED,
+            receiptSnapshot = receiptSnapshot,
+            paymentState = paymentState,
+            providerReference = providerReference,
+            inventoryLines = pendingSale.items.map {
+                FinalizationInventoryLine(
                     productId = it.productId,
                     quantity = it.quantity
                 )
-            }
-        ).getOrThrow()
-
-        salesRepository.finalizeSale(
-            saleId = pendingSale.sale.id,
-            paymentId = paymentId,
-            receiptSnapshot = receiptSnapshot,
-            paymentState = paymentState,
-            providerReference = providerReference
+            },
+            auditId = "audit_sale_finalized_${pendingSale.sale.id}",
+            auditMessage = "Sale finalized ${receiptSnapshot.localNumber} via ${receiptSnapshot.payment.method} amount ${receiptSnapshot.totals.finalTotal}",
+            eventId = "event_sale_finalized_${pendingSale.sale.id}",
+            eventType = "SALE_FINALIZED",
+            eventPayload = json.encodeToString(receiptSnapshot),
+            lastError = null,
+            preparedAtEpochMs = clock.now().toEpochMilliseconds(),
+            updatedAtEpochMs = clock.now().toEpochMilliseconds()
         )
-        ensureFinalizationIntent(receiptSnapshot)
+    }
 
-        val readback = salesRepository.getCompletedSaleReadback(pendingSale.sale.id)
-            ?: error("Completed sale readback tidak ditemukan setelah finalisasi")
-
-        if (activeSession?.saleId == pendingSale.sale.id) {
-            clearCart()
-            activeSession = null
-        }
-
-        return Result.success(
-            CompleteSaleOutcome.Completed(
-                result = completionResultFrom(readback)
+    private suspend fun executePreparedFinalization(
+        bundle: PreparedSaleFinalizationBundle
+    ): Result<CompleteSaleOutcome> {
+        return try {
+            salesRepository.updateFinalizationBundleState(
+                saleId = bundle.saleId,
+                state = FinalizationBundleState.APPLYING
             )
-        )
+            inventoryService.recordSaleCompletion(
+                saleId = bundle.saleId,
+                terminalId = bundle.receiptSnapshot.terminalId,
+                lines = bundle.inventoryLines.map {
+                    SaleInventoryLine(
+                        productId = it.productId,
+                        quantity = it.quantity
+                    )
+                }
+            ).getOrThrow()
+            finalizationHooks.afterInventoryApplied(bundle.saleId)
+            kernelPort.recordAudit(
+                auditId = bundle.auditId,
+                message = bundle.auditMessage
+            )
+            kernelPort.recordEvent(
+                eventId = bundle.eventId,
+                type = bundle.eventType,
+                payload = bundle.eventPayload
+            )
+            finalizationHooks.afterKernelApplied(bundle.saleId)
+            salesRepository.commitPreparedFinalization(bundle.saleId)
+            val readback = salesRepository.getCompletedSaleReadback(bundle.saleId)
+                ?: error("Completed sale readback tidak ditemukan setelah finalisasi")
+
+            if (activeSession?.saleId == bundle.saleId) {
+                clearCart()
+                activeSession = null
+            }
+
+            Result.success(CompleteSaleOutcome.Completed(result = completionResultFrom(readback)))
+        } catch (error: Throwable) {
+            salesRepository.updateFinalizationBundleState(
+                saleId = bundle.saleId,
+                state = FinalizationBundleState.PREPARED,
+                lastError = error.message ?: "Replay finalization gagal"
+            )
+            Result.failure(error)
+        }
     }
 
     private fun completionResultFrom(readback: CompletedSaleReadback): SaleCompletionResult {

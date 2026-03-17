@@ -210,6 +210,36 @@ data class PendingSaleReadback(
     val payment: Payment?
 )
 
+enum class FinalizationBundleState {
+    PREPARED,
+    APPLYING,
+    COMPLETED
+}
+
+@Serializable
+data class FinalizationInventoryLine(
+    val productId: String,
+    val quantity: Double
+)
+
+data class PreparedSaleFinalizationBundle(
+    val saleId: String,
+    val paymentId: String,
+    val state: FinalizationBundleState,
+    val receiptSnapshot: ReceiptSnapshotDocument,
+    val paymentState: PaymentState,
+    val providerReference: String?,
+    val inventoryLines: List<FinalizationInventoryLine>,
+    val auditId: String,
+    val auditMessage: String,
+    val eventId: String,
+    val eventType: String,
+    val eventPayload: String,
+    val lastError: String?,
+    val preparedAtEpochMs: Long,
+    val updatedAtEpochMs: Long
+)
+
 data class ReceiptPrintPayload(
     val saleId: String,
     val snapshot: ReceiptSnapshotDocument,
@@ -226,6 +256,16 @@ data class SaleCompletionResult(
     val readback: CompletedSaleReadback,
     val printState: ReceiptPrintState
 )
+
+data class CashTenderQuote(
+    val totalAmount: Double,
+    val receivedAmount: Double,
+    val changeAmount: Double,
+    val shortageAmount: Double
+) {
+    val isSufficient: Boolean
+        get() = shortageAmount == 0.0
+}
 
 sealed interface CompleteSaleOutcome {
     data class Completed(

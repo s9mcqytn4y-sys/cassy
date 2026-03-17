@@ -188,10 +188,10 @@ class SalesServiceTest {
             fixture.service.addProduct(sampleProduct()).getOrThrow()
             val outcome = fixture.service.completeSale("QRIS").getOrThrow()
 
-            assertTrue(outcome is CompleteSaleOutcome.Pending)
-            assertEquals(PaymentStatus.PENDING, (outcome as CompleteSaleOutcome.Pending).paymentState.status)
+            val pendingOutcome = outcome as CompleteSaleOutcome.Pending
+            assertEquals(PaymentStatus.PENDING, pendingOutcome.paymentState.status)
             assertEquals(0.0, fixture.inventoryRepository.getStockLevel("product_1"))
-            assertTrue(fixture.service.getReceiptForPrint(outcome.saleId).isFailure)
+            assertTrue(fixture.service.getReceiptForPrint(pendingOutcome.saleId).isFailure)
             assertTrue(fixture.kernelRepository.audits.isEmpty())
             assertTrue(fixture.kernelRepository.events.isEmpty())
         }
@@ -263,9 +263,9 @@ class SalesServiceTest {
             val completed = fixture.service.handlePaymentCallback(callback).getOrThrow()
             val replayed = fixture.service.handlePaymentCallback(callback).getOrThrow()
 
+            val replayedCompleted = replayed as CompleteSaleOutcome.Completed
             assertTrue(completed is CompleteSaleOutcome.Completed)
-            assertTrue(replayed is CompleteSaleOutcome.Completed)
-            assertTrue((replayed as CompleteSaleOutcome.Completed).replayed)
+            assertTrue(replayedCompleted.replayed)
             assertEquals(-2.0, fixture.inventoryRepository.getStockLevel("product_1"))
             assertEquals(1, fixture.inventoryRepository.getLedgerByProduct("product_1").size)
             assertEquals(1, fixture.kernelRepository.audits.size)
@@ -300,15 +300,89 @@ class SalesServiceTest {
             val first = fixture.service.completeSale("QRIS").getOrThrow()
             val second = fixture.service.completeSale("QRIS").getOrThrow()
 
-            assertTrue(first is CompleteSaleOutcome.Pending)
-            assertTrue(second is CompleteSaleOutcome.Pending)
-            assertEquals((first as CompleteSaleOutcome.Pending).saleId, (second as CompleteSaleOutcome.Pending).saleId)
+            val firstPending = first as CompleteSaleOutcome.Pending
+            val secondPending = second as CompleteSaleOutcome.Pending
+            assertEquals(firstPending.saleId, secondPending.saleId)
             assertEquals(0.0, fixture.inventoryRepository.getStockLevel("product_1"))
             assertTrue(fixture.kernelRepository.events.isEmpty())
         }
     }
 
-    private fun salesFixture(): SalesFixture {
+    @Test
+    fun `crash after inventory apply keeps sale non-final and replay completes without duplicate stock`() {
+        runBlocking {
+            val hooks = CrashInjectionHooks()
+            val fixture = salesFixture(finalizationHooks = hooks)
+            fixture.kernelRepository.upsertTerminalBinding(fixture.binding)
+            fixture.kernelRepository.openBusinessDay("bd_1")
+            fixture.kernelRepository.openShift(
+                id = "shift_1",
+                businessDayId = "bd_1",
+                terminalId = fixture.binding.terminalId,
+                openingCash = 100.0,
+                openedBy = "operator_1"
+            )
+
+            fixture.service.addProduct(sampleProduct(), quantity = 2.0).getOrThrow()
+            hooks.failAfterInventory = true
+
+            val failed = fixture.service.completeSale("CASH")
+
+            assertTrue(failed.isFailure)
+            assertEquals(-2.0, fixture.inventoryRepository.getStockLevel("product_1"))
+            assertEquals(1, fixture.inventoryRepository.getLedgerByProduct("product_1").size)
+            assertTrue(fixture.service.getSaleHistory().getOrThrow().isEmpty())
+            assertTrue(fixture.service.getReceiptForPrint("sale_missing").isFailure)
+
+            hooks.failAfterInventory = false
+            val recoveredCount = fixture.service.recoverIncompleteFinalizations().getOrThrow()
+
+            assertEquals(1, recoveredCount)
+            assertEquals(1, fixture.inventoryRepository.getLedgerByProduct("product_1").size)
+            assertEquals(1, fixture.kernelRepository.audits.size)
+            assertEquals(1, fixture.kernelRepository.events.size)
+            assertEquals(1, fixture.service.getSaleHistory().getOrThrow().size)
+        }
+    }
+
+    @Test
+    fun `crash after kernel intent keeps sale non-final and replay completes without duplicate audit or event`() {
+        runBlocking {
+            val hooks = CrashInjectionHooks()
+            val fixture = salesFixture(finalizationHooks = hooks)
+            fixture.kernelRepository.upsertTerminalBinding(fixture.binding)
+            fixture.kernelRepository.openBusinessDay("bd_1")
+            fixture.kernelRepository.openShift(
+                id = "shift_1",
+                businessDayId = "bd_1",
+                terminalId = fixture.binding.terminalId,
+                openingCash = 100.0,
+                openedBy = "operator_1"
+            )
+
+            fixture.service.addProduct(sampleProduct()).getOrThrow()
+            hooks.failAfterKernel = true
+
+            val failed = fixture.service.completeSale("CASH")
+
+            assertTrue(failed.isFailure)
+            assertEquals(1, fixture.kernelRepository.audits.size)
+            assertEquals(1, fixture.kernelRepository.events.size)
+            assertTrue(fixture.service.getSaleHistory().getOrThrow().isEmpty())
+
+            hooks.failAfterKernel = false
+            val recoveredCount = fixture.service.recoverIncompleteFinalizations().getOrThrow()
+
+            assertEquals(1, recoveredCount)
+            assertEquals(1, fixture.kernelRepository.audits.size)
+            assertEquals(1, fixture.kernelRepository.events.size)
+            assertEquals(PaymentStatus.SUCCESS, fixture.service.getSaleHistory().getOrThrow().single().paymentState.status)
+        }
+    }
+
+    private fun salesFixture(
+        finalizationHooks: SalesFinalizationHooks = NoopSalesFinalizationHooks
+    ): SalesFixture {
         val kernelDriver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
         val salesDriver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
         val inventoryDriver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
@@ -341,7 +415,8 @@ class SalesServiceTest {
                 paymentGatewayPort = gateway,
                 pricingEngine = PricingEngine(),
                 productLookupUseCase = productLookupUseCase,
-                clock = Clock.System
+                clock = Clock.System,
+                finalizationHooks = finalizationHooks
             ),
             kernelRepository = kernelRepository,
             inventoryRepository = inventoryRepository,
@@ -441,5 +516,22 @@ private class FakePaymentGatewayPort : PaymentGatewayPort {
             paymentState = PaymentState.success(),
             providerReference = "${request.paymentMethod.lowercase()}:${request.saleId}"
         )
+    }
+}
+
+private class CrashInjectionHooks : SalesFinalizationHooks {
+    var failAfterInventory: Boolean = false
+    var failAfterKernel: Boolean = false
+
+    override suspend fun afterInventoryApplied(saleId: String) {
+        if (failAfterInventory) {
+            throw IllegalStateException("Simulasi crash setelah inventory sale=$saleId")
+        }
+    }
+
+    override suspend fun afterKernelApplied(saleId: String) {
+        if (failAfterKernel) {
+            throw IllegalStateException("Simulasi crash setelah kernel sale=$saleId")
+        }
     }
 }

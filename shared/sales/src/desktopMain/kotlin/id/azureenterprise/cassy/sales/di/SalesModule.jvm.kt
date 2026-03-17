@@ -111,7 +111,8 @@ internal fun JdbcSqliteDriver.hasColumn(tableName: String, columnName: String): 
 internal fun JdbcSqliteDriver.detectLegacySchemaVersion(): Long {
     if (!hasTable("SalePayment")) return 1L
     return when {
-        hasColumn("ReceiptSnapshot", "snapshotVersion") -> SalesDatabase.Schema.version
+        hasTable("FinalizationBundle") -> SalesDatabase.Schema.version
+        hasColumn("ReceiptSnapshot", "snapshotVersion") -> 5L
         hasColumn("SalePayment", "statusReasonCode") -> 3L
         else -> 2L
     }

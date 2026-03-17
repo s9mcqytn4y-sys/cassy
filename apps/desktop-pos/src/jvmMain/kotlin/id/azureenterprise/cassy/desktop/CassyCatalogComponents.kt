@@ -5,6 +5,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.*
@@ -67,6 +69,31 @@ fun CassyCatalogView(
             }
         }
 
+        state.lookupFeedback?.let { feedback ->
+            Surface(
+                color = toneColor(feedback.tone).copy(alpha = 0.08f),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = null,
+                        tint = toneColor(feedback.tone)
+                    )
+                    Text(
+                        text = feedback.message,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+        }
+
         LazyColumn(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -87,10 +114,13 @@ fun CassyCartPanel(
     state: DesktopCatalogState,
     closingCashInput: String,
     onClosingCashChanged: (String) -> Unit,
+    onCashReceivedChanged: (String) -> Unit,
     onIncrement: (Product) -> Unit,
     onDecrement: (Product, Double) -> Unit,
     onCheckoutCash: () -> Unit,
+    onPrintLastReceipt: () -> Unit,
     onReprintLastReceipt: () -> Unit,
+    onCancelSale: () -> Unit,
     onEndShift: () -> Unit,
     onClosingDay: () -> Unit,
     modifier: Modifier = Modifier
@@ -133,17 +163,68 @@ fun CassyCartPanel(
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            CassyCurrencyInput(
+                label = "Uang Diterima",
+                value = state.cashReceivedInput,
+                onValueChange = onCashReceivedChanged,
+                helperText = "Masukkan uang dari pelanggan. Kembalian dihitung otomatis."
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            state.cashTenderQuote?.let { quote ->
+                val isSufficient = quote.isSufficient
+                Surface(
+                    color = if (isSufficient) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            text = if (isSufficient) "Kembalian pelanggan" else "Uang masih kurang",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Rp ${if (isSufficient) quote.changeAmount.toInt() else quote.shortageAmount.toInt()}",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+
             Button(
                 onClick = onCheckoutCash,
-                enabled = state.basket.items.isNotEmpty(),
+                enabled = state.basket.items.isNotEmpty() && state.cashTenderQuote?.isSufficient == true,
                 modifier = Modifier.fillMaxWidth().height(52.dp)
             ) {
-                Text("Bayar Tunai")
+                Text("Selesaikan Tunai")
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            OutlinedButton(
+                onClick = onCancelSale,
+                enabled = state.basket.items.isNotEmpty(),
+                modifier = Modifier.fillMaxWidth().height(48.dp)
+            ) {
+                Text("Batalkan Pesanan")
             }
 
             Spacer(modifier = Modifier.height(12.dp))
 
             if (state.lastFinalizedSaleId != null) {
+                Button(
+                    onClick = onPrintLastReceipt,
+                    modifier = Modifier.fillMaxWidth().height(48.dp)
+                ) {
+                    Icon(Icons.Default.Refresh, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Cetak Struk")
+                }
+                Spacer(modifier = Modifier.height(8.dp))
                 OutlinedButton(
                     onClick = onReprintLastReceipt,
                     modifier = Modifier.fillMaxWidth().height(48.dp)
@@ -152,6 +233,46 @@ fun CassyCartPanel(
                 }
                 Spacer(modifier = Modifier.height(12.dp))
             }
+
+            Surface(
+                tonalElevation = 1.dp,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Status Print", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = state.printState.detailMessage ?: "Belum ada status print",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Surface(
+                tonalElevation = 1.dp,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Preview Struk Final", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = state.receiptPreview.localNumber ?: "Belum ada struk final",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                    Text(
+                        text = state.receiptPreview.content ?: state.receiptPreview.availabilityMessage,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f),
+                        maxLines = 12
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
 
             CassyCurrencyInput(
                 label = "Uang Kas Akhir",
@@ -169,11 +290,13 @@ fun CassyCartPanel(
             if (state.recentSales.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(16.dp))
                 Text("Riwayat Final", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                Text(
-                    state.recentSales.first().localNumber,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                )
+                state.recentSales.take(3).forEach { entry ->
+                    Text(
+                        text = "${entry.localNumber} • ${entry.paymentMethod} • Rp ${entry.finalAmount.toInt()}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    )
+                }
             }
         }
     }

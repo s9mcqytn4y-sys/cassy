@@ -3,9 +3,12 @@ package id.azureenterprise.cassy.sales.data
 import id.azureenterprise.cassy.sales.db.SalesDatabase
 import id.azureenterprise.cassy.sales.domain.Basket
 import id.azureenterprise.cassy.sales.domain.CompletedSaleReadback
+import id.azureenterprise.cassy.sales.domain.FinalizationBundleState
+import id.azureenterprise.cassy.sales.domain.FinalizationInventoryLine
 import id.azureenterprise.cassy.sales.domain.Payment
 import id.azureenterprise.cassy.sales.domain.PaymentState
 import id.azureenterprise.cassy.sales.domain.PendingSaleReadback
+import id.azureenterprise.cassy.sales.domain.PreparedSaleFinalizationBundle
 import id.azureenterprise.cassy.sales.domain.PersistedSaleItem
 import id.azureenterprise.cassy.sales.domain.PersistedReceiptSnapshot
 import id.azureenterprise.cassy.sales.domain.ReceiptSnapshotDocument
@@ -106,6 +109,83 @@ class SalesRepository(
                 templateId = receiptSnapshot.template.templateId,
                 paperWidthMm = receiptSnapshot.template.paperWidthMm.toLong(),
                 createdAt = clock.now().toEpochMilliseconds()
+            )
+        }
+    }
+
+    suspend fun prepareFinalizationBundle(bundle: PreparedSaleFinalizationBundle) = withContext(ioDispatcher) {
+        queries.insertOrIgnoreFinalizationBundle(
+            saleId = bundle.saleId,
+            paymentId = bundle.paymentId,
+            state = bundle.state.name,
+            receiptContent = json.encodeToString(bundle.receiptSnapshot),
+            paymentStatus = bundle.paymentState.status.name,
+            paymentDetailCode = bundle.paymentState.detailCode?.name,
+            paymentDetailMessage = bundle.paymentState.detailMessage,
+            providerReference = bundle.providerReference,
+            inventoryContent = json.encodeToString(bundle.inventoryLines),
+            auditId = bundle.auditId,
+            auditMessage = bundle.auditMessage,
+            eventId = bundle.eventId,
+            eventType = bundle.eventType,
+            eventPayload = bundle.eventPayload,
+            lastError = bundle.lastError,
+            preparedAt = bundle.preparedAtEpochMs,
+            updatedAt = bundle.updatedAtEpochMs
+        )
+    }
+
+    suspend fun updateFinalizationBundleState(
+        saleId: String,
+        state: FinalizationBundleState,
+        lastError: String? = null
+    ) = withContext(ioDispatcher) {
+        queries.updateFinalizationBundleState(
+            state = state.name,
+            lastError = lastError,
+            updatedAt = clock.now().toEpochMilliseconds(),
+            saleId = saleId
+        )
+    }
+
+    suspend fun getFinalizationBundle(saleId: String): PreparedSaleFinalizationBundle? = withContext(ioDispatcher) {
+        queries.getFinalizationBundle(saleId).executeAsOneOrNull()?.toBundle()
+    }
+
+    suspend fun getIncompleteFinalizationBundles(): List<PreparedSaleFinalizationBundle> = withContext(ioDispatcher) {
+        queries.getIncompleteFinalizationBundles().executeAsList().map { it.toBundle() }
+    }
+
+    suspend fun commitPreparedFinalization(saleId: String) = withContext(ioDispatcher) {
+        val bundle = queries.getFinalizationBundle(saleId).executeAsOneOrNull()
+            ?: error("Finalization bundle tidak ditemukan untuk sale $saleId")
+        database.transaction {
+            queries.updatePaymentStatus(
+                status = bundle.paymentStatus,
+                statusReasonCode = bundle.paymentDetailCode,
+                statusDetailMessage = bundle.paymentDetailMessage,
+                providerReference = bundle.providerReference,
+                id = bundle.paymentId
+            )
+            queries.updateSaleStatus(
+                status = SaleStatus.COMPLETED.name,
+                suspendedAt = null,
+                id = saleId
+            )
+            val receiptSnapshot = json.decodeFromString<ReceiptSnapshotDocument>(bundle.receiptContent)
+            queries.insertReceiptSnapshot(
+                saleId = saleId,
+                content = bundle.receiptContent,
+                snapshotVersion = receiptSnapshot.version.toLong(),
+                templateId = receiptSnapshot.template.templateId,
+                paperWidthMm = receiptSnapshot.template.paperWidthMm.toLong(),
+                createdAt = clock.now().toEpochMilliseconds()
+            )
+            queries.updateFinalizationBundleState(
+                state = FinalizationBundleState.COMPLETED.name,
+                lastError = null,
+                updatedAt = clock.now().toEpochMilliseconds(),
+                saleId = saleId
             )
         }
     }
@@ -255,4 +335,28 @@ class SalesRepository(
 
     private inline fun <reified T : Enum<T>> enumValueOfOrNull(value: String): T? =
         runCatching { enumValueOf<T>(value) }.getOrNull()
+
+    private fun id.azureenterprise.cassy.sales.db.FinalizationBundle.toBundle(): PreparedSaleFinalizationBundle {
+        return PreparedSaleFinalizationBundle(
+            saleId = saleId,
+            paymentId = paymentId,
+            state = FinalizationBundleState.valueOf(state),
+            receiptSnapshot = json.decodeFromString(receiptContent),
+            paymentState = PaymentState(
+                status = enumValueOf(paymentStatus),
+                detailCode = paymentDetailCode?.let(::enumValueOfOrNull),
+                detailMessage = paymentDetailMessage
+            ),
+            providerReference = providerReference,
+            inventoryLines = json.decodeFromString<List<FinalizationInventoryLine>>(inventoryContent),
+            auditId = auditId,
+            auditMessage = auditMessage,
+            eventId = eventId,
+            eventType = eventType,
+            eventPayload = eventPayload,
+            lastError = lastError,
+            preparedAtEpochMs = preparedAt,
+            updatedAtEpochMs = updatedAt
+        )
+    }
 }
