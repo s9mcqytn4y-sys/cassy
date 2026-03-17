@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
@@ -17,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -28,6 +30,7 @@ import java.util.*
 
 /**
  * CassyCurrencyInput: Hardened input for money/nominal values.
+ * Optimized for Numpad usage and fast retail input.
  */
 @Composable
 fun CassyCurrencyInput(
@@ -37,7 +40,8 @@ fun CassyCurrencyInput(
     modifier: Modifier = Modifier.fillMaxWidth(),
     helperText: String? = null,
     isError: Boolean = false,
-    errorMessage: String? = null
+    errorMessage: String? = null,
+    onImeAction: () -> Unit = {}
 ) {
     val localeID = Locale("in", "ID")
     val formatter = NumberFormat.getCurrencyInstance(localeID).apply {
@@ -72,7 +76,11 @@ fun CassyCurrencyInput(
                 fontSize = 20.sp
             ),
             placeholder = { Text("Rp 0", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.End) },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Number,
+                imeAction = ImeAction.Done
+            ),
+            keyboardActions = KeyboardActions(onDone = { onImeAction() }),
             isError = isError,
             singleLine = true,
             shape = RoundedCornerShape(12.dp),
@@ -82,12 +90,7 @@ fun CassyCurrencyInput(
             )
         )
         if (isError && errorMessage != null) {
-            Text(
-                text = errorMessage,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(top = 4.dp)
-            )
+            CassyErrorFeedback(message = errorMessage)
         } else if (helperText != null) {
             Text(
                 text = helperText,
@@ -113,15 +116,12 @@ fun CassySlimRail(
         containerColor = MaterialTheme.colorScheme.surfaceVariant,
         header = {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Surface(
-                    modifier = Modifier.size(44.dp).padding(top = 12.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.primary
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text("C", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp)
-                    }
-                }
+                Icon(
+                    imageVector = Icons.Default.ShoppingCart,
+                    contentDescription = "Cassy POS",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(32.dp).padding(top = 12.dp)
+                )
                 Spacer(modifier = Modifier.height(24.dp))
             }
         }
@@ -233,7 +233,6 @@ fun CassyDenseProductRow(
                     fontWeight = FontWeight.ExtraBold,
                     color = MaterialTheme.colorScheme.primary
                 )
-                // Note: Stock info moved to inventory logic in V1.1 to preserve stock truth boundary.
             }
         }
     }
