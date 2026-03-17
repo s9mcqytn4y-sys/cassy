@@ -6,7 +6,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.*
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPlacement
@@ -37,8 +36,7 @@ fun main(args: Array<String>) {
         Window(
             onCloseRequest = ::exitApplication,
             title = "Cassy POS",
-            state = windowState,
-            icon = painterResource("logo/cassandra-logo-main-512.png")
+            state = windowState
         ) {
             CassyDesktopTheme {
                 val controller: DesktopAppController = koinInject()
@@ -74,7 +72,7 @@ fun main(args: Array<String>) {
                             )
 
                             Column(modifier = Modifier.fillMaxSize()) {
-                                CassyTopBar(state = state.shell)
+                                CassyTopBar(state = state.shell, hardware = state.hardware)
 
                                 Box(modifier = Modifier.fillMaxSize()) {
                                     when (val stage = state.stage) {

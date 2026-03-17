@@ -31,6 +31,7 @@ fun startDesktopKoin() {
             inventoryModule,
             inventoryDatabaseModule,
             module {
+                single<CashierHardwarePort> { DesktopNoopCashierHardwarePort() }
                 single {
                     DesktopAppController(
                         accessService = get<AccessService>(),
@@ -38,7 +39,8 @@ fun startDesktopKoin() {
                         shiftService = get<ShiftService>(),
                         productRepository = get<ProductRepository>(),
                         productLookupUseCase = get<ProductLookupUseCase>(),
-                        salesService = get<SalesService>()
+                        salesService = get<SalesService>(),
+                        hardwarePort = get<CashierHardwarePort>()
                     )
                 }
             }

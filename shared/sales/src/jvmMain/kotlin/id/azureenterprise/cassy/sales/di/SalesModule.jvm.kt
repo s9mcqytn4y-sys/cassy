@@ -125,19 +125,33 @@ private class KernelSalesKernelPort(
         )
     }
 
-    override suspend fun recordAudit(message: String) {
-        kernelRepository.insertAudit(
-            id = "audit_sales_${System.currentTimeMillis()}",
-            message = message,
-            level = "INFO"
-        )
+    override suspend fun recordAudit(auditId: String, message: String) {
+        ignoreDuplicateConstraint {
+            kernelRepository.insertAudit(
+                id = auditId,
+                message = message,
+                level = "INFO"
+            )
+        }
     }
 
-    override suspend fun recordEvent(type: String, payload: String) {
-        kernelRepository.insertEvent(
-            id = "sale_event_${System.currentTimeMillis()}",
-            type = type,
-            payload = payload
-        )
+    override suspend fun recordEvent(eventId: String, type: String, payload: String) {
+        ignoreDuplicateConstraint {
+            kernelRepository.insertEvent(
+                id = eventId,
+                type = type,
+                payload = payload
+            )
+        }
     }
+}
+
+private suspend fun ignoreDuplicateConstraint(block: suspend () -> Unit) {
+    runCatching { block() }
+        .getOrElse { error ->
+            val normalized = error.message?.uppercase().orEmpty()
+            if ("UNIQUE" !in normalized && "PRIMARY KEY" !in normalized) {
+                throw error
+            }
+        }
 }

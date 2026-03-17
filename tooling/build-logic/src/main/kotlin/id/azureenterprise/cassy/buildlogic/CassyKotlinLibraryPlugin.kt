@@ -21,6 +21,7 @@ class CassyKotlinLibraryPlugin : Plugin<Project> {
             extensions.configure(KotlinJvmProjectExtension::class.java) {
                 compilerOptions {
                     jvmTarget.set(JvmTarget.JVM_17)
+                    freeCompilerArgs.add("-Xexpect-actual-classes")
                 }
             }
         }

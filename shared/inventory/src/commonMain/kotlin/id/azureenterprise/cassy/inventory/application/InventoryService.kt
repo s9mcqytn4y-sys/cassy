@@ -26,17 +26,24 @@ class InventoryService(
                 require(productId.isNotBlank()) { "Product id wajib ada" }
                 require(quantity > 0.0) { "Quantity sale harus lebih besar dari 0" }
 
-                inventoryRepository.recordTransaction(
-                    InventoryTransaction(
-                        id = nextInventoryId(),
-                        productId = productId,
-                        quantity = -quantity,
-                        type = TransactionType.SALE,
-                        referenceId = saleId,
-                        timestamp = clock.now(),
-                        terminalId = terminalId
+                runCatching {
+                    inventoryRepository.recordTransaction(
+                        InventoryTransaction(
+                            id = nextInventoryId(),
+                            productId = productId,
+                            quantity = -quantity,
+                            type = TransactionType.SALE,
+                            referenceId = saleId,
+                            timestamp = clock.now(),
+                            terminalId = terminalId
+                        )
                     )
-                )
+                }.getOrElse { error ->
+                    val normalized = error.message?.uppercase().orEmpty()
+                    if ("UNIQUE" !in normalized && "PRIMARY KEY" !in normalized) {
+                        throw error
+                    }
+                }
             }
     }
 

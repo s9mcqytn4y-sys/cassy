@@ -9,6 +9,7 @@ import id.azureenterprise.cassy.sales.di.salesDatabaseModule
 import id.azureenterprise.cassy.sales.di.salesPlatformModule
 import id.azureenterprise.cassy.inventory.di.inventoryModule
 import id.azureenterprise.cassy.inventory.di.inventoryDatabaseModule
+import org.koin.core.annotation.KoinExperimentalAPI
 import org.koin.dsl.module
 import org.koin.test.KoinTest
 import org.koin.test.verify.verify
@@ -16,6 +17,7 @@ import kotlin.test.Test
 
 class KoinVerifyTest : KoinTest {
 
+    @OptIn(KoinExperimentalAPI::class)
     @Test
     fun verifyKoinModules() {
         // We verify the aggregation of all modules.

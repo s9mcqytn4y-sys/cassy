@@ -5,6 +5,8 @@ import id.azureenterprise.cassy.sales.domain.Basket
 import id.azureenterprise.cassy.sales.domain.CompletedSaleReadback
 import id.azureenterprise.cassy.sales.domain.Payment
 import id.azureenterprise.cassy.sales.domain.PaymentState
+import id.azureenterprise.cassy.sales.domain.PendingSaleReadback
+import id.azureenterprise.cassy.sales.domain.PersistedSaleItem
 import id.azureenterprise.cassy.sales.domain.PersistedReceiptSnapshot
 import id.azureenterprise.cassy.sales.domain.ReceiptSnapshotDocument
 import id.azureenterprise.cassy.sales.domain.SaleStatus
@@ -54,6 +56,7 @@ class SalesRepository(
                     id = "si_${saleId}_${item.product.id}",
                     saleId = saleId,
                     productId = item.product.id,
+                    productName = item.product.name,
                     unitPrice = item.unitPrice,
                     quantity = item.quantity,
                     totalPrice = item.totalPrice,
@@ -107,6 +110,28 @@ class SalesRepository(
         }
     }
 
+    suspend fun markPaymentPending(
+        saleId: String,
+        paymentId: String,
+        paymentState: PaymentState,
+        providerReference: String? = null
+    ) = withContext(ioDispatcher) {
+        database.transaction {
+            queries.updatePaymentStatus(
+                status = paymentState.status.name,
+                statusReasonCode = paymentState.detailCode?.name,
+                statusDetailMessage = paymentState.detailMessage,
+                providerReference = providerReference,
+                id = paymentId
+            )
+            queries.updateSaleStatus(
+                status = SaleStatus.PENDING.name,
+                suspendedAt = null,
+                id = saleId
+            )
+        }
+    }
+
     suspend fun suspendSale(saleId: String) = withContext(ioDispatcher) {
         queries.updateSaleStatus(
             status = SaleStatus.SUSPENDED.name,
@@ -118,14 +143,15 @@ class SalesRepository(
     suspend fun failCheckout(
         saleId: String,
         paymentId: String,
-        paymentState: PaymentState
+        paymentState: PaymentState,
+        providerReference: String? = null
     ) = withContext(ioDispatcher) {
         database.transaction {
             queries.updatePaymentStatus(
                 status = paymentState.status.name,
                 statusReasonCode = paymentState.detailCode?.name,
                 statusDetailMessage = paymentState.detailMessage,
-                providerReference = null,
+                providerReference = providerReference,
                 id = paymentId
             )
             queries.updateSaleStatus(
@@ -149,6 +175,30 @@ class SalesRepository(
 
     suspend fun clearActiveBasket() = withContext(ioDispatcher) {
         queries.clearActiveBasket()
+    }
+
+    suspend fun getSaleById(saleId: String) = withContext(ioDispatcher) {
+        queries.getSaleById(saleId).executeAsOneOrNull()?.toDomain()
+    }
+
+    suspend fun getPendingSaleReadback(saleId: String): PendingSaleReadback? = withContext(ioDispatcher) {
+        val sale = queries.getSaleById(saleId).executeAsOneOrNull()?.toDomain() ?: return@withContext null
+        val items = queries.getSaleItems(saleId).executeAsList().map {
+            PersistedSaleItem(
+                productId = it.productId,
+                productName = it.productName.ifBlank { it.productId },
+                quantity = it.quantity,
+                unitPrice = it.unitPrice,
+                totalPrice = it.totalPrice,
+                taxAmount = it.taxAmount,
+                discountAmount = it.discountAmount
+            )
+        }
+        PendingSaleReadback(
+            sale = sale,
+            items = items,
+            payment = getSalePayments(saleId).firstOrNull()
+        )
     }
 
     suspend fun getCompletedSaleReadback(saleId: String): CompletedSaleReadback? = withContext(ioDispatcher) {

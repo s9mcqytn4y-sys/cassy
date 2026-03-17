@@ -244,8 +244,8 @@ fun CassyDenseProductRow(
 @Composable
 fun CassyTopBar(
     state: DesktopShellState,
-    syncStatus: String = "Online",
-    printerStatus: String = "Ready"
+    hardware: CashierHardwareSnapshot,
+    syncStatus: String = "Online"
 ) {
     Surface(
         tonalElevation = 1.dp,
@@ -272,7 +272,9 @@ fun CassyTopBar(
 
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 StatusIndicator(label = "Sync", status = syncStatus, tone = if (syncStatus == "Online") UiTone.Success else UiTone.Warning)
-                StatusIndicator(label = "Print", status = printerStatus, tone = if (printerStatus == "Ready") UiTone.Success else UiTone.Danger)
+                StatusIndicator(label = "Print", status = hardware.printer.label, tone = hardwareTone(hardware.printer.status))
+                StatusIndicator(label = "Scan", status = hardware.scanner.label, tone = hardwareTone(hardware.scanner.status))
+                StatusIndicator(label = "Drawer", status = hardware.cashDrawer.label, tone = hardwareTone(hardware.cashDrawer.status))
 
                 VerticalDivider(modifier = Modifier.height(16.dp))
 
@@ -299,4 +301,11 @@ fun toneColor(tone: UiTone): Color = when (tone) {
     UiTone.Success -> Color(0xFF16A34A)
     UiTone.Warning -> Color(0xFFD97706)
     UiTone.Danger -> Color(0xFFDC2626)
+}
+
+private fun hardwareTone(status: HardwareDeviceStatus): UiTone = when (status) {
+    HardwareDeviceStatus.READY -> UiTone.Success
+    HardwareDeviceStatus.UNKNOWN -> UiTone.Warning
+    HardwareDeviceStatus.WARNING -> UiTone.Warning
+    HardwareDeviceStatus.UNAVAILABLE -> UiTone.Danger
 }

@@ -14,6 +14,7 @@ import id.azureenterprise.cassy.masterdata.domain.Product
 import id.azureenterprise.cassy.masterdata.domain.ProductLookupUseCase
 import id.azureenterprise.cassy.sales.data.SalesRepository
 import id.azureenterprise.cassy.sales.db.SalesDatabase
+import id.azureenterprise.cassy.sales.domain.CompleteSaleOutcome
 import id.azureenterprise.cassy.sales.domain.PaymentState
 import id.azureenterprise.cassy.sales.domain.PaymentStatus
 import id.azureenterprise.cassy.sales.domain.PaymentStatusDetailCode
@@ -163,6 +164,150 @@ class SalesServiceTest {
         }
     }
 
+    @Test
+    fun `pending gateway keeps sale non-final and does not create receipt or inventory effect`() {
+        runBlocking {
+            val fixture = salesFixture()
+            fixture.gateway.nextResult = PaymentGatewayResult(
+                paymentState = PaymentState.pending(
+                    detailCode = PaymentStatusDetailCode.AWAITING_PROVIDER_CONFIRMATION,
+                    detailMessage = "Menunggu callback provider"
+                ),
+                providerReference = "qris:sale_pending"
+            )
+            fixture.kernelRepository.upsertTerminalBinding(fixture.binding)
+            fixture.kernelRepository.openBusinessDay("bd_1")
+            fixture.kernelRepository.openShift(
+                id = "shift_1",
+                businessDayId = "bd_1",
+                terminalId = fixture.binding.terminalId,
+                openingCash = 100.0,
+                openedBy = "operator_1"
+            )
+
+            fixture.service.addProduct(sampleProduct()).getOrThrow()
+            val outcome = fixture.service.completeSale("QRIS").getOrThrow()
+
+            assertTrue(outcome is CompleteSaleOutcome.Pending)
+            assertEquals(PaymentStatus.PENDING, (outcome as CompleteSaleOutcome.Pending).paymentState.status)
+            assertEquals(0.0, fixture.inventoryRepository.getStockLevel("product_1"))
+            assertTrue(fixture.service.getReceiptForPrint(outcome.saleId).isFailure)
+            assertTrue(fixture.kernelRepository.audits.isEmpty())
+            assertTrue(fixture.kernelRepository.events.isEmpty())
+        }
+    }
+
+    @Test
+    fun `declined gateway does not finalize sale and keeps basket for human retry`() {
+        runBlocking {
+            val fixture = salesFixture()
+            fixture.gateway.nextResult = PaymentGatewayResult(
+                paymentState = PaymentState.failed(
+                    detailCode = PaymentStatusDetailCode.DECLINED,
+                    detailMessage = "Pembayaran ditolak"
+                ),
+                providerReference = "card:declined"
+            )
+            fixture.kernelRepository.upsertTerminalBinding(fixture.binding)
+            fixture.kernelRepository.openBusinessDay("bd_1")
+            fixture.kernelRepository.openShift(
+                id = "shift_1",
+                businessDayId = "bd_1",
+                terminalId = fixture.binding.terminalId,
+                openingCash = 100.0,
+                openedBy = "operator_1"
+            )
+
+            fixture.service.addProduct(sampleProduct()).getOrThrow()
+            val outcome = fixture.service.completeSale("CARD").getOrThrow()
+
+            assertTrue(outcome is CompleteSaleOutcome.Rejected)
+            assertEquals(1, fixture.service.basket.value.items.size)
+            assertEquals(0.0, fixture.inventoryRepository.getStockLevel("product_1"))
+            assertTrue(fixture.kernelRepository.audits.isEmpty())
+            assertTrue(fixture.kernelRepository.events.isEmpty())
+        }
+    }
+
+    @Test
+    fun `duplicate callback replay does not duplicate settlement inventory or intents`() {
+        runBlocking {
+            val fixture = salesFixture()
+            fixture.kernelRepository.upsertTerminalBinding(fixture.binding)
+            fixture.kernelRepository.openBusinessDay("bd_1")
+            fixture.kernelRepository.openShift(
+                id = "shift_1",
+                businessDayId = "bd_1",
+                terminalId = fixture.binding.terminalId,
+                openingCash = 100.0,
+                openedBy = "operator_1"
+            )
+
+            fixture.service.addProduct(sampleProduct(), quantity = 2.0).getOrThrow()
+            fixture.gateway.nextResult = PaymentGatewayResult(
+                paymentState = PaymentState.pending(
+                    detailCode = PaymentStatusDetailCode.AWAITING_PROVIDER_CONFIRMATION,
+                    detailMessage = "Menunggu callback"
+                ),
+                providerReference = "qris:retry-safe"
+            )
+
+            val firstOutcome = fixture.service.completeSale("QRIS").getOrThrow()
+            val saleId = (firstOutcome as CompleteSaleOutcome.Pending).saleId
+            val callback = PaymentCallbackRequest(
+                saleId = saleId,
+                providerReference = "qris:retry-safe",
+                paymentState = PaymentState.success()
+            )
+
+            val completed = fixture.service.handlePaymentCallback(callback).getOrThrow()
+            val replayed = fixture.service.handlePaymentCallback(callback).getOrThrow()
+
+            assertTrue(completed is CompleteSaleOutcome.Completed)
+            assertTrue(replayed is CompleteSaleOutcome.Completed)
+            assertTrue((replayed as CompleteSaleOutcome.Completed).replayed)
+            assertEquals(-2.0, fixture.inventoryRepository.getStockLevel("product_1"))
+            assertEquals(1, fixture.inventoryRepository.getLedgerByProduct("product_1").size)
+            assertEquals(1, fixture.kernelRepository.audits.size)
+            assertEquals(1, fixture.kernelRepository.events.size)
+            assertEquals(PaymentStatus.SUCCESS, fixture.service.getFinalizedSale(saleId).getOrThrow().receiptSnapshot.payment.state.status)
+        }
+    }
+
+    @Test
+    fun `retry on pending sale reuses same pending session without duplicate effects`() {
+        runBlocking {
+            val fixture = salesFixture()
+            fixture.kernelRepository.upsertTerminalBinding(fixture.binding)
+            fixture.kernelRepository.openBusinessDay("bd_1")
+            fixture.kernelRepository.openShift(
+                id = "shift_1",
+                businessDayId = "bd_1",
+                terminalId = fixture.binding.terminalId,
+                openingCash = 100.0,
+                openedBy = "operator_1"
+            )
+
+            fixture.service.addProduct(sampleProduct()).getOrThrow()
+            fixture.gateway.nextResult = PaymentGatewayResult(
+                paymentState = PaymentState.pending(
+                    detailCode = PaymentStatusDetailCode.AWAITING_PROVIDER_CONFIRMATION,
+                    detailMessage = "Provider masih memproses"
+                ),
+                providerReference = "qris:retry-loop"
+            )
+
+            val first = fixture.service.completeSale("QRIS").getOrThrow()
+            val second = fixture.service.completeSale("QRIS").getOrThrow()
+
+            assertTrue(first is CompleteSaleOutcome.Pending)
+            assertTrue(second is CompleteSaleOutcome.Pending)
+            assertEquals((first as CompleteSaleOutcome.Pending).saleId, (second as CompleteSaleOutcome.Pending).saleId)
+            assertEquals(0.0, fixture.inventoryRepository.getStockLevel("product_1"))
+            assertTrue(fixture.kernelRepository.events.isEmpty())
+        }
+    }
+
     private fun salesFixture(): SalesFixture {
         val kernelDriver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
         val salesDriver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
@@ -186,17 +331,21 @@ class SalesServiceTest {
             normalizer = BarcodeNormalizer()
         )
 
+        val gateway = FakePaymentGatewayPort()
+
         return SalesFixture(
             service = SalesService(
                 salesRepository = SalesRepository(SalesDatabase(salesDriver), EmptyCoroutineContext, Clock.System),
                 inventoryService = InventoryService(inventoryRepository, Clock.System),
                 kernelPort = RecordingSalesKernelPort(kernelRepository),
+                paymentGatewayPort = gateway,
                 pricingEngine = PricingEngine(),
                 productLookupUseCase = productLookupUseCase,
                 clock = Clock.System
             ),
             kernelRepository = kernelRepository,
             inventoryRepository = inventoryRepository,
+            gateway = gateway,
             binding = id.azureenterprise.cassy.kernel.domain.TerminalBinding(
                 storeId = "store_1",
                 storeName = "Toko Test",
@@ -220,6 +369,7 @@ private data class SalesFixture(
     val service: SalesService,
     val kernelRepository: RecordingKernelRepository,
     val inventoryRepository: InventoryRepository,
+    val gateway: FakePaymentGatewayPort,
     val binding: TerminalBinding
 )
 
@@ -238,12 +388,24 @@ private class RecordingSalesKernelPort(
         )
     }
 
-    override suspend fun recordAudit(message: String) {
-        kernelRepository.insertAudit("audit_test", message, "INFO")
+    override suspend fun recordAudit(auditId: String, message: String) {
+        runCatching { kernelRepository.insertAudit(auditId, message, "INFO") }
+            .getOrElse { error ->
+                val normalized = error.message?.uppercase().orEmpty()
+                if ("UNIQUE" !in normalized && "PRIMARY KEY" !in normalized) {
+                    throw error
+                }
+            }
     }
 
-    override suspend fun recordEvent(type: String, payload: String) {
-        kernelRepository.insertEvent("event_test", type, payload)
+    override suspend fun recordEvent(eventId: String, type: String, payload: String) {
+        runCatching { kernelRepository.insertEvent(eventId, type, payload) }
+            .getOrElse { error ->
+                val normalized = error.message?.uppercase().orEmpty()
+                if ("UNIQUE" !in normalized && "PRIMARY KEY" !in normalized) {
+                    throw error
+                }
+            }
     }
 }
 
@@ -270,3 +432,14 @@ private data class RecordedEvent(
     val type: String,
     val payload: String
 )
+
+private class FakePaymentGatewayPort : PaymentGatewayPort {
+    var nextResult: PaymentGatewayResult? = null
+
+    override suspend fun finalizePayment(request: PaymentGatewayRequest): PaymentGatewayResult {
+        return nextResult ?: PaymentGatewayResult(
+            paymentState = PaymentState.success(),
+            providerReference = "${request.paymentMethod.lowercase()}:${request.saleId}"
+        )
+    }
+}

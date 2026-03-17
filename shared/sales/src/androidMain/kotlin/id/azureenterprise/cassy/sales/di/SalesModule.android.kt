@@ -28,7 +28,7 @@ private fun AndroidSqliteDriver.harden() {
 private class AndroidStubSalesKernelPort : SalesKernelPort {
     override suspend fun getOperationalContext() = null
 
-    override suspend fun recordAudit(message: String) = Unit
+    override suspend fun recordAudit(auditId: String, message: String) = Unit
 
-    override suspend fun recordEvent(type: String, payload: String) = Unit
+    override suspend fun recordEvent(eventId: String, type: String, payload: String) = Unit
 }

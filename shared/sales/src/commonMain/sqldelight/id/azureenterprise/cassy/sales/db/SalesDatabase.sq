@@ -16,6 +16,7 @@ CREATE TABLE SaleItem (
     id TEXT NOT NULL PRIMARY KEY,
     saleId TEXT NOT NULL,
     productId TEXT NOT NULL,
+    productName TEXT NOT NULL CHECK (length(trim(productName)) > 0),
     unitPrice REAL NOT NULL CHECK (unitPrice >= 0),
     quantity REAL NOT NULL CHECK (quantity > 0),
     totalPrice REAL NOT NULL CHECK (totalPrice >= 0),
@@ -69,8 +70,8 @@ INSERT INTO Sale(id, localNumber, shiftId, terminalId, timestamp, totalAmount, t
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 insertSaleItem:
-INSERT INTO SaleItem(id, saleId, productId, unitPrice, quantity, totalPrice, taxAmount, discountAmount)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+INSERT INTO SaleItem(id, saleId, productId, productName, unitPrice, quantity, totalPrice, taxAmount, discountAmount)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 insertSalePayment:
 INSERT INTO SalePayment(id, saleId, method, amount, status, statusReasonCode, statusDetailMessage, providerReference, timestamp)
@@ -97,6 +98,9 @@ getSaleWithItems:
 SELECT s.*, si.* FROM Sale s
 LEFT JOIN SaleItem si ON s.id = si.saleId
 WHERE s.id = ?;
+
+getSaleItems:
+SELECT * FROM SaleItem WHERE saleId = ? ORDER BY id ASC;
 
 insertReceiptSnapshot:
 INSERT INTO ReceiptSnapshot(saleId, content, snapshotVersion, templateId, paperWidthMm, createdAt)

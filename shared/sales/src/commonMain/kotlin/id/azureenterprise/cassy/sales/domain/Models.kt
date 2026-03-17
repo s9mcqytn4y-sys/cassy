@@ -73,6 +73,12 @@ data class PaymentState(
             detailMessage = detailMessage
         )
     }
+
+    val isFinal: Boolean
+        get() = status == PaymentStatus.SUCCESS || status == PaymentStatus.FAILED || status == PaymentStatus.CANCELLED
+
+    val canCompleteSale: Boolean
+        get() = status == PaymentStatus.SUCCESS
 }
 
 @Serializable
@@ -188,6 +194,22 @@ data class PersistedReceiptSnapshot(
     val createdAtEpochMs: Long
 )
 
+data class PersistedSaleItem(
+    val productId: String,
+    val productName: String,
+    val quantity: Double,
+    val unitPrice: Double,
+    val totalPrice: Double,
+    val taxAmount: Double,
+    val discountAmount: Double
+)
+
+data class PendingSaleReadback(
+    val sale: Sale,
+    val items: List<PersistedSaleItem>,
+    val payment: Payment?
+)
+
 data class ReceiptPrintPayload(
     val saleId: String,
     val snapshot: ReceiptSnapshotDocument,
@@ -204,3 +226,22 @@ data class SaleCompletionResult(
     val readback: CompletedSaleReadback,
     val printState: ReceiptPrintState
 )
+
+sealed interface CompleteSaleOutcome {
+    data class Completed(
+        val result: SaleCompletionResult,
+        val replayed: Boolean = false
+    ) : CompleteSaleOutcome
+
+    data class Pending(
+        val saleId: String,
+        val localNumber: String,
+        val paymentState: PaymentState
+    ) : CompleteSaleOutcome
+
+    data class Rejected(
+        val saleId: String,
+        val localNumber: String,
+        val paymentState: PaymentState
+    ) : CompleteSaleOutcome
+}

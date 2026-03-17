@@ -15,6 +15,9 @@ import id.azureenterprise.cassy.masterdata.data.ProductRepository
 import id.azureenterprise.cassy.masterdata.db.MasterDataDatabase
 import id.azureenterprise.cassy.masterdata.domain.BarcodeNormalizer
 import id.azureenterprise.cassy.masterdata.domain.ProductLookupUseCase
+import id.azureenterprise.cassy.sales.application.PaymentGatewayPort
+import id.azureenterprise.cassy.sales.application.PaymentGatewayRequest
+import id.azureenterprise.cassy.sales.application.PaymentGatewayResult
 import id.azureenterprise.cassy.sales.application.SalesService
 import id.azureenterprise.cassy.sales.data.SalesRepository
 import id.azureenterprise.cassy.sales.db.SalesDatabase
@@ -184,7 +187,43 @@ class DesktopAppControllerTest {
         }
     }
 
-    private fun desktopFixture(): DesktopFixture {
+    @Test
+    fun `hardware warning after finalization stays post settlement and sale remains final`() {
+        runBlocking {
+            val fixture = desktopFixture(
+                hardwarePort = FakeCashierHardwarePort(
+                    postFinalizationWarning = "Cash drawer tidak merespons, transaksi tetap sah"
+                )
+            )
+            val controller = fixture.newController()
+
+            controller.load()
+            controller.updateBootstrapField(BootstrapField.StoreName, "Store")
+            controller.updateBootstrapField(BootstrapField.TerminalName, "T1")
+            controller.updateBootstrapField(BootstrapField.CashierName, "C1")
+            controller.updateBootstrapField(BootstrapField.CashierPin, "111111")
+            controller.updateBootstrapField(BootstrapField.SupervisorName, "S1")
+            controller.updateBootstrapField(BootstrapField.SupervisorPin, "222222")
+            controller.bootstrapStore()
+            controller.selectOperator(controller.state.value.login.operators.first { it.roleLabel == "SUPERVISOR" }.id)
+            controller.updatePin("222222")
+            controller.login()
+            controller.openBusinessDay()
+            controller.updateOpeningCashInput("100.0")
+            controller.startShift()
+
+            controller.addProduct(controller.state.value.catalog.products.first())
+            controller.checkoutCash()
+
+            val saleId = controller.state.value.catalog.lastFinalizedSaleId!!
+            assertEquals("Cash drawer tidak merespons, transaksi tetap sah", controller.state.value.banner?.message)
+            assertEquals(PaymentStatus.SUCCESS, fixture.salesService.getCompletedSaleReadback(saleId).getOrThrow().receiptSnapshot.payment.state.status)
+        }
+    }
+
+    private fun desktopFixture(
+        hardwarePort: CashierHardwarePort = FakeCashierHardwarePort()
+    ): DesktopFixture {
         val kernelDriver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
         val masterDataDriver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
         val salesDriver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
@@ -208,10 +247,12 @@ class DesktopAppControllerTest {
             EmptyCoroutineContext,
             Clock.System
         )
+        val paymentGateway = FakeDesktopPaymentGatewayPort()
         val salesService = SalesService(
             salesRepository = SalesRepository(SalesDatabase(salesDriver), EmptyCoroutineContext, Clock.System),
             inventoryService = InventoryService(inventoryRepository, Clock.System),
             kernelPort = KernelRepositorySalesKernelPort(kernelRepository),
+            paymentGatewayPort = paymentGateway,
             pricingEngine = PricingEngine(),
             productLookupUseCase = productLookupUseCase,
             clock = Clock.System
@@ -223,7 +264,8 @@ class DesktopAppControllerTest {
             shiftService = shiftService,
             productRepository = productRepository,
             productLookupUseCase = productLookupUseCase,
-            salesService = salesService
+            salesService = salesService,
+            hardwarePort = hardwarePort
         )
     }
 }
@@ -234,7 +276,8 @@ private data class DesktopFixture(
     val shiftService: ShiftService,
     val productRepository: ProductRepository,
     val productLookupUseCase: ProductLookupUseCase,
-    val salesService: SalesService
+    val salesService: SalesService,
+    val hardwarePort: CashierHardwarePort
 ) {
     fun newController(): DesktopAppController = DesktopAppController(
         accessService = accessService,
@@ -242,7 +285,8 @@ private data class DesktopFixture(
         shiftService = shiftService,
         productRepository = productRepository,
         productLookupUseCase = productLookupUseCase,
-        salesService = salesService
+        salesService = salesService,
+        hardwarePort = hardwarePort
     )
 }
 
@@ -265,11 +309,37 @@ private class KernelRepositorySalesKernelPort(
         }
     }
 
-    override suspend fun recordAudit(message: String) {
-        kernelRepository.insertAudit("audit_test", message, "INFO")
+    override suspend fun recordAudit(auditId: String, message: String) {
+        kernelRepository.insertAudit(auditId, message, "INFO")
     }
 
-    override suspend fun recordEvent(type: String, payload: String) {
-        kernelRepository.insertEvent("event_test", type, payload)
+    override suspend fun recordEvent(eventId: String, type: String, payload: String) {
+        kernelRepository.insertEvent(eventId, type, payload)
+    }
+}
+
+private class FakeDesktopPaymentGatewayPort : PaymentGatewayPort {
+    override suspend fun finalizePayment(request: PaymentGatewayRequest): PaymentGatewayResult {
+        return PaymentGatewayResult(
+            paymentState = id.azureenterprise.cassy.sales.domain.PaymentState.success(),
+            providerReference = "cash:${request.saleId}"
+        )
+    }
+}
+
+private class FakeCashierHardwarePort(
+    private val snapshot: CashierHardwareSnapshot = CashierHardwareSnapshot(),
+    private val postFinalizationWarning: String? = null
+) : CashierHardwarePort {
+    override suspend fun getSnapshot(): CashierHardwareSnapshot = snapshot
+
+    override suspend fun handlePostFinalization(
+        paymentMethod: String,
+        receiptPayload: id.azureenterprise.cassy.sales.domain.ReceiptPrintPayload
+    ): HardwarePostFinalizationResult {
+        return HardwarePostFinalizationResult(
+            snapshot = snapshot,
+            warningMessage = postFinalizationWarning
+        )
     }
 }

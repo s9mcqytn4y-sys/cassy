@@ -13,6 +13,7 @@ import id.azureenterprise.cassy.masterdata.domain.ProductLookupResult
 import id.azureenterprise.cassy.masterdata.domain.ProductLookupUseCase
 import id.azureenterprise.cassy.sales.application.SalesService
 import id.azureenterprise.cassy.sales.domain.Basket
+import id.azureenterprise.cassy.sales.domain.CompleteSaleOutcome
 import id.azureenterprise.cassy.sales.domain.SaleHistoryEntry
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -25,7 +26,8 @@ class DesktopAppController(
     private val shiftService: ShiftService,
     private val productRepository: ProductRepository,
     private val productLookupUseCase: ProductLookupUseCase,
-    private val salesService: SalesService
+    private val salesService: SalesService,
+    private val hardwarePort: CashierHardwarePort
 ) {
     private val _state = MutableStateFlow(DesktopAppState())
     val state: StateFlow<DesktopAppState> = _state.asStateFlow()
@@ -230,23 +232,52 @@ class DesktopAppController(
 
     suspend fun checkoutCash() {
         mutateBusy(true)
-        val result = salesService.checkout("CASH")
+        val result = salesService.completeSale("CASH")
         result.fold(
-            onSuccess = { completion ->
-                val saleId = completion.saleId
-                val finalizedSale = completion.readback
-                val receiptPreview = salesService.getReceiptForPrint(saleId).getOrNull()
-                refreshStage(
-                    UiBanner(UiTone.Success, "Transaksi ${finalizedSale.receiptSnapshot.localNumber} selesai")
-                )
-                _state.update {
-                    it.copy(
-                        catalog = it.catalog.copy(
-                            lastFinalizedSaleId = saleId,
-                            lastReceiptPreview = receiptPreview?.renderedContent,
-                            recentSales = loadSaleHistory()
+            onSuccess = { outcome ->
+                when (outcome) {
+                    is CompleteSaleOutcome.Completed -> {
+                        val saleId = outcome.result.saleId
+                        val finalizedSale = outcome.result.readback
+                        val receiptPreview = salesService.getReceiptForPrint(saleId).getOrThrow()
+                        val hardwareResult = hardwarePort.handlePostFinalization(
+                            paymentMethod = finalizedSale.receiptSnapshot.payment.method,
+                            receiptPayload = receiptPreview
                         )
-                    )
+                        refreshStage(
+                            UiBanner(
+                                tone = if (hardwareResult.warningMessage == null) UiTone.Success else UiTone.Warning,
+                                message = hardwareResult.warningMessage
+                                    ?: "Transaksi ${finalizedSale.receiptSnapshot.localNumber} selesai"
+                            )
+                        )
+                        _state.update {
+                            it.copy(
+                                hardware = hardwareResult.snapshot,
+                                catalog = it.catalog.copy(
+                                    lastFinalizedSaleId = saleId,
+                                    lastReceiptPreview = receiptPreview.renderedContent,
+                                    recentSales = loadSaleHistory()
+                                )
+                            )
+                        }
+                    }
+                    is CompleteSaleOutcome.Pending -> {
+                        refreshStage(
+                            UiBanner(
+                                UiTone.Warning,
+                                outcome.paymentState.detailMessage ?: "Pembayaran masih pending"
+                            )
+                        )
+                    }
+                    is CompleteSaleOutcome.Rejected -> {
+                        refreshStage(
+                            UiBanner(
+                                UiTone.Danger,
+                                outcome.paymentState.detailMessage ?: "Pembayaran ditolak"
+                            )
+                        )
+                    }
                 }
             },
             onFailure = { error ->
@@ -344,6 +375,7 @@ class DesktopAppController(
                     basket = salesService.basket.value,
                     recentSales = loadSaleHistory()
                 ),
+                hardware = hardwarePort.getSnapshot(),
                 banner = banner
             )
         }
@@ -382,6 +414,7 @@ data class DesktopAppState(
     val login: LoginState = LoginState(),
     val operations: OperationsState = OperationsState(),
     val catalog: DesktopCatalogState = DesktopCatalogState(),
+    val hardware: CashierHardwareSnapshot = CashierHardwareSnapshot(),
     val banner: UiBanner? = null,
     val isBusy: Boolean = false
 )
