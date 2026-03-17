@@ -3,13 +3,14 @@ package id.azureenterprise.cassy.inventory.application
 import id.azureenterprise.cassy.inventory.data.InventoryRepository
 import id.azureenterprise.cassy.inventory.domain.InventoryTransaction
 import id.azureenterprise.cassy.inventory.domain.TransactionType
-import id.azureenterprise.cassy.kernel.domain.IdGenerator
 import kotlinx.datetime.Clock
 
 class InventoryService(
     private val inventoryRepository: InventoryRepository,
     private val clock: Clock
 ) {
+    private var inventorySequence: Long = 0
+
     suspend fun recordSaleCompletion(
         saleId: String,
         terminalId: String,
@@ -27,7 +28,7 @@ class InventoryService(
 
                 inventoryRepository.recordTransaction(
                     InventoryTransaction(
-                        id = IdGenerator.nextId("inv"),
+                        id = nextInventoryId(),
                         productId = productId,
                         quantity = -quantity,
                         type = TransactionType.SALE,
@@ -37,6 +38,11 @@ class InventoryService(
                     )
                 )
             }
+    }
+
+    private fun nextInventoryId(): String {
+        inventorySequence += 1
+        return "inv_${clock.now().toEpochMilliseconds()}_$inventorySequence"
     }
 }
 

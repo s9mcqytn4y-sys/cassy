@@ -14,6 +14,7 @@ import id.azureenterprise.cassy.masterdata.domain.ProductLookupUseCase
 import id.azureenterprise.cassy.sales.application.SalesService
 import id.azureenterprise.cassy.sales.di.salesDatabaseModule
 import id.azureenterprise.cassy.sales.di.salesModule
+import id.azureenterprise.cassy.sales.di.salesPlatformModule
 import org.koin.core.context.startKoin
 import org.koin.dsl.module
 
@@ -26,6 +27,7 @@ fun startDesktopKoin() {
             masterDataDatabaseModule,
             salesModule,
             salesDatabaseModule,
+            salesPlatformModule,
             inventoryModule,
             inventoryDatabaseModule,
             module {

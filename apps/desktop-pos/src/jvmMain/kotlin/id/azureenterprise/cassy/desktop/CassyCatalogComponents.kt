@@ -89,6 +89,8 @@ fun CassyCartPanel(
     onClosingCashChanged: (String) -> Unit,
     onIncrement: (Product) -> Unit,
     onDecrement: (Product, Double) -> Unit,
+    onCheckoutCash: () -> Unit,
+    onReprintLastReceipt: () -> Unit,
     onEndShift: () -> Unit,
     onClosingDay: () -> Unit,
     modifier: Modifier = Modifier
@@ -131,6 +133,26 @@ fun CassyCartPanel(
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            Button(
+                onClick = onCheckoutCash,
+                enabled = state.basket.items.isNotEmpty(),
+                modifier = Modifier.fillMaxWidth().height(52.dp)
+            ) {
+                Text("Bayar Tunai")
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            if (state.lastFinalizedSaleId != null) {
+                OutlinedButton(
+                    onClick = onReprintLastReceipt,
+                    modifier = Modifier.fillMaxWidth().height(48.dp)
+                ) {
+                    Text("Print Ulang Struk")
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+
             CassyCurrencyInput(
                 label = "Uang Kas Akhir",
                 value = closingCashInput,
@@ -142,6 +164,16 @@ fun CassyCartPanel(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = onEndShift, modifier = Modifier.weight(1f).height(48.dp)) { Text("Tutup Shift") }
                 Button(onClick = onClosingDay, modifier = Modifier.weight(1f).height(48.dp)) { Text("Tutup Hari") }
+            }
+
+            if (state.recentSales.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Text("Riwayat Final", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Text(
+                    state.recentSales.first().localNumber,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
             }
         }
     }

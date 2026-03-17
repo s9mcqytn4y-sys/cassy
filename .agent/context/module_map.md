@@ -7,7 +7,7 @@
 - `shared`: legacy UI/DI bridge yang masih perlu disusutkan
 - `shared:kernel`: access, terminal binding, business day, shift, audit kernel
 - `shared:masterdata`: product catalog, lookup, barcode contract
-- `shared:sales`: cart state dan pricing baseline
+- `shared:sales`: cart state, checkout finality, payment state, receipt snapshot, readback source
 - `shared:inventory`: stock ownership baseline, ledger/balance writer, inventory application boundary
 
 ## Target-state direction
@@ -21,4 +21,5 @@
 
 - Desktop adalah release lane utama V1.
 - Android mengikuti business semantics, bukan memimpin scope.
-- Inventory sekarang sudah menjadi owner mutasi stok untuk sale baseline, tetapi closure checkout/reporting/integrity penuh masih belum terbukti.
+- Inventory tetap owner mutasi stok; sales tidak boleh menulis ledger/balance langsung.
+- Finality transaksi R1/M6 hidup di `shared:sales`; `apps:desktop-pos` hanya menjadi execution lane utama.

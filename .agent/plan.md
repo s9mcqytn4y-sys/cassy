@@ -1,16 +1,16 @@
-# Cassy Rolling Execution Plan (Updated: UI Hardening Phase 2)
+# Cassy Rolling Execution Plan (Updated: R1 / M6 Persistence Hardening)
 
-## Current Default Focus: Desktop Presentation Hardening
-Refining Cassy Desktop into a production-ready retail terminal.
-- **Phase 1 (DONE):** Shell Hardening (Slim Rail, Top Bar) & Input Hardening (CassyCurrencyInput).
-- **Phase 2 (IN PROGRESS):** Layout Density & Catalog Hardening. Redefining Product Grid/Row for maximum cashier throughput.
-- **Phase 3 (NEXT):** Human Error Prevention Matrix implementation (Confirmations, Guardrails).
+## Current Default Focus: R1 / M6 Cashier Core Finality
+Closing transaction truth from checkout to persisted receipt snapshot on the desktop-first lane.
+- **Phase 1 (DONE):** Scope lock and owner boundary for sales finality.
+- **Phase 2 (DONE):** Typed finality contract for payment state, sale completion, readback, and print separation.
+- **Phase 3 (DONE):** Persistence hardening for sales schema, migration, FK behavior, and fresh-install/upgrade-path verification.
 
 ## Current Status Posture
 - M0 - M5: **DONE & STABLE**
-- UI/UX Phase 1: **DONE**
-- UI/UX Phase 2: **EXECUTING**
-- M6 (Checkout): **PENDING**
+- R1 / M6 Finality Contracts: **DONE**
+- R1 / M6 Persistence Hardening: **DONE**
+- M6 (Checkout & Receipt Finality): **DONE for desktop-first lane**
 
 ## Strategic Bridge
 Refer to `docs/execution/roadmap_bridge.md` for synchronization with repo truth.

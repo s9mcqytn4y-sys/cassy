@@ -18,6 +18,8 @@ import id.azureenterprise.cassy.masterdata.domain.ProductLookupUseCase
 import id.azureenterprise.cassy.sales.application.SalesService
 import id.azureenterprise.cassy.sales.data.SalesRepository
 import id.azureenterprise.cassy.sales.db.SalesDatabase
+import id.azureenterprise.cassy.sales.domain.PaymentStatus
+import id.azureenterprise.cassy.sales.domain.ReceiptPrintStatus
 import id.azureenterprise.cassy.sales.domain.PricingEngine
 import kotlinx.coroutines.runBlocking
 import kotlinx.datetime.Clock
@@ -135,6 +137,53 @@ class DesktopAppControllerTest {
         }
     }
 
+    @Test
+    fun `desktop cashier lane can finalize cash sale and reprint from persisted snapshot`() {
+        runBlocking {
+            val fixture = desktopFixture()
+            val controller = fixture.newController()
+
+            controller.load()
+            controller.updateBootstrapField(BootstrapField.StoreName, "Store")
+            controller.updateBootstrapField(BootstrapField.TerminalName, "T1")
+            controller.updateBootstrapField(BootstrapField.CashierName, "C1")
+            controller.updateBootstrapField(BootstrapField.CashierPin, "111111")
+            controller.updateBootstrapField(BootstrapField.SupervisorName, "S1")
+            controller.updateBootstrapField(BootstrapField.SupervisorPin, "222222")
+            controller.bootstrapStore()
+            controller.selectOperator(controller.state.value.login.operators.first { it.roleLabel == "SUPERVISOR" }.id)
+            controller.updatePin("222222")
+            controller.login()
+            controller.openBusinessDay()
+            controller.updateOpeningCashInput("100.0")
+            controller.startShift()
+
+            val product = controller.state.value.catalog.products.first()
+            controller.addProduct(product)
+            controller.checkoutCash()
+
+            assertEquals(DesktopStage.Catalog, controller.state.value.stage)
+            assertTrue(controller.state.value.catalog.basket.items.isEmpty())
+            assertTrue(controller.state.value.catalog.lastFinalizedSaleId != null)
+            assertTrue(controller.state.value.catalog.lastReceiptPreview?.contains("No. Struk:") == true)
+
+            val readback = fixture.salesService
+                .getCompletedSaleReadback(controller.state.value.catalog.lastFinalizedSaleId!!)
+                .getOrThrow()
+            val printPayload = fixture.salesService
+                .getReceiptForPrint(controller.state.value.catalog.lastFinalizedSaleId!!, isReprint = true)
+                .getOrThrow()
+
+            assertEquals(PaymentStatus.SUCCESS, readback.receiptSnapshot.payment.state.status)
+            assertEquals(ReceiptPrintStatus.READY_FOR_PRINT, printPayload.printState.status)
+
+            controller.reprintLastReceipt()
+
+            assertEquals("Struk final siap dicetak ulang", controller.state.value.banner?.message)
+            assertTrue(controller.state.value.catalog.lastReceiptPreview?.contains(product.name) == true)
+        }
+    }
+
     private fun desktopFixture(): DesktopFixture {
         val kernelDriver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
         val masterDataDriver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
@@ -162,8 +211,9 @@ class DesktopAppControllerTest {
         val salesService = SalesService(
             salesRepository = SalesRepository(SalesDatabase(salesDriver), EmptyCoroutineContext, Clock.System),
             inventoryService = InventoryService(inventoryRepository, Clock.System),
-            kernelRepository = kernelRepository,
+            kernelPort = KernelRepositorySalesKernelPort(kernelRepository),
             pricingEngine = PricingEngine(),
+            productLookupUseCase = productLookupUseCase,
             clock = Clock.System
         )
 
@@ -194,4 +244,32 @@ private data class DesktopFixture(
         productLookupUseCase = productLookupUseCase,
         salesService = salesService
     )
+}
+
+private class KernelRepositorySalesKernelPort(
+    private val kernelRepository: KernelRepository
+) : id.azureenterprise.cassy.sales.application.SalesKernelPort {
+    override suspend fun getOperationalContext(): id.azureenterprise.cassy.sales.application.SalesOperationalContext? {
+        val binding = kernelRepository.getTerminalBinding()
+        val shift = binding?.let { kernelRepository.getActiveShift(it.terminalId) }
+        val isReady = binding != null && shift != null && kernelRepository.isBusinessDayOpen()
+        return if (isReady) {
+            id.azureenterprise.cassy.sales.application.SalesOperationalContext(
+                storeName = binding.storeName,
+                terminalId = binding.terminalId,
+                terminalName = binding.terminalName,
+                shiftId = shift.id
+            )
+        } else {
+            null
+        }
+    }
+
+    override suspend fun recordAudit(message: String) {
+        kernelRepository.insertAudit("audit_test", message, "INFO")
+    }
+
+    override suspend fun recordEvent(type: String, payload: String) {
+        kernelRepository.insertEvent("event_test", type, payload)
+    }
 }

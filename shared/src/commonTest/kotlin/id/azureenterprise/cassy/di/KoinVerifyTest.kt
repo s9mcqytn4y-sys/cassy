@@ -6,6 +6,7 @@ import id.azureenterprise.cassy.masterdata.di.masterDataModule
 import id.azureenterprise.cassy.masterdata.di.masterDataDatabaseModule
 import id.azureenterprise.cassy.sales.di.salesModule
 import id.azureenterprise.cassy.sales.di.salesDatabaseModule
+import id.azureenterprise.cassy.sales.di.salesPlatformModule
 import id.azureenterprise.cassy.inventory.di.inventoryModule
 import id.azureenterprise.cassy.inventory.di.inventoryDatabaseModule
 import org.koin.dsl.module
@@ -27,6 +28,7 @@ class KoinVerifyTest : KoinTest {
                 masterDataDatabaseModule,
                 salesModule,
                 salesDatabaseModule,
+                salesPlatformModule,
                 inventoryModule,
                 inventoryDatabaseModule,
                 catalogModule

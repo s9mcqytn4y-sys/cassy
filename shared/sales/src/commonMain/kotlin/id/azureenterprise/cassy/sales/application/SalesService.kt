@@ -2,28 +2,42 @@ package id.azureenterprise.cassy.sales.application
 
 import id.azureenterprise.cassy.inventory.application.InventoryService
 import id.azureenterprise.cassy.inventory.application.SaleInventoryLine
-import id.azureenterprise.cassy.kernel.data.KernelRepository
-import id.azureenterprise.cassy.kernel.domain.IdGenerator
 import id.azureenterprise.cassy.masterdata.domain.Product
 import id.azureenterprise.cassy.masterdata.domain.ProductLookupUseCase
 import id.azureenterprise.cassy.masterdata.domain.ProductLookupResult
 import id.azureenterprise.cassy.sales.data.SalesRepository
 import id.azureenterprise.cassy.sales.domain.Basket
 import id.azureenterprise.cassy.sales.domain.BasketItem
+import id.azureenterprise.cassy.sales.domain.CompletedSaleReadback
+import id.azureenterprise.cassy.sales.domain.PaymentState
+import id.azureenterprise.cassy.sales.domain.PaymentStatusDetailCode
 import id.azureenterprise.cassy.sales.domain.PricingEngine
+import id.azureenterprise.cassy.sales.domain.ReceiptPrintPayload
+import id.azureenterprise.cassy.sales.domain.ReceiptPrintState
+import id.azureenterprise.cassy.sales.domain.ReceiptPrintStatus
+import id.azureenterprise.cassy.sales.domain.ReceiptItemSnapshot
+import id.azureenterprise.cassy.sales.domain.ReceiptPaymentSnapshot
+import id.azureenterprise.cassy.sales.domain.ReceiptSnapshotDocument
+import id.azureenterprise.cassy.sales.domain.ReceiptTemplateSnapshot
+import id.azureenterprise.cassy.sales.domain.SaleCompletionResult
+import id.azureenterprise.cassy.sales.domain.SaleHistoryEntry
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.datetime.Clock
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 
 class SalesService(
     private val salesRepository: SalesRepository,
     private val inventoryService: InventoryService,
-    private val kernelRepository: KernelRepository,
+    private val kernelPort: SalesKernelPort,
     private val pricingEngine: PricingEngine,
     private val productLookupUseCase: ProductLookupUseCase,
     private val clock: Clock
 ) {
+    private val json = Json
+    private var idSequence: Long = 0
     private val _basket = MutableStateFlow(Basket())
     val basket: StateFlow<Basket> = _basket.asStateFlow()
 
@@ -95,50 +109,122 @@ class SalesService(
         salesRepository.saveActiveBasket(newBasket)
     }
 
-    /**
-     * M5 Note: Checkout logic is baseline only.
-     * Complex payment orchestration and receipt finalization deferred to M6.
-     */
-    suspend fun checkout(paymentMethod: String): Result<String> {
+    suspend fun checkout(paymentMethod: String): Result<SaleCompletionResult> {
         val currentBasket = _basket.value
         if (currentBasket.items.isEmpty()) return Result.failure(Exception("Cart is empty"))
+        if (currentBasket.totals.finalTotal <= 0.0) {
+            return Result.failure(IllegalStateException("Total pembayaran harus lebih besar dari 0"))
+        }
 
-        val binding = kernelRepository.getTerminalBinding()
-            ?: return Result.failure(IllegalStateException("Terminal belum terikat"))
-        requireOperationalContext().getOrElse { return Result.failure(it) }
-        val shift = kernelRepository.getActiveShift(binding.terminalId)
-            ?: return Result.failure(Exception("No active shift"))
+        val normalizedPaymentMethod = paymentMethod.trim().uppercase()
+        if (normalizedPaymentMethod !in supportedPaymentMethods) {
+            return Result.failure(IllegalArgumentException("Metode pembayaran tidak valid"))
+        }
 
-        val saleId = activeSaleId ?: IdGenerator.nextId("sale")
+        val operationalContext = requireOperationalContext().getOrElse { return Result.failure(it) }
+
+        val saleId = activeSaleId ?: nextId("sale")
+        val paymentId = nextId("pay")
         val localNumber = "INV-${clock.now().toEpochMilliseconds()}"
 
-        // Save Sale & Items
-        salesRepository.saveSale(saleId, localNumber, shift.id, binding.terminalId, currentBasket)
-
-        // M5: Basic Payment Recording
-        val paymentId = IdGenerator.nextId("pay")
-        salesRepository.recordPayment(paymentId, saleId, paymentMethod, currentBasket.totals.finalTotal, "SUCCESS", null)
-
-        // M5: Basic Receipt Content
-        val receiptContent = "Order: $localNumber\nTotal: ${currentBasket.totals.finalTotal}"
-        salesRepository.finalizeSale(saleId, receiptContent)
-
-        // Update Inventory
-        inventoryService.recordSaleCompletion(
+        salesRepository.createPendingSale(
             saleId = saleId,
-            terminalId = binding.terminalId,
-            lines = currentBasket.items.map {
-                SaleInventoryLine(
-                    productId = it.product.id,
-                    quantity = it.quantity
+            paymentId = paymentId,
+            localNumber = localNumber,
+            shiftId = operationalContext.shiftId,
+            terminalId = operationalContext.terminalId,
+            basket = currentBasket,
+            paymentMethod = normalizedPaymentMethod,
+            paymentState = PaymentState.pending(
+                detailCode = PaymentStatusDetailCode.AWAITING_FINALIZATION,
+                detailMessage = "Checkout lokal sedang difinalkan"
+            )
+        )
+
+        return try {
+            inventoryService.recordSaleCompletion(
+                saleId = saleId,
+                terminalId = operationalContext.terminalId,
+                lines = currentBasket.items.map {
+                    SaleInventoryLine(
+                        productId = it.product.id,
+                        quantity = it.quantity
+                    )
+                }
+            ).getOrThrow()
+
+            val successfulPaymentState = PaymentState.success()
+            val receiptSnapshot = ReceiptSnapshotDocument(
+                saleId = saleId,
+                localNumber = localNumber,
+                storeName = operationalContext.storeName,
+                shiftId = operationalContext.shiftId,
+                terminalId = operationalContext.terminalId,
+                terminalName = operationalContext.terminalName,
+                finalizedAtEpochMs = clock.now().toEpochMilliseconds(),
+                template = ReceiptTemplateSnapshot(),
+                payment = ReceiptPaymentSnapshot(
+                    method = normalizedPaymentMethod,
+                    amount = currentBasket.totals.finalTotal,
+                    state = successfulPaymentState
+                ),
+                totals = currentBasket.totals,
+                items = currentBasket.items.map { item ->
+                    ReceiptItemSnapshot(
+                        productId = item.product.id,
+                        productName = item.product.name,
+                        quantity = item.quantity,
+                        unitPrice = item.unitPrice,
+                        lineTotal = item.totalPrice,
+                        taxAmount = item.taxAmount,
+                        discountAmount = item.discountAmount
+                    )
+                },
+                footerLines = listOf("Terima kasih", "Simpan struk ini sebagai bukti pembayaran")
+            )
+
+            salesRepository.finalizeSale(
+                saleId = saleId,
+                paymentId = paymentId,
+                receiptSnapshot = receiptSnapshot,
+                paymentState = successfulPaymentState
+            )
+            recordFinalizationIntent(receiptSnapshot)
+
+            val readback = salesRepository.getCompletedSaleReadback(saleId)
+                ?: error("Completed sale readback tidak ditemukan setelah finalisasi")
+
+            clearCart()
+            activeSaleId = null
+
+            Result.success(
+                SaleCompletionResult(
+                    saleId = saleId,
+                    localNumber = localNumber,
+                    readback = readback,
+                    printState = ReceiptPrintState(
+                        status = ReceiptPrintStatus.READY_FOR_PRINT,
+                        detailMessage = "Final snapshot siap dipakai untuk print atau reprint"
+                    )
                 )
-            }
-        ).getOrThrow()
+            )
+        } catch (error: Throwable) {
+            salesRepository.failCheckout(
+                saleId = saleId,
+                paymentId = paymentId,
+                paymentState = PaymentState.failed(
+                    detailCode = PaymentStatusDetailCode.TECHNICAL_FAILURE,
+                    detailMessage = error.message ?: "Checkout gagal diselesaikan"
+                )
+            )
+            Result.failure(error)
+        }
+    }
 
-        clearCart()
-        activeSaleId = null
-
-        return Result.success(saleId)
+    suspend fun getCompletedSaleReadback(saleId: String): Result<CompletedSaleReadback> {
+        return salesRepository.getCompletedSaleReadback(saleId)
+            ?.let { Result.success(it) }
+            ?: Result.failure(IllegalStateException("Snapshot final sale tidak ditemukan"))
     }
 
     suspend fun suspendSale(): Result<Unit> {
@@ -155,15 +241,85 @@ class SalesService(
         return Result.success(_basket.value)
     }
 
-    private suspend fun requireOperationalContext(): Result<Unit> {
-        val binding = kernelRepository.getTerminalBinding()
-            ?: return Result.failure(IllegalStateException("Terminal belum terikat"))
-        if (!kernelRepository.isBusinessDayOpen()) {
-            return Result.failure(IllegalStateException("Business day belum aktif"))
+    private suspend fun requireOperationalContext(): Result<SalesOperationalContext> {
+        return kernelPort.getOperationalContext()
+            ?.let { Result.success(it) }
+            ?: Result.failure(IllegalStateException("Konteks operasional belum valid"))
+    }
+
+    suspend fun getFinalizedSale(saleId: String): Result<CompletedSaleReadback> {
+        return getCompletedSaleReadback(saleId)
+    }
+
+    suspend fun getSaleHistory(): Result<List<SaleHistoryEntry>> {
+        return Result.success(salesRepository.getCompletedSales())
+    }
+
+    suspend fun getReceiptForPrint(saleId: String, isReprint: Boolean = false): Result<ReceiptPrintPayload> {
+        val finalizedSale = salesRepository.getCompletedSaleReadback(saleId)
+            ?: return Result.failure(IllegalStateException("Struk final tidak ditemukan"))
+        val persistedReceipt = salesRepository.getPersistedReceiptSnapshot(saleId)
+            ?: return Result.failure(IllegalStateException("Snapshot final receipt tidak ditemukan"))
+        return Result.success(
+            ReceiptPrintPayload(
+                saleId = saleId,
+                snapshot = finalizedSale.receiptSnapshot,
+                renderedContent = renderReceipt(persistedReceipt.snapshot),
+                templateId = persistedReceipt.snapshot.template.templateId,
+                paperWidthMm = persistedReceipt.snapshot.template.paperWidthMm,
+                printState = ReceiptPrintState(
+                    status = ReceiptPrintStatus.READY_FOR_PRINT,
+                    detailMessage = if (isReprint) {
+                        "Snapshot final siap dicetak ulang"
+                    } else {
+                        "Snapshot final siap dicetak"
+                    }
+                ),
+                isReprint = isReprint
+            )
+        )
+    }
+
+    private suspend fun recordFinalizationIntent(receiptSnapshot: ReceiptSnapshotDocument) {
+        kernelPort.recordAudit(
+            message = "Sale finalized ${receiptSnapshot.localNumber} via ${receiptSnapshot.payment.method} amount ${receiptSnapshot.totals.finalTotal}",
+        )
+        kernelPort.recordEvent(
+            type = "SALE_FINALIZED",
+            payload = json.encodeToString(receiptSnapshot)
+        )
+    }
+
+    private fun renderReceipt(receiptSnapshot: ReceiptSnapshotDocument): String {
+        val lines = buildList {
+            add(receiptSnapshot.storeName.ifBlank { "Cassy POS" })
+            add("No. Struk: ${receiptSnapshot.localNumber}")
+            add("Terminal: ${receiptSnapshot.terminalName ?: receiptSnapshot.terminalId}")
+            add("Waktu: ${receiptSnapshot.finalizedAtEpochMs}")
+            add("Pembayaran: ${receiptSnapshot.payment.method} (${receiptSnapshot.payment.state.status})")
+            add("")
+            receiptSnapshot.items.forEach { item ->
+                add("${item.productName} x${item.quantity} = ${item.lineTotal}")
+            }
+            add("")
+            add("Subtotal: ${receiptSnapshot.totals.subtotal}")
+            add("Pajak: ${receiptSnapshot.totals.taxTotal}")
+            add("Diskon: ${receiptSnapshot.totals.discountTotal}")
+            add("Total: ${receiptSnapshot.totals.finalTotal}")
+            if (receiptSnapshot.footerLines.isNotEmpty()) {
+                add("")
+                receiptSnapshot.footerLines.forEach(::add)
+            }
         }
-        if (kernelRepository.getActiveShift(binding.terminalId) == null) {
-            return Result.failure(IllegalStateException("Shift belum aktif"))
-        }
-        return Result.success(Unit)
+        return lines.joinToString(separator = "\n")
+    }
+
+    companion object {
+        private val supportedPaymentMethods = setOf("CASH", "CARD", "QRIS")
+    }
+
+    private fun nextId(prefix: String): String {
+        idSequence += 1
+        return "${prefix}_${clock.now().toEpochMilliseconds()}_$idSequence"
     }
 }

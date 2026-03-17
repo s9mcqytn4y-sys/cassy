@@ -2,11 +2,20 @@ package id.azureenterprise.cassy.sales.data
 
 import id.azureenterprise.cassy.sales.db.SalesDatabase
 import id.azureenterprise.cassy.sales.domain.Basket
+import id.azureenterprise.cassy.sales.domain.CompletedSaleReadback
+import id.azureenterprise.cassy.sales.domain.Payment
+import id.azureenterprise.cassy.sales.domain.PaymentState
+import id.azureenterprise.cassy.sales.domain.PersistedReceiptSnapshot
+import id.azureenterprise.cassy.sales.domain.ReceiptSnapshotDocument
+import id.azureenterprise.cassy.sales.domain.SaleStatus
+import id.azureenterprise.cassy.sales.domain.SaleHistoryEntry
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
 import kotlinx.datetime.Clock
+import kotlinx.datetime.Instant
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
+import kotlinx.serialization.decodeFromString
 
 class SalesRepository(
     private val database: SalesDatabase,
@@ -16,12 +25,15 @@ class SalesRepository(
 ) {
     private val queries = database.salesDatabaseQueries
 
-    suspend fun saveSale(
+    suspend fun createPendingSale(
         saleId: String,
+        paymentId: String,
         localNumber: String,
         shiftId: String,
         terminalId: String,
-        basket: Basket
+        basket: Basket,
+        paymentMethod: String,
+        paymentState: PaymentState
     ) = withContext(ioDispatcher) {
         database.transaction {
             queries.insertSale(
@@ -34,7 +46,7 @@ class SalesRepository(
                 taxAmount = basket.totals.taxTotal,
                 discountAmount = basket.totals.discountTotal,
                 finalAmount = basket.totals.finalTotal,
-                status = "PENDING"
+                status = SaleStatus.PENDING.name
             )
 
             basket.items.forEach { item ->
@@ -49,38 +61,47 @@ class SalesRepository(
                     discountAmount = item.discountAmount
                 )
             }
+
+            queries.insertSalePayment(
+                id = paymentId,
+                saleId = saleId,
+                method = paymentMethod,
+                amount = basket.totals.finalTotal,
+                status = paymentState.status.name,
+                statusReasonCode = paymentState.detailCode?.name,
+                statusDetailMessage = paymentState.detailMessage,
+                providerReference = null,
+                timestamp = clock.now().toEpochMilliseconds()
+            )
         }
     }
 
-    suspend fun recordPayment(
-        paymentId: String,
+    suspend fun finalizeSale(
         saleId: String,
-        method: String,
-        amount: Double,
-        status: String,
-        providerReference: String?
+        paymentId: String,
+        receiptSnapshot: ReceiptSnapshotDocument,
+        paymentState: PaymentState,
+        providerReference: String? = null
     ) = withContext(ioDispatcher) {
-        queries.insertSalePayment(
-            id = paymentId,
-            saleId = saleId,
-            method = method,
-            amount = amount,
-            status = status,
-            providerReference = providerReference,
-            timestamp = clock.now().toEpochMilliseconds()
-        )
-    }
-
-    suspend fun finalizeSale(saleId: String, receiptContent: String) = withContext(ioDispatcher) {
         database.transaction {
+            queries.updatePaymentStatus(
+                status = paymentState.status.name,
+                statusReasonCode = paymentState.detailCode?.name,
+                statusDetailMessage = paymentState.detailMessage,
+                providerReference = providerReference,
+                id = paymentId
+            )
             queries.updateSaleStatus(
-                status = "COMPLETED",
+                status = SaleStatus.COMPLETED.name,
                 suspendedAt = null,
                 id = saleId
             )
             queries.insertReceiptSnapshot(
                 saleId = saleId,
-                content = receiptContent,
+                content = json.encodeToString(receiptSnapshot),
+                snapshotVersion = receiptSnapshot.version.toLong(),
+                templateId = receiptSnapshot.template.templateId,
+                paperWidthMm = receiptSnapshot.template.paperWidthMm.toLong(),
                 createdAt = clock.now().toEpochMilliseconds()
             )
         }
@@ -88,10 +109,31 @@ class SalesRepository(
 
     suspend fun suspendSale(saleId: String) = withContext(ioDispatcher) {
         queries.updateSaleStatus(
-            status = "SUSPENDED",
+            status = SaleStatus.SUSPENDED.name,
             suspendedAt = clock.now().toEpochMilliseconds(),
             id = saleId
         )
+    }
+
+    suspend fun failCheckout(
+        saleId: String,
+        paymentId: String,
+        paymentState: PaymentState
+    ) = withContext(ioDispatcher) {
+        database.transaction {
+            queries.updatePaymentStatus(
+                status = paymentState.status.name,
+                statusReasonCode = paymentState.detailCode?.name,
+                statusDetailMessage = paymentState.detailMessage,
+                providerReference = null,
+                id = paymentId
+            )
+            queries.updateSaleStatus(
+                status = SaleStatus.CANCELLED.name,
+                suspendedAt = null,
+                id = saleId
+            )
+        }
     }
 
     suspend fun saveActiveBasket(basket: Basket) = withContext(ioDispatcher) {
@@ -108,4 +150,59 @@ class SalesRepository(
     suspend fun clearActiveBasket() = withContext(ioDispatcher) {
         queries.clearActiveBasket()
     }
+
+    suspend fun getCompletedSaleReadback(saleId: String): CompletedSaleReadback? = withContext(ioDispatcher) {
+        val sale = queries.getSaleById(saleId).executeAsOneOrNull()?.toDomain() ?: return@withContext null
+        val receipt = getPersistedReceiptSnapshot(saleId)?.snapshot ?: return@withContext null
+        CompletedSaleReadback(sale = sale, receiptSnapshot = receipt)
+    }
+
+    suspend fun getPersistedReceiptSnapshot(saleId: String): PersistedReceiptSnapshot? = withContext(ioDispatcher) {
+        queries.getReceiptSnapshot(saleId).executeAsOneOrNull()?.let {
+            PersistedReceiptSnapshot(
+                snapshot = json.decodeFromString(it.content),
+                createdAtEpochMs = it.createdAt
+            )
+        }
+    }
+
+    suspend fun getSalePayments(saleId: String): List<Payment> = withContext(ioDispatcher) {
+        queries.getSalePayments(saleId).executeAsList().map {
+            Payment(
+                id = it.id,
+                saleId = it.saleId,
+                method = it.method,
+                amount = it.amount,
+                state = PaymentState(
+                    status = enumValueOf(it.status),
+                    detailCode = it.statusReasonCode?.let(::enumValueOfOrNull),
+                    detailMessage = it.statusDetailMessage
+                ),
+                providerReference = it.providerReference,
+                timestamp = Instant.fromEpochMilliseconds(it.timestamp)
+            )
+        }
+    }
+
+    suspend fun getCompletedSales(): List<SaleHistoryEntry> = withContext(ioDispatcher) {
+        queries.getCompletedSales().executeAsList().mapNotNull { sale ->
+            val receipt = queries.getReceiptSnapshot(sale.id).executeAsOneOrNull()
+                ?.content
+                ?.let { json.decodeFromString<ReceiptSnapshotDocument>(it) }
+                ?: return@mapNotNull null
+
+            SaleHistoryEntry(
+                saleId = sale.id,
+                localNumber = sale.localNumber,
+                terminalId = sale.terminalId,
+                finalizedAtEpochMs = receipt.finalizedAtEpochMs,
+                finalAmount = sale.finalAmount,
+                paymentMethod = receipt.payment.method,
+                paymentState = receipt.payment.state
+            )
+        }
+    }
+
+    private inline fun <reified T : Enum<T>> enumValueOfOrNull(value: String): T? =
+        runCatching { enumValueOf<T>(value) }.getOrNull()
 }

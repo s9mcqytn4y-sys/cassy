@@ -13,6 +13,7 @@ import id.azureenterprise.cassy.masterdata.domain.ProductLookupResult
 import id.azureenterprise.cassy.masterdata.domain.ProductLookupUseCase
 import id.azureenterprise.cassy.sales.application.SalesService
 import id.azureenterprise.cassy.sales.domain.Basket
+import id.azureenterprise.cassy.sales.domain.SaleHistoryEntry
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -227,6 +228,54 @@ class DesktopAppController(
         ))
     }
 
+    suspend fun checkoutCash() {
+        mutateBusy(true)
+        val result = salesService.checkout("CASH")
+        result.fold(
+            onSuccess = { completion ->
+                val saleId = completion.saleId
+                val finalizedSale = completion.readback
+                val receiptPreview = salesService.getReceiptForPrint(saleId).getOrNull()
+                refreshStage(
+                    UiBanner(UiTone.Success, "Transaksi ${finalizedSale.receiptSnapshot.localNumber} selesai")
+                )
+                _state.update {
+                    it.copy(
+                        catalog = it.catalog.copy(
+                            lastFinalizedSaleId = saleId,
+                            lastReceiptPreview = receiptPreview?.renderedContent,
+                            recentSales = loadSaleHistory()
+                        )
+                    )
+                }
+            },
+            onFailure = { error ->
+                refreshStage(UiBanner(UiTone.Danger, error.message ?: "Finalisasi transaksi gagal"))
+            }
+        )
+    }
+
+    suspend fun reprintLastReceipt() {
+        val saleId = state.value.catalog.lastFinalizedSaleId
+            ?: return pushBanner(UiBanner(UiTone.Warning, "Belum ada struk final untuk dicetak ulang"))
+        mutateBusy(true)
+        val result = salesService.getReceiptForPrint(saleId, isReprint = true)
+        result.fold(
+            onSuccess = { receipt ->
+                _state.update {
+                    it.copy(
+                        isBusy = false,
+                        catalog = it.catalog.copy(lastReceiptPreview = receipt.renderedContent),
+                        banner = UiBanner(UiTone.Info, "Struk final siap dicetak ulang")
+                    )
+                }
+            },
+            onFailure = { error ->
+                pushBanner(UiBanner(UiTone.Danger, error.message ?: "Gagal memuat struk final"))
+            }
+        )
+    }
+
     fun updateOpeningCashInput(value: String) {
         _state.update { it.copy(operations = it.operations.copy(openingCashInput = value)) }
     }
@@ -292,7 +341,8 @@ class DesktopAppController(
                 ),
                 catalog = it.catalog.copy(
                     products = products,
-                    basket = salesService.basket.value
+                    basket = salesService.basket.value,
+                    recentSales = loadSaleHistory()
                 ),
                 banner = banner
             )
@@ -318,6 +368,10 @@ class DesktopAppController(
 
     private fun pushBanner(banner: UiBanner) {
         _state.update { it.copy(isBusy = false, banner = banner) }
+    }
+
+    private suspend fun loadSaleHistory(): List<SaleHistoryEntry> {
+        return salesService.getSaleHistory().getOrDefault(emptyList()).take(5)
     }
 }
 
@@ -395,7 +449,10 @@ data class DesktopCatalogState(
     val searchQuery: String = "",
     val barcodeInput: String = "",
     val products: List<Product> = emptyList(),
-    val basket: Basket = Basket()
+    val basket: Basket = Basket(),
+    val lastFinalizedSaleId: String? = null,
+    val lastReceiptPreview: String? = null,
+    val recentSales: List<SaleHistoryEntry> = emptyList()
 )
 
 enum class UiTone {

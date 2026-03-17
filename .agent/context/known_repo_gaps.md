@@ -4,9 +4,9 @@
 
 - `:shared` masih menjadi legacy bridge dan belum sepenuhnya dievakuasi ke bounded context yang bersih.
 - Access/PIN saat ini adalah local baseline untuk foundation, bukan security-hardening final.
-- **M6 Checkout Gap**: Checkout saat ini baru mencatat transaksi lokal dan mutasi stok; finalisasi pembayaran eksternal dan pencetakan struk masih dalam pengembangan.
-- **Hosted CI Validation**: Installer smoke test (install/uninstall) belum tervalidasi di GitHub Actions runner karena limitasi environment; validasi masih bergantung pada *Manual Evidence Pack*.
+- **Hosted CI Validation**: Status hosted runner hanya boleh dianggap valid bila ada run remote yang benar-benar selesai; validasi lokal saja tidak cukup.
 - **Sync/Reporting**: Migration replay, sync visibility, dan reporting penuh masih di luar cakupan foundation saat ini.
+- **Android Checkout Lane**: Checkout finality dibuktikan di desktop-first lane; Android tetap parity/business-semantics lane dan belum menjadi owner UX finality.
 
 ## Gaps recently reduced (Hardened)
 
@@ -16,3 +16,5 @@
 - **Kotlin 2.3.20**: Seluruh modul telah disinkronkan ke Kotlin 2.3.20 untuk stabilitas jangka panjang.
 - **Test Coverage**: Regresi pada `SalesServiceTest` dan `AccessServiceTest` telah diperbaiki dan diverifikasi.
 - **Windows Packaging**: Artifact EXE berhasil di-generate secara lokal dan diverifikasi melalui smoke run.
+- **R1 / M6 Finality Contracts**: `shared:sales` kini memakai `PaymentStatus`, `PaymentState`, `SaleCompletionResult`, `CompletedSaleReadback`, dan `ReceiptSnapshotDocument` sebagai kontrak finality typed.
+- **R1 / M6 Persistence**: Snapshot struk final kini dipersist sebagai artefak final terstruktur dengan metadata template thermal, dibaca ulang dari sumber final yang sama, dan dimigrasikan lewat SQLDelight migration yang tervalidasi.

@@ -116,6 +116,8 @@ fun main(args: Array<String>) {
                                                     onClosingCashChanged = controller::updateClosingCashInput,
                                                     onIncrement = { p -> scope.launch { controller.incrementItem(p) } },
                                                     onDecrement = { p, q -> scope.launch { controller.decrementItem(p, q) } },
+                                                    onCheckoutCash = { scope.launch { controller.checkoutCash() } },
+                                                    onReprintLastReceipt = { scope.launch { controller.reprintLastReceipt() } },
                                                     onEndShift = { showEndShiftDialog = true },
                                                     onClosingDay = { showCloseDayDialog = true }
                                                 )

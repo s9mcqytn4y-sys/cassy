@@ -12,7 +12,7 @@ Dokumen ini adalah bridge antara roadmap PDF, context agent, dan repo reality. R
 | M3 | Desktop Bootstrap | **DONE** | `Main.kt` branding, `DesktopAppControllerTest` | Flow Login, Restore, dan Lockout telah terverifikasi. |
 | M4 | Business Day & Shift | **DONE** | `ShiftService`, Guardrail Lifecycle | Lifecycle Open/Start/End/Close tervalidasi dengan guardrail operasional. |
 | M5 | Thin M5 (Catalog/Cart) | **DONE (BASELINES)** | `SalesService`, `ActiveBasket` persistence | Catalog lookup, cart mutation, dan basket persistence (survival on restart) sudah stabil. |
-| M6 | Checkout & Receipt | **PENDING** | `SalesService.checkout` (Thin) | Baru mencakup pencatatan lokal. Finalisasi payment & printing masih deferred. |
+| M6 | Checkout & Receipt | **DONE (DESKTOP-FIRST R1)** | `SalesService`, `SalesRepository`, `DesktopAppController`, sales DB migrations | Finality transaksi, snapshot struk final, readback/reprint dari source final, dan separation print vs settlement validity sudah tervalidasi untuk lane desktop. |
 | M7 | Inventory Basic | **DONE (THIN)** | `InventoryService`, `recordSaleCompletion` | Integrasi transaksi stok otomatis saat checkout baseline sudah aktif. |
 | M8 | Reporting Dasar | **PENDING** | - | Belum ada implementasi runtime atau UI reporting. |
 | M9 | Sync Visibility | **PENDING** | outbox/infra parsial | Replay mechanism dan sync state visibility belum di-close. |
@@ -31,11 +31,11 @@ Dokumen ini adalah bridge antara roadmap PDF, context agent, dan repo reality. R
 - **Basket Persistence:** Menutup aplikasi saat basket terisi, lalu membukanya kembali: basket ter-restore otomatis (M5 baseline).
 
 ### 3. Hosted Evidence (CI/CD)
-- GitHub Actions build check (Kotlin 2.3.20 compliance).
-- **UNKNOWN:** Hosted Windows Installer validation (dikarenakan limitasi runner environment).
+- Hosted evidence harus dibuktikan dari run remote yang benar-benar selesai.
+- Status hosted run tidak boleh diangkat dari verifikasi lokal saja.
 
-## Milestone Berikutnya: M6 (Checkout & Payment Finalization)
-**Target:** Menutup gap transaksi dari keranjang hingga "Lunas".
-- Integrasi Payment Provider Interface (Stubs for M6).
-- Receipt Template Engine (Markdown/JSON to Text).
-- Finalisasi status "COMPLETED" di database sales.
+## Milestone Berikutnya: Post-R1 Hardening
+**Target:** Menutup area di luar kontrak minimum R1 tanpa merusak desktop cashier lane.
+- hardening audit/outbox bundling jika ada partial failure non-settlement
+- hosted installer evidence yang repeatable
+- Android parity follow-up tanpa memindahkan ownership ke `:shared`

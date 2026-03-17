@@ -58,8 +58,8 @@ class SalesViewModel(
         scope.launch {
             _uiState.value = SalesUiState.Loading
             val result = salesService.checkout(method)
-            result.onSuccess { id ->
-                _uiState.value = SalesUiState.Success(id)
+            result.onSuccess { completion ->
+                _uiState.value = SalesUiState.Success(completion.saleId)
             }.onFailure { err ->
                 _uiState.value = SalesUiState.Error(err.message ?: "Checkout failed")
             }

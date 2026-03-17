@@ -1,3 +1,7 @@
+PRAGMA foreign_keys = 0;
+
+ALTER TABLE Sale RENAME TO Sale_legacy;
+
 CREATE TABLE Sale (
     id TEXT NOT NULL PRIMARY KEY,
     localNumber TEXT NOT NULL,
@@ -12,6 +16,12 @@ CREATE TABLE Sale (
     suspendedAt INTEGER
 );
 
+INSERT INTO Sale(id, localNumber, shiftId, terminalId, timestamp, totalAmount, taxAmount, discountAmount, finalAmount, status, suspendedAt)
+SELECT id, localNumber, shiftId, terminalId, timestamp, totalAmount, taxAmount, discountAmount, finalAmount, status, suspendedAt
+FROM Sale_legacy;
+
+ALTER TABLE SaleItem RENAME TO SaleItem_legacy;
+
 CREATE TABLE SaleItem (
     id TEXT NOT NULL PRIMARY KEY,
     saleId TEXT NOT NULL,
@@ -23,6 +33,14 @@ CREATE TABLE SaleItem (
     discountAmount REAL NOT NULL CHECK (discountAmount >= 0),
     FOREIGN KEY(saleId) REFERENCES Sale(id) ON DELETE CASCADE
 );
+
+INSERT INTO SaleItem(id, saleId, productId, unitPrice, quantity, totalPrice, taxAmount, discountAmount)
+SELECT id, saleId, productId, unitPrice, quantity, totalPrice, taxAmount, discountAmount
+FROM SaleItem_legacy;
+
+DROP TABLE SaleItem_legacy;
+
+ALTER TABLE SalePayment RENAME TO SalePayment_legacy;
 
 CREATE TABLE SalePayment (
     id TEXT NOT NULL PRIMARY KEY,
@@ -38,9 +56,17 @@ CREATE TABLE SalePayment (
     CHECK (status NOT IN ('PENDING', 'FAILED') OR statusReasonCode IS NOT NULL)
 );
 
+INSERT INTO SalePayment(id, saleId, method, amount, status, statusReasonCode, statusDetailMessage, providerReference, timestamp)
+SELECT id, saleId, method, amount, status, statusReasonCode, statusDetailMessage, providerReference, timestamp
+FROM SalePayment_legacy;
+
+DROP TABLE SalePayment_legacy;
+
+ALTER TABLE ReceiptSnapshot RENAME TO ReceiptSnapshot_legacy;
+
 CREATE TABLE ReceiptSnapshot (
     saleId TEXT NOT NULL PRIMARY KEY,
-    content TEXT NOT NULL CHECK (length(trim(content)) > 0), -- JSON structured snapshot
+    content TEXT NOT NULL CHECK (length(trim(content)) > 0),
     snapshotVersion INTEGER NOT NULL CHECK (snapshotVersion >= 1),
     templateId TEXT NOT NULL CHECK (length(trim(templateId)) > 0),
     paperWidthMm INTEGER NOT NULL CHECK (paperWidthMm IN (58, 80)),
@@ -48,11 +74,12 @@ CREATE TABLE ReceiptSnapshot (
     FOREIGN KEY(saleId) REFERENCES Sale(id) ON DELETE CASCADE
 );
 
-CREATE TABLE ActiveBasket (
-    id INTEGER PRIMARY KEY CHECK (id = 1), -- Single row enforcement
-    content TEXT NOT NULL, -- JSON serialized Basket
-    updatedAt INTEGER NOT NULL
-);
+INSERT INTO ReceiptSnapshot(saleId, content, snapshotVersion, templateId, paperWidthMm, createdAt)
+SELECT saleId, content, 1, 'thermal-80mm-v1', 80, createdAt
+FROM ReceiptSnapshot_legacy;
+
+DROP TABLE ReceiptSnapshot_legacy;
+DROP TABLE Sale_legacy;
 
 CREATE UNIQUE INDEX Sale_terminal_local_unique_idx ON Sale(terminalId, localNumber);
 CREATE INDEX Sale_shift_timestamp_idx ON Sale(shiftId, timestamp);
@@ -63,54 +90,4 @@ CREATE INDEX SalePayment_status_timestamp_idx ON SalePayment(status, timestamp);
 CREATE INDEX ReceiptSnapshot_createdAt_idx ON ReceiptSnapshot(createdAt);
 CREATE INDEX ReceiptSnapshot_template_createdAt_idx ON ReceiptSnapshot(templateId, createdAt);
 
--- Queries
-insertSale:
-INSERT INTO Sale(id, localNumber, shiftId, terminalId, timestamp, totalAmount, taxAmount, discountAmount, finalAmount, status)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-
-insertSaleItem:
-INSERT INTO SaleItem(id, saleId, productId, unitPrice, quantity, totalPrice, taxAmount, discountAmount)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?);
-
-insertSalePayment:
-INSERT INTO SalePayment(id, saleId, method, amount, status, statusReasonCode, statusDetailMessage, providerReference, timestamp)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
-
-updateSaleStatus:
-UPDATE Sale SET status = ?, suspendedAt = ? WHERE id = ?;
-
-updatePaymentStatus:
-UPDATE SalePayment SET status = ?, statusReasonCode = ?, statusDetailMessage = ?, providerReference = ? WHERE id = ?;
-
-getSaleById:
-SELECT * FROM Sale WHERE id = ? LIMIT 1;
-
-getSalePayments:
-SELECT * FROM SalePayment WHERE saleId = ? ORDER BY timestamp DESC;
-
-getCompletedSales:
-SELECT * FROM Sale
-WHERE status = 'COMPLETED'
-ORDER BY timestamp DESC;
-
-getSaleWithItems:
-SELECT s.*, si.* FROM Sale s
-LEFT JOIN SaleItem si ON s.id = si.saleId
-WHERE s.id = ?;
-
-insertReceiptSnapshot:
-INSERT INTO ReceiptSnapshot(saleId, content, snapshotVersion, templateId, paperWidthMm, createdAt)
-VALUES (?, ?, ?, ?, ?, ?);
-
-getReceiptSnapshot:
-SELECT * FROM ReceiptSnapshot WHERE saleId = ?;
-
-insertOrUpdateActiveBasket:
-INSERT OR REPLACE INTO ActiveBasket(id, content, updatedAt)
-VALUES (1, ?, ?);
-
-getActiveBasket:
-SELECT content FROM ActiveBasket WHERE id = 1;
-
-clearActiveBasket:
-DELETE FROM ActiveBasket WHERE id = 1;
+PRAGMA foreign_keys = 1;
