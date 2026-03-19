@@ -18,7 +18,7 @@ Dokumen ini adalah bridge antara roadmap PDF, context agent, dan repo reality. R
 | M7 | Inventory Basic | **DONE (R3 HARDENED SLICE)** | `InventoryService`, `InventoryRepository`, desktop inventory dialog, inventory DB migration v3 | Sale -> inventory boundary sudah tegas, balance vs ledger baseline aktif, FIFO layer baseline ada, stock count/discrepancy review hidup, approval-aware adjustment queue ada, FK/integrity proof ada, dan void-impact contract diblok jujur. |
 | M8 | Reporting Dasar | **PENDING** | - | Belum ada implementasi runtime atau UI reporting. |
 | M9 | Sync Visibility | **PENDING** | outbox/infra parsial | Replay mechanism dan sync state visibility belum di-close. |
-| M10 | Release (Windows) | **FOUNDATION-OK** | `smokeRun`, hosted `Mainline Evidence`, diagnostics + state-backup baseline, manual evidence pack | Source/runtime smoke terbukti, diagnostics/recovery baseline sudah ada; install/uninstall installer masih manual-soft-blocker. |
+| M10 | Release (Windows) | **FOUNDATION-OK** | `smokeRun`, `run --args="--smoke-run"`, hosted `Mainline Evidence`, diagnostics + state-backup baseline, manual evidence pack | JDK/workspace truth, packaging task map, source smoke, dan distribution smoke sudah explicit; install/uninstall installer masih manual-soft-blocker. |
 | R2-B1 | Operational Control Foundation | **DONE (FOUNDATION SLICE)** | `OperationalControlService`, `BusinessDayService`, `ShiftService`, `DesktopAppController` | Control tower, open day, shift gating, opening cash approval, dan legacy orphan cleanup sudah hidup di desktop-first lane. |
 | R2-B2 | Operational Control Hardening | **DONE (DESKTOP-FIRST SLICE)** | `CashControlService`, `ShiftClosingService`, `KernelRepository`, `DesktopAppController` | Cash control baseline, approval durability, close shift reconciliation, close day fail-closed review, dan kernel migration handling sudah hidup di desktop-first lane. |
 | R2-B3 | Final Gate & Truth Sync | **PARTIAL (HONEST VERDICT)** | `r2_final_gate_report.md`, rerun verification matrix 2026-03-19 | Gate teknis lulus, tetapi R2 penuh belum boleh diklaim `DONE` karena void resolver dan release evidence installer masih terbuka. |
@@ -35,6 +35,7 @@ Dokumen ini adalah bridge antara roadmap PDF, context agent, dan repo reality. R
 
 ### 2. Manual / Local Smoke Evidence
 - `.\gradlew :apps:desktop-pos:smokeRun` -> PASS
+- `.\gradlew :apps:desktop-pos:run --args="--smoke-run"` -> PASS
 - Source smoke dan distribution smoke repo-local sudah ada.
 - Baseline recovery data lokal: `tooling/scripts/Backup-CassyDesktopState.ps1`
 - Baseline diagnostics Windows: `tooling/scripts/Collect-WindowsReleaseDiagnostics.ps1`

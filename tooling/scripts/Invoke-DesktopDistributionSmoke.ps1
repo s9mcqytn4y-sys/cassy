@@ -77,7 +77,7 @@ try {
         throw "Desktop distribution smoke marker is not OK: $marker"
     }
 
-    Write-Output $marker
+    Write-Output "Distribution marker verified: $marker"
 } finally {
     if ($null -eq $previousMarker) {
         Remove-Item Env:CASSY_SMOKE_MARKER -ErrorAction SilentlyContinue

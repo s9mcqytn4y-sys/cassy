@@ -14,6 +14,9 @@ Updated: 2026-03-19
 - Kernel migration untuk schema operasional sudah diverifikasi ulang lewat test desktop khusus migrasi.
 - R3 sudah menambah persistence durable untuk `InventoryApprovalAction`, migration inventory v3, dan FK/integrity proof untuk inventory truth.
 - `.github` gate sekarang sinkron dengan inventory migration verify dan desktop smoke task yang nyata.
+- R4 foundation sekarang punya dokumen truth terpisah untuk contract, JDK/workspace, dan smoke task map.
+- Packaging desktop yang benar-benar dikonfigurasi saat ini adalah Windows `EXE`; repo belum mendeklarasikan `MSI`.
+- Source smoke dan distribution smoke keduanya sudah punya jalur yang eksplisit dan tervalidasi ulang pada host Windows turn ini.
 - README, AGENTS, CODEX, GEMINI, `.agent`, `.vscode`, dan tracked `.idea` subset telah disegarkan untuk posture desktop-first JDK 17 dan truth R3.
 
 ## ASSUMPTION
@@ -26,7 +29,7 @@ Updated: 2026-03-19
 
 ## RISK
 - Hosted CI remote completion tidak saya klaim dari verifikasi lokal.
-- Release evidence Windows masih belum setara dengan runtime/source smoke yang sudah hijau.
+- Release evidence Windows foundation sudah lebih eksplisit, tetapi install/uninstall end-user masih belum setara dengan smoke runtime/source yang sudah hijau.
 
 ## RECOMMENDATION
 - Gunakan dokumen ini sebagai reality snapshot terbaru; dokumen block-level lama tetap dipertahankan sebagai jejak evolusi, bukan diganti total.

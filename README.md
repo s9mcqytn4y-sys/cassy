@@ -22,6 +22,9 @@ Status milestone di bawah ini didasarkan pada bukti nyata di dalam repository (c
 
 Dokumentasi detail mengenai status dan cara verifikasi:
 - `docs/execution/roadmap_bridge.md`: **Source of Truth** status milestone saat ini.
+- `docs/execution/r4_windows_release_contract.md`: Kontrak foundation slice R4.
+- `docs/execution/r4_jdk_workspace_truth.md`: Truth JDK/toolchain/workspace desktop.
+- `docs/execution/r4_smoke_foundation.md`: Task map packaging + smoke path yang nyata.
 - `docs/execution/windows_installer_smoke_checklist.md`: Panduan verifikasi manual installer Windows.
 - `docs/execution/windows_desktop_runbook.md`: Langkah operasional untuk environment Desktop.
 - `docs/execution/r4_windows_release_trust.md`: Status R4, baseline recovery, dan diagnostics Windows.

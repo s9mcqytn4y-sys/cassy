@@ -2,7 +2,10 @@
 
 Updated: 2026-03-19
 
-Dokumen ini mengunci baseline R4 yang benar-benar hidup di repo dan host Windows saat ini. Fokusnya hanya JDK/workspace truth, smoke distribusi, recovery dasar, diagnostics, dan gap installer yang masih harus jujur.
+Dokumen ini mengunci baseline R4 yang benar-benar hidup di repo dan host Windows saat ini. Untuk foundation slice yang lebih terstruktur, lihat juga:
+- `docs/execution/r4_windows_release_contract.md`
+- `docs/execution/r4_jdk_workspace_truth.md`
+- `docs/execution/r4_smoke_foundation.md`
 
 ## Current truth
 
