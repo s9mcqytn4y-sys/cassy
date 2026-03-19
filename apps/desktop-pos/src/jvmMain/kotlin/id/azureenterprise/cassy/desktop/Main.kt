@@ -46,6 +46,7 @@ fun main(args: Array<String>) {
                 var showEndShiftDialog by remember { mutableStateOf(false) }
                 var showCloseDayDialog by remember { mutableStateOf(false) }
                 var showCashControlDialog by remember { mutableStateOf(false) }
+                var showInventoryDialog by remember { mutableStateOf(false) }
 
                 LaunchedEffect(Unit) {
                     controller.load()
@@ -60,6 +61,7 @@ fun main(args: Array<String>) {
                                 Key.F12 -> { showCloseDayDialog = true; true }
                                 Key.F11 -> { showEndShiftDialog = true; true }
                                 Key.F10 -> { showCashControlDialog = true; true }
+                                Key.F9 -> { showInventoryDialog = true; true }
                                 else -> false
                             }
                         } else false
@@ -115,6 +117,7 @@ fun main(args: Array<String>) {
                                                 CassyCartPanel(
                                                     state = state.catalog,
                                                     operations = state.operations,
+                                                    inventory = state.inventory,
                                                     onCashReceivedChanged = controller::updateCashReceivedInput,
                                                     onIncrement = { p -> scope.launch { controller.incrementItem(p) } },
                                                     onDecrement = { p, q -> scope.launch { controller.decrementItem(p, q) } },
@@ -122,6 +125,7 @@ fun main(args: Array<String>) {
                                                     onPrintLastReceipt = { scope.launch { controller.printLastReceipt() } },
                                                     onReprintLastReceipt = { scope.launch { controller.reprintLastReceipt() } },
                                                     onCancelSale = { scope.launch { controller.cancelCurrentSale() } },
+                                                    onInventoryControl = { showInventoryDialog = true },
                                                     onCashControl = { showCashControlDialog = true },
                                                     onEndShift = { showEndShiftDialog = true },
                                                     onClosingDay = { showCloseDayDialog = true }
@@ -164,6 +168,33 @@ fun main(args: Array<String>) {
                             },
                             onApprove = { id -> scope.launch { controller.approveCashMovement(id) } },
                             onDeny = { id -> scope.launch { controller.denyCashMovement(id) } }
+                        )
+                    }
+
+                    if (showInventoryDialog) {
+                        InventoryTruthDialog(
+                            state = state.inventory,
+                            onDismiss = { showInventoryDialog = false },
+                            onSelectProduct = { productId ->
+                                scope.launch { controller.selectInventoryProduct(productId) }
+                            },
+                            onCountQuantityChanged = controller::updateInventoryCountQuantityInput,
+                            onSubmitCount = {
+                                scope.launch { controller.submitInventoryCount() }
+                            },
+                            onAdjustmentDirectionChanged = controller::updateInventoryAdjustmentDirection,
+                            onAdjustmentQuantityChanged = controller::updateInventoryAdjustmentQuantityInput,
+                            onAdjustmentReasonCodeChanged = controller::updateInventoryAdjustmentReasonCode,
+                            onAdjustmentReasonDetailChanged = controller::updateInventoryAdjustmentReasonDetail,
+                            onApplyAdjustment = {
+                                scope.launch { controller.applyInventoryAdjustment() }
+                            },
+                            onResolveDiscrepancy = { reviewId ->
+                                scope.launch { controller.resolveInventoryDiscrepancy(reviewId) }
+                            },
+                            onMarkInvestigation = { reviewId ->
+                                scope.launch { controller.markInventoryDiscrepancyInvestigation(reviewId) }
+                            }
                         )
                     }
 

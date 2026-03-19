@@ -2,10 +2,13 @@ package id.azureenterprise.cassy.sales.application
 
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import id.azureenterprise.cassy.inventory.application.InventoryService
+import id.azureenterprise.cassy.inventory.application.InventoryVoidImpactPolicy
 import id.azureenterprise.cassy.inventory.data.InventoryRepository
 import id.azureenterprise.cassy.inventory.db.InventoryDatabase
+import id.azureenterprise.cassy.kernel.application.AccessService
 import id.azureenterprise.cassy.kernel.data.KernelRepository
 import id.azureenterprise.cassy.kernel.db.KernelDatabase
+import id.azureenterprise.cassy.kernel.domain.PinHasher
 import id.azureenterprise.cassy.kernel.domain.TerminalBinding
 import id.azureenterprise.cassy.masterdata.data.ProductLookupRepositoryImpl
 import id.azureenterprise.cassy.masterdata.db.MasterDataDatabase
@@ -102,8 +105,8 @@ class SalesServiceTest {
             assertTrue(checkout.isSuccess)
             assertEquals(PaymentStatus.SUCCESS, checkout.getOrThrow().readback.receiptSnapshot.payment.state.status)
             assertEquals(ReceiptPrintStatus.READY_FOR_PRINT, checkout.getOrThrow().printState.status)
-            assertEquals(-2.0, fixture.inventoryRepository.getStockLevel("product_1"))
-            assertEquals(1, fixture.inventoryRepository.getLedgerByProduct("product_1").size)
+            assertEquals(-2.0, fixture.inventoryLevel("product_1"))
+            assertEquals(1, fixture.ledgerCount("product_1"))
         }
     }
 
@@ -190,7 +193,7 @@ class SalesServiceTest {
 
             val pendingOutcome = outcome as CompleteSaleOutcome.Pending
             assertEquals(PaymentStatus.PENDING, pendingOutcome.paymentState.status)
-            assertEquals(0.0, fixture.inventoryRepository.getStockLevel("product_1"))
+            assertEquals(0.0, fixture.inventoryLevel("product_1"))
             assertTrue(fixture.service.getReceiptForPrint(pendingOutcome.saleId).isFailure)
             assertTrue(fixture.kernelRepository.audits.isEmpty())
             assertTrue(fixture.kernelRepository.events.isEmpty())
@@ -223,7 +226,7 @@ class SalesServiceTest {
 
             assertTrue(outcome is CompleteSaleOutcome.Rejected)
             assertEquals(1, fixture.service.basket.value.items.size)
-            assertEquals(0.0, fixture.inventoryRepository.getStockLevel("product_1"))
+            assertEquals(0.0, fixture.inventoryLevel("product_1"))
             assertTrue(fixture.kernelRepository.audits.isEmpty())
             assertTrue(fixture.kernelRepository.events.isEmpty())
         }
@@ -266,8 +269,8 @@ class SalesServiceTest {
             val replayedCompleted = replayed as CompleteSaleOutcome.Completed
             assertTrue(completed is CompleteSaleOutcome.Completed)
             assertTrue(replayedCompleted.replayed)
-            assertEquals(-2.0, fixture.inventoryRepository.getStockLevel("product_1"))
-            assertEquals(1, fixture.inventoryRepository.getLedgerByProduct("product_1").size)
+            assertEquals(-2.0, fixture.inventoryLevel("product_1"))
+            assertEquals(1, fixture.ledgerCount("product_1"))
             assertEquals(1, fixture.kernelRepository.audits.size)
             assertEquals(1, fixture.kernelRepository.events.size)
             assertEquals(PaymentStatus.SUCCESS, fixture.service.getFinalizedSale(saleId).getOrThrow().receiptSnapshot.payment.state.status)
@@ -303,7 +306,7 @@ class SalesServiceTest {
             val firstPending = first as CompleteSaleOutcome.Pending
             val secondPending = second as CompleteSaleOutcome.Pending
             assertEquals(firstPending.saleId, secondPending.saleId)
-            assertEquals(0.0, fixture.inventoryRepository.getStockLevel("product_1"))
+            assertEquals(0.0, fixture.inventoryLevel("product_1"))
             assertTrue(fixture.kernelRepository.events.isEmpty())
         }
     }
@@ -329,8 +332,8 @@ class SalesServiceTest {
             val failed = fixture.service.completeSale("CASH")
 
             assertTrue(failed.isFailure)
-            assertEquals(-2.0, fixture.inventoryRepository.getStockLevel("product_1"))
-            assertEquals(1, fixture.inventoryRepository.getLedgerByProduct("product_1").size)
+            assertEquals(-2.0, fixture.inventoryLevel("product_1"))
+            assertEquals(1, fixture.ledgerCount("product_1"))
             assertTrue(fixture.service.getSaleHistory().getOrThrow().isEmpty())
             assertTrue(fixture.service.getReceiptForPrint("sale_missing").isFailure)
 
@@ -338,7 +341,7 @@ class SalesServiceTest {
             val recoveredCount = fixture.service.recoverIncompleteFinalizations().getOrThrow()
 
             assertEquals(1, recoveredCount)
-            assertEquals(1, fixture.inventoryRepository.getLedgerByProduct("product_1").size)
+            assertEquals(1, fixture.ledgerCount("product_1"))
             assertEquals(1, fixture.kernelRepository.audits.size)
             assertEquals(1, fixture.kernelRepository.events.size)
             assertEquals(1, fixture.service.getSaleHistory().getOrThrow().size)
@@ -394,6 +397,7 @@ class SalesServiceTest {
         MasterDataDatabase.Schema.create(masterDataDriver)
 
         val kernelRepository = RecordingKernelRepository(KernelDatabase(kernelDriver), Clock.System)
+        val accessService = AccessService(kernelRepository, PinHasher(), Clock.System)
         val inventoryRepository = InventoryRepository(
             InventoryDatabase(inventoryDriver),
             EmptyCoroutineContext,
@@ -410,7 +414,13 @@ class SalesServiceTest {
         return SalesFixture(
             service = SalesService(
                 salesRepository = SalesRepository(SalesDatabase(salesDriver), EmptyCoroutineContext, Clock.System),
-                inventoryService = InventoryService(inventoryRepository, Clock.System),
+                inventoryService = InventoryService(
+                    inventoryRepository = inventoryRepository,
+                    accessService = accessService,
+                    kernelRepository = kernelRepository,
+                    voidImpactPolicy = InventoryVoidImpactPolicy(),
+                    clock = Clock.System
+                ),
                 kernelPort = RecordingSalesKernelPort(kernelRepository),
                 paymentGatewayPort = gateway,
                 pricingEngine = PricingEngine(),
@@ -446,7 +456,15 @@ private data class SalesFixture(
     val inventoryRepository: InventoryRepository,
     val gateway: FakePaymentGatewayPort,
     val binding: TerminalBinding
-)
+) {
+    suspend fun inventoryLevel(productId: String): Double {
+        return inventoryRepository.getInventoryReadback(productId)?.balance?.quantity ?: 0.0
+    }
+
+    suspend fun ledgerCount(productId: String): Int {
+        return inventoryRepository.getInventoryReadback(productId)?.ledgerEntries?.size ?: 0
+    }
+}
 
 private class RecordingSalesKernelPort(
     private val kernelRepository: RecordingKernelRepository

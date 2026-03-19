@@ -1,7 +1,7 @@
 package id.azureenterprise.cassy.sales.application
 
 import id.azureenterprise.cassy.inventory.application.InventoryService
-import id.azureenterprise.cassy.inventory.application.SaleInventoryLine
+import id.azureenterprise.cassy.inventory.domain.SaleInventoryLine
 import id.azureenterprise.cassy.masterdata.domain.Product
 import id.azureenterprise.cassy.masterdata.domain.ProductLookupUseCase
 import id.azureenterprise.cassy.masterdata.domain.ProductLookupResult
@@ -542,7 +542,8 @@ class SalesService(
             inventoryLines = pendingSale.items.map {
                 FinalizationInventoryLine(
                     productId = it.productId,
-                    quantity = it.quantity
+                    quantity = it.quantity,
+                    sourceLineId = "sale_line_${it.productId}"
                 )
             },
             auditId = "audit_sale_finalized_${pendingSale.sale.id}",
@@ -570,7 +571,8 @@ class SalesService(
                 lines = bundle.inventoryLines.map {
                     SaleInventoryLine(
                         productId = it.productId,
-                        quantity = it.quantity
+                        quantity = it.quantity,
+                        sourceLineId = it.sourceLineId
                     )
                 }
             ).getOrThrow()

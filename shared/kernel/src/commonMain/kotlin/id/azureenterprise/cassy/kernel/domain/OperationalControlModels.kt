@@ -93,7 +93,8 @@ enum class ReasonCategory {
     CASH_IN,
     CASH_OUT,
     SAFE_DROP,
-    SHIFT_CLOSE_VARIANCE
+    SHIFT_CLOSE_VARIANCE,
+    INVENTORY_ADJUSTMENT
 }
 
 enum class ApprovalStatus {

@@ -70,6 +70,9 @@ compose.desktop {
             packageName = "Cassy"
             packageVersion = "0.1.0"
             targetFormats(org.jetbrains.compose.desktop.application.dsl.TargetFormat.Exe)
+            windows {
+                iconFile.set(project.file("../../assets/icon/cassy-app-icon.ico"))
+            }
         }
     }
 }

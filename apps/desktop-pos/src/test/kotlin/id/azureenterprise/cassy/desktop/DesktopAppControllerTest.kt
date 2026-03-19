@@ -2,6 +2,7 @@ package id.azureenterprise.cassy.desktop
 
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import id.azureenterprise.cassy.inventory.application.InventoryService
+import id.azureenterprise.cassy.inventory.application.InventoryVoidImpactPolicy
 import id.azureenterprise.cassy.inventory.data.InventoryRepository
 import id.azureenterprise.cassy.inventory.db.InventoryDatabase
 import id.azureenterprise.cassy.kernel.application.AccessService
@@ -469,6 +470,60 @@ class DesktopAppControllerTest {
         }
     }
 
+    @Test
+    fun `inventory desktop flow keeps current state separate from count discrepancy until explicit resolve`() {
+        runBlocking {
+            val fixture = desktopFixture()
+            val controller = fixture.newController()
+
+            controller.load()
+            controller.updateBootstrapField(BootstrapField.StoreName, "Store")
+            controller.updateBootstrapField(BootstrapField.TerminalName, "T1")
+            controller.updateBootstrapField(BootstrapField.CashierName, "C1")
+            controller.updateBootstrapField(BootstrapField.CashierPin, "111111")
+            controller.updateBootstrapField(BootstrapField.SupervisorName, "S1")
+            controller.updateBootstrapField(BootstrapField.SupervisorPin, "222222")
+            controller.bootstrapStore()
+            controller.selectOperator(controller.state.value.login.operators.first { it.roleLabel == "SUPERVISOR" }.id)
+            controller.updatePin("222222")
+            controller.login()
+            controller.openBusinessDay()
+            controller.updateOpeningCashInput("100000")
+            controller.startShift()
+
+            val productId = controller.state.value.inventory.availableProducts.first().id
+            controller.selectInventoryProduct(productId)
+            controller.updateInventoryAdjustmentDirection(InventoryAdjustmentDirection.INCREASE)
+            controller.updateInventoryAdjustmentQuantityInput("12")
+            controller.updateInventoryAdjustmentReasonCode("FOUND_STOCK")
+            controller.updateInventoryAdjustmentReasonDetail("Saldo awal rak depan")
+            controller.applyInventoryAdjustment()
+
+            assertEquals(12.0, controller.state.value.inventory.selectedReadback?.balance?.quantity)
+            assertTrue(controller.state.value.inventory.imageIoStatus.contains("input_images"))
+
+            controller.updateInventoryCountQuantityInput("10")
+            controller.submitInventoryCount()
+
+            assertEquals(12.0, controller.state.value.inventory.selectedReadback?.balance?.quantity)
+            val reviewId = controller.state.value.inventory.unresolvedDiscrepancies
+                .first { it.productId == productId }
+                .id
+
+            controller.updateInventoryAdjustmentReasonCode("COUNT_VARIANCE")
+            controller.updateInventoryAdjustmentReasonDetail("Koreksi hasil stock opname")
+            controller.resolveInventoryDiscrepancy(reviewId)
+
+            assertEquals(10.0, controller.state.value.inventory.selectedReadback?.balance?.quantity)
+            assertTrue(controller.state.value.inventory.unresolvedDiscrepancies.none { it.id == reviewId })
+            assertTrue(
+                controller.state.value.inventory.selectedReadback
+                    ?.ledgerEntries
+                    ?.any { it.sourceType.name == "STOCK_OPNAME_RESOLUTION" } == true
+            )
+        }
+    }
+
     @Suppress("LongMethod")
     private fun desktopFixture(
         hardwarePort: CashierHardwarePort = FakeCashierHardwarePort(),
@@ -497,9 +552,16 @@ class DesktopAppControllerTest {
             EmptyCoroutineContext,
             Clock.System
         )
+        val inventoryService = InventoryService(
+            inventoryRepository = inventoryRepository,
+            accessService = accessService,
+            kernelRepository = kernelRepository,
+            voidImpactPolicy = InventoryVoidImpactPolicy(),
+            clock = Clock.System
+        )
         val salesService = SalesService(
             salesRepository = SalesRepository(SalesDatabase(salesDriver), EmptyCoroutineContext, Clock.System),
-            inventoryService = InventoryService(inventoryRepository, Clock.System),
+            inventoryService = inventoryService,
             kernelPort = KernelRepositorySalesKernelPort(kernelRepository),
             paymentGatewayPort = paymentGateway,
             pricingEngine = PricingEngine(),
@@ -531,6 +593,7 @@ class DesktopAppControllerTest {
             operationalControlService = operationalControlService,
             productRepository = productRepository,
             productLookupUseCase = productLookupUseCase,
+            inventoryService = inventoryService,
             salesService = salesService,
             hardwarePort = hardwarePort
         )
@@ -547,6 +610,7 @@ private data class DesktopFixture(
     val operationalControlService: OperationalControlService,
     val productRepository: ProductRepository,
     val productLookupUseCase: ProductLookupUseCase,
+    val inventoryService: InventoryService,
     val salesService: SalesService,
     val hardwarePort: CashierHardwarePort
 ) {
@@ -559,6 +623,7 @@ private data class DesktopFixture(
         operationalControlService = operationalControlService,
         productRepository = productRepository,
         productLookupUseCase = productLookupUseCase,
+        inventoryService = inventoryService,
         salesService = salesService,
         hardwarePort = hardwarePort
     )

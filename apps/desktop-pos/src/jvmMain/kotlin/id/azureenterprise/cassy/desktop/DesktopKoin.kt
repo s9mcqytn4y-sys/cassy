@@ -2,6 +2,7 @@ package id.azureenterprise.cassy.desktop
 
 import id.azureenterprise.cassy.inventory.di.inventoryDatabaseModule
 import id.azureenterprise.cassy.inventory.di.inventoryModule
+import id.azureenterprise.cassy.inventory.application.InventoryService
 import id.azureenterprise.cassy.kernel.application.AccessService
 import id.azureenterprise.cassy.kernel.application.BusinessDayService
 import id.azureenterprise.cassy.kernel.application.CashControlService
@@ -47,6 +48,7 @@ fun startDesktopKoin() {
                         operationalControlService = get<OperationalControlService>(),
                         productRepository = get<ProductRepository>(),
                         productLookupUseCase = get<ProductLookupUseCase>(),
+                        inventoryService = get<InventoryService>(),
                         salesService = get<SalesService>(),
                         hardwarePort = get<CashierHardwarePort>()
                     )

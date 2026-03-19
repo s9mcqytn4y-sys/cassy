@@ -113,6 +113,7 @@ fun CassyCatalogView(
 fun CassyCartPanel(
     state: DesktopCatalogState,
     operations: OperationsState,
+    inventory: InventoryPanelState,
     onCashReceivedChanged: (String) -> Unit,
     onIncrement: (Product) -> Unit,
     onDecrement: (Product, Double) -> Unit,
@@ -120,6 +121,7 @@ fun CassyCartPanel(
     onPrintLastReceipt: () -> Unit,
     onReprintLastReceipt: () -> Unit,
     onCancelSale: () -> Unit,
+    onInventoryControl: () -> Unit,
     onCashControl: () -> Unit,
     onEndShift: () -> Unit,
     onClosingDay: () -> Unit,
@@ -294,8 +296,28 @@ fun CassyCartPanel(
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            if (inventory.unresolvedDiscrepancies.isNotEmpty()) {
+                Surface(
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "${inventory.unresolvedDiscrepancies.size} discrepancy inventory butuh review eksplisit",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = onInventoryControl, modifier = Modifier.weight(1f).height(48.dp)) { Text("Inventori") }
                 OutlinedButton(onClick = onCashControl, modifier = Modifier.weight(1f).height(48.dp)) { Text("Kontrol Kas") }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = onEndShift, modifier = Modifier.weight(1f).height(48.dp)) { Text("Tutup Shift") }
                 Button(onClick = onClosingDay, modifier = Modifier.weight(1f).height(48.dp)) { Text("Tutup Hari") }
             }

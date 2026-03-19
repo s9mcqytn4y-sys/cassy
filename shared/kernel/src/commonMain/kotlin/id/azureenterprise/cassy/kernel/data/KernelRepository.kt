@@ -312,6 +312,7 @@ open class KernelRepository(
             .plus(listActiveReasonCodes(ReasonCategory.SAFE_DROP))
             .plus(listActiveReasonCodes(ReasonCategory.SHIFT_CLOSE_VARIANCE))
             .plus(listActiveReasonCodes(ReasonCategory.OPENING_CASH_EXCEPTION))
+            .plus(listActiveReasonCodes(ReasonCategory.INVENTORY_ADJUSTMENT))
             .firstOrNull { it.code == code }
     }
 
@@ -540,7 +541,11 @@ open class KernelRepository(
             ReasonCode("SAFE_DROP_ROUTINE", ReasonCategory.SAFE_DROP, "Safe drop rutin", false, true, 10),
             ReasonCode("SAFE_DROP_OVERFLOW", ReasonCategory.SAFE_DROP, "Laci kas terlalu penuh", true, true, 20),
             ReasonCode("COUNTING_ERROR", ReasonCategory.SHIFT_CLOSE_VARIANCE, "Selisih hitung kas", false, true, 10),
-            ReasonCode("UNRECORDED_DRAWER_ACTIVITY", ReasonCategory.SHIFT_CLOSE_VARIANCE, "Aktivitas laci kas belum tercatat", true, true, 20)
+            ReasonCode("UNRECORDED_DRAWER_ACTIVITY", ReasonCategory.SHIFT_CLOSE_VARIANCE, "Aktivitas laci kas belum tercatat", true, true, 20),
+            ReasonCode("COUNT_VARIANCE", ReasonCategory.INVENTORY_ADJUSTMENT, "Selisih hasil stock opname", false, true, 10),
+            ReasonCode("DAMAGED_STOCK", ReasonCategory.INVENTORY_ADJUSTMENT, "Barang rusak", true, true, 20),
+            ReasonCode("FOUND_STOCK", ReasonCategory.INVENTORY_ADJUSTMENT, "Stok fisik ditemukan", false, true, 30),
+            ReasonCode("MANUAL_CORRECTION", ReasonCategory.INVENTORY_ADJUSTMENT, "Koreksi manual terkontrol", true, true, 40)
         )
     }
 }

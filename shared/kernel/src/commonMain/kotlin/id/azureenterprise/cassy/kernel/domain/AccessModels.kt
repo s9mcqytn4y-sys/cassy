@@ -14,6 +14,9 @@ enum class AccessCapability {
     START_SHIFT,
     END_SHIFT,
     RECORD_CASH_MOVEMENT,
+    RECORD_STOCK_COUNT,
+    APPLY_STOCK_ADJUSTMENT,
+    APPROVE_STOCK_ADJUSTMENT,
     APPROVE_OPENING_CASH_EXCEPTION,
     APPROVE_CASH_MOVEMENT_EXCEPTION,
     APPROVE_SHIFT_CLOSE_EXCEPTION,
@@ -93,6 +96,7 @@ fun OperatorRole.supports(capability: AccessCapability): Boolean = when (this) {
         AccessCapability.START_SHIFT,
         AccessCapability.END_SHIFT,
         AccessCapability.RECORD_CASH_MOVEMENT,
+        AccessCapability.RECORD_STOCK_COUNT,
         AccessCapability.ACCESS_CATALOG
     )
     OperatorRole.SUPERVISOR,

@@ -1,5 +1,11 @@
 package id.azureenterprise.cassy.desktop
 
+import id.azureenterprise.cassy.inventory.application.InventoryService
+import id.azureenterprise.cassy.inventory.domain.InventoryDiscrepancyReview
+import id.azureenterprise.cassy.inventory.domain.InventoryDiscrepancyStatus
+import id.azureenterprise.cassy.inventory.domain.InventoryReadback
+import id.azureenterprise.cassy.inventory.domain.StockAdjustmentDraft
+import id.azureenterprise.cassy.inventory.domain.StockCountDraft
 import id.azureenterprise.cassy.kernel.application.AccessService
 import id.azureenterprise.cassy.kernel.application.BusinessDayService
 import id.azureenterprise.cassy.kernel.application.CashControlService
@@ -34,6 +40,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import java.io.File
 
 class DesktopAppController(
     private val accessService: AccessService,
@@ -44,6 +51,7 @@ class DesktopAppController(
     private val operationalControlService: OperationalControlService,
     private val productRepository: ProductRepository,
     private val productLookupUseCase: ProductLookupUseCase,
+    private val inventoryService: InventoryService,
     private val salesService: SalesService,
     private val hardwarePort: CashierHardwarePort
 ) {
@@ -629,6 +637,177 @@ class DesktopAppController(
         }
     }
 
+    suspend fun selectInventoryProduct(productId: String) {
+        _state.update {
+            it.copy(
+                inventory = it.inventory.copy(
+                    selectedProductId = productId
+                )
+            )
+        }
+        refreshStage()
+    }
+
+    fun updateInventoryCountQuantityInput(value: String) {
+        _state.update {
+            it.copy(
+                inventory = it.inventory.copy(
+                    countQuantityInput = value.toDecimalInput()
+                )
+            )
+        }
+    }
+
+    fun updateInventoryAdjustmentDirection(direction: InventoryAdjustmentDirection) {
+        _state.update {
+            it.copy(
+                inventory = it.inventory.copy(
+                    adjustmentDirection = direction
+                )
+            )
+        }
+    }
+
+    fun updateInventoryAdjustmentQuantityInput(value: String) {
+        _state.update {
+            it.copy(
+                inventory = it.inventory.copy(
+                    adjustmentQuantityInput = value.toDecimalInput()
+                )
+            )
+        }
+    }
+
+    fun updateInventoryAdjustmentReasonCode(value: String) {
+        _state.update {
+            it.copy(
+                inventory = it.inventory.copy(
+                    adjustmentReasonCode = value
+                )
+            )
+        }
+    }
+
+    fun updateInventoryAdjustmentReasonDetail(value: String) {
+        _state.update {
+            it.copy(
+                inventory = it.inventory.copy(
+                    adjustmentReasonDetail = value
+                )
+            )
+        }
+    }
+
+    suspend fun submitInventoryCount() {
+        mutateBusy(true)
+        val productId = state.value.inventory.selectedProductId
+            ?: return pushBanner(UiBanner(UiTone.Warning, "Pilih produk untuk stock count dulu"))
+        val countedQuantity = state.value.inventory.countQuantityInput.toDoubleOrNull()
+        if (countedQuantity == null) {
+            mutateBusy(false)
+            return pushBanner(UiBanner(UiTone.Warning, "Qty count harus berupa angka"))
+        }
+        val terminalId = accessService.restoreContext().terminalBinding?.terminalId
+            ?: return pushBanner(UiBanner(UiTone.Danger, "Terminal belum terikat"))
+        val result = inventoryService.submitStockCount(
+            StockCountDraft(
+                productId = productId,
+                countedQuantity = countedQuantity,
+                terminalId = terminalId
+            )
+        )
+        refreshStage(
+            result.fold(
+                onSuccess = {
+                    if (it.status == InventoryDiscrepancyStatus.MATCHED) {
+                        UiBanner(UiTone.Success, "Count cocok. Tidak ada adjustment otomatis.")
+                    } else {
+                        UiBanner(UiTone.Warning, "Count terekam. Selisih masuk review queue.")
+                    }
+                },
+                onFailure = { UiBanner(UiTone.Danger, it.message ?: "Stock count gagal direkam") }
+            )
+        )
+    }
+
+    suspend fun applyInventoryAdjustment() {
+        mutateBusy(true)
+        val productId = state.value.inventory.selectedProductId
+            ?: return pushBanner(UiBanner(UiTone.Warning, "Pilih produk untuk adjustment dulu"))
+        val quantity = state.value.inventory.adjustmentQuantityInput.toDoubleOrNull()
+        if (quantity == null || quantity <= 0.0) {
+            mutateBusy(false)
+            return pushBanner(UiBanner(UiTone.Warning, "Qty adjustment harus lebih besar dari 0"))
+        }
+        val terminalId = accessService.restoreContext().terminalBinding?.terminalId
+            ?: return pushBanner(UiBanner(UiTone.Danger, "Terminal belum terikat"))
+        val reasonCode = state.value.inventory.adjustmentReasonCode
+        if (reasonCode.isBlank()) {
+            mutateBusy(false)
+            return pushBanner(UiBanner(UiTone.Warning, "Pilih reason code inventory dulu"))
+        }
+        val signedDelta = when (state.value.inventory.adjustmentDirection) {
+            InventoryAdjustmentDirection.INCREASE -> quantity
+            InventoryAdjustmentDirection.DECREASE -> -quantity
+        }
+        val result = inventoryService.applyManualAdjustment(
+            StockAdjustmentDraft(
+                productId = productId,
+                quantityDelta = signedDelta,
+                terminalId = terminalId,
+                reasonCode = reasonCode,
+                reasonDetail = state.value.inventory.adjustmentReasonDetail.ifBlank { null }
+            )
+        )
+        refreshStage(
+            result.fold(
+                onSuccess = {
+                    UiBanner(
+                        tone = if (it.remainingShortageQuantity > 0.0 || it.balance.quantity < 0.0) UiTone.Warning else UiTone.Success,
+                        message = "Adjustment inventory dicatat. Balance sekarang ${it.balance.quantity}."
+                    )
+                },
+                onFailure = { UiBanner(UiTone.Danger, it.message ?: "Adjustment inventory gagal") }
+            )
+        )
+    }
+
+    suspend fun resolveInventoryDiscrepancy(reviewId: String) {
+        mutateBusy(true)
+        val reasonCode = state.value.inventory.adjustmentReasonCode
+        if (reasonCode.isBlank()) {
+            mutateBusy(false)
+            return pushBanner(UiBanner(UiTone.Warning, "Pilih reason code sebelum resolve discrepancy"))
+        }
+        val result = inventoryService.resolveStockCount(
+            reviewId = reviewId,
+            reasonCode = reasonCode,
+            reasonDetail = state.value.inventory.adjustmentReasonDetail.ifBlank { null }
+        )
+        refreshStage(
+            result.fold(
+                onSuccess = {
+                    UiBanner(UiTone.Success, "Discrepancy diselesaikan dengan adjustment eksplisit.")
+                },
+                onFailure = { UiBanner(UiTone.Danger, it.message ?: "Resolve discrepancy gagal") }
+            )
+        )
+    }
+
+    suspend fun markInventoryDiscrepancyInvestigation(reviewId: String) {
+        mutateBusy(true)
+        val note = state.value.inventory.adjustmentReasonDetail.ifBlank {
+            "Discrepancy perlu investigasi manual lebih lanjut."
+        }
+        val result = inventoryService.markDiscrepancyForInvestigation(reviewId, note)
+        refreshStage(
+            result.fold(
+                onSuccess = { UiBanner(UiTone.Warning, "Discrepancy ditandai investigasi manual.") },
+                onFailure = { UiBanner(UiTone.Danger, it.message ?: "Gagal menandai discrepancy") }
+            )
+        )
+    }
+
     fun dismissBanner() {
         _state.update { it.copy(banner = null) }
     }
@@ -658,8 +837,13 @@ class DesktopAppController(
         val pendingApprovals = cashControlService.listPendingApprovals() + shiftClosingService.listPendingApprovals()
         val activeOperator = context.activeOperator
         val operators = context.operators.map { OperatorOption(it.id, it.displayName, it.role.name) }
-        val products = if (operationalSnapshot.canAccessSalesHome) {
+        val catalogProducts = if (operationalSnapshot.canAccessSalesHome) {
             loadProducts(state.value.catalog.searchQuery)
+        } else {
+            emptyList()
+        }
+        val inventoryProducts = if (operationalSnapshot.canAccessSalesHome) {
+            productRepository.getAllProducts()
         } else {
             emptyList()
         }
@@ -685,6 +869,14 @@ class DesktopAppController(
         val refreshedCashQuote = salesService.quoteCashTender(
             state.value.catalog.cashReceivedInput.toDoubleOrNull() ?: 0.0
         ).getOrNull()
+        val refreshedInventory = if (stage == DesktopStage.Catalog) {
+            buildInventoryState(
+                previous = state.value.inventory,
+                products = inventoryProducts
+            )
+        } else {
+            InventoryPanelState()
+        }
 
         _state.update {
             it.copy(
@@ -731,13 +923,83 @@ class DesktopAppController(
                     dashboard = operationalSnapshot
                 ),
                 catalog = it.catalog.copy(
-                    products = products,
+                    products = catalogProducts,
                     basket = refreshedBasket,
                     recentSales = loadSaleHistory(),
                     cashTenderQuote = refreshedCashQuote
                 ),
+                inventory = refreshedInventory,
                 hardware = hardwarePort.getSnapshot(),
                 banner = resolvedBanner
+            )
+        }
+    }
+
+    private suspend fun buildInventoryState(
+        previous: InventoryPanelState,
+        products: List<Product>
+    ): InventoryPanelState {
+        val reasonOptions = inventoryService.listReasonCodes().map { ReasonOption(it.code, it.title) }
+        val selectedReasonCode = previous.adjustmentReasonCode
+            .takeIf { code -> reasonOptions.any { it.code == code } }
+            ?: reasonOptions.firstOrNull()?.code.orEmpty()
+        val selectedProductId = previous.selectedProductId
+            ?.takeIf { selectedId -> products.any { it.id == selectedId } }
+            ?: previous.unresolvedDiscrepancies.firstOrNull()?.productId
+            ?: products.firstOrNull()?.id
+        val selectedProduct = products.firstOrNull { it.id == selectedProductId }
+        val selectedReadback = selectedProductId?.let {
+            inventoryService.getInventoryReadback(it).getOrNull()
+        }
+        val unresolved = inventoryService.listUnresolvedDiscrepancies()
+        val imageResolution = selectedProduct?.let(::resolveProductImage)
+            ?: ProductImageResolution(
+                ref = null,
+                status = "Folder input_images aktif. Pilih produk untuk melihat image binding."
+            )
+        return previous.copy(
+            availableProducts = products,
+            selectedProductId = selectedProductId,
+            selectedReadback = selectedReadback,
+            unresolvedDiscrepancies = unresolved,
+            adjustmentReasonOptions = reasonOptions,
+            adjustmentReasonCode = selectedReasonCode,
+            inputImagesFolder = File("input_images").absolutePath,
+            selectedImageRef = imageResolution.ref,
+            imageIoStatus = imageResolution.status,
+            voidContractNote = "Void inventory hanya classification contract. Jalur ambigu wajib diblok atau diinvestigasi manual."
+        )
+    }
+
+    private fun resolveProductImage(product: Product): ProductImageResolution {
+        product.imageUrl?.takeIf(String::isNotBlank)?.let { imageUrl ->
+            return ProductImageResolution(
+                ref = imageUrl,
+                status = "Compat imageUrl aktif. Appendix input_images tetap future-safe, belum mengganti source lama."
+            )
+        }
+        val inputDir = File("input_images")
+        if (!inputDir.exists()) {
+            return ProductImageResolution(
+                ref = null,
+                status = "Folder input_images belum ada di runtime lokal."
+            )
+        }
+        val matched = inputDir.walkTopDown()
+            .filter { it.isFile }
+            .firstOrNull { file ->
+                val baseName = file.nameWithoutExtension
+                baseName.equals(product.id, ignoreCase = true) || baseName.equals(product.sku, ignoreCase = true)
+            }
+        return if (matched != null) {
+            ProductImageResolution(
+                ref = matched.relativeTo(File(".")).path,
+                status = "input_images dipakai sebagai source I/O image lokal untuk ${product.sku}."
+            )
+        } else {
+            ProductImageResolution(
+                ref = null,
+                status = "input_images aktif tetapi belum ada file yang cocok untuk ${product.sku}."
             )
         }
     }
@@ -779,6 +1041,7 @@ data class DesktopAppState(
     val login: LoginState = LoginState(),
     val operations: OperationsState = OperationsState(),
     val catalog: DesktopCatalogState = DesktopCatalogState(),
+    val inventory: InventoryPanelState = InventoryPanelState(),
     val hardware: CashierHardwareSnapshot = CashierHardwareSnapshot(),
     val banner: UiBanner? = null,
     val isBusy: Boolean = false
@@ -888,6 +1151,28 @@ data class DesktopCatalogState(
     val lookupFeedback: LookupFeedback? = null
 )
 
+enum class InventoryAdjustmentDirection {
+    INCREASE,
+    DECREASE
+}
+
+data class InventoryPanelState(
+    val availableProducts: List<Product> = emptyList(),
+    val selectedProductId: String? = null,
+    val selectedReadback: InventoryReadback? = null,
+    val unresolvedDiscrepancies: List<InventoryDiscrepancyReview> = emptyList(),
+    val countQuantityInput: String = "",
+    val adjustmentDirection: InventoryAdjustmentDirection = InventoryAdjustmentDirection.INCREASE,
+    val adjustmentQuantityInput: String = "",
+    val adjustmentReasonCode: String = "",
+    val adjustmentReasonDetail: String = "",
+    val adjustmentReasonOptions: List<ReasonOption> = emptyList(),
+    val inputImagesFolder: String = "input_images",
+    val selectedImageRef: String? = null,
+    val imageIoStatus: String = "Folder input_images belum dipakai.",
+    val voidContractNote: String = "Void inventory masih contract-only."
+)
+
 data class ReceiptPreviewState(
     val saleId: String? = null,
     val localNumber: String? = null,
@@ -912,6 +1197,11 @@ data class UiBanner(
     val message: String
 )
 
+private data class ProductImageResolution(
+    val ref: String?,
+    val status: String
+)
+
 private fun OperationType.toUiLabel(): String = when (this) {
     OperationType.OPEN_BUSINESS_DAY -> "Buka Business Day"
     OperationType.START_SHIFT -> "Buka Shift"
@@ -927,4 +1217,20 @@ private fun CashMovementType.toReasonCategory(): ReasonCategory = when (this) {
     CashMovementType.CASH_IN -> ReasonCategory.CASH_IN
     CashMovementType.CASH_OUT -> ReasonCategory.CASH_OUT
     CashMovementType.SAFE_DROP -> ReasonCategory.SAFE_DROP
+}
+
+private fun String.toDecimalInput(): String {
+    val sanitized = buildString {
+        var dotUsed = false
+        this@toDecimalInput.forEach { char ->
+            when {
+                char.isDigit() -> append(char)
+                char == '.' && !dotUsed -> {
+                    append(char)
+                    dotUsed = true
+                }
+            }
+        }
+    }
+    return if (sanitized.startsWith(".")) "0$sanitized" else sanitized
 }

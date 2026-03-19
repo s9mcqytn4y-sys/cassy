@@ -219,7 +219,8 @@ enum class FinalizationBundleState {
 @Serializable
 data class FinalizationInventoryLine(
     val productId: String,
-    val quantity: Double
+    val quantity: Double,
+    val sourceLineId: String? = null
 )
 
 data class PreparedSaleFinalizationBundle(
