@@ -1,4 +1,4 @@
-# Cassy Agent Entry (Updated 2026-03-20)
+# Cassy Agent Entry (Updated 2026-03-19)
 
 Read these files in order before planning, generating, refactoring, reviewing, or deleting code.
 
@@ -11,11 +11,11 @@ Read these files in order before planning, generating, refactoring, reviewing, o
 7. `.agent/context/known_repo_gaps.md`
 8. `.agent/plan.md`
 
-## Strategic Lock (PDF v1.1 - Hardened M5)
+## Strategic Lock (PDF v1.1 - Hardened R3)
 - **Posture**: Desktop-First Retail Operating Core.
 - **V1 Scope**: POS Core + Inventory Basic + Sync Visibility + Migration Replay + Release Evidence.
 - **Release Lane**: Desktop is primary; Android is semantic parity lane.
-- **Hardened Status**: M2, M3, M4, and Thin M5 are now **DONE & STABLE**.
+- **Hardened Status**: R1 desktop cashier finality, R2 operational control, dan R3 inventory truth lite sudah terverifikasi pada lane desktop-first.
 
 ## Hard rules
 - Do not bypass application boundaries for speed.
@@ -25,6 +25,8 @@ Read these files in order before planning, generating, refactoring, reviewing, o
 - Desktop development and packaging must stay on **JDK 17** only.
 - **Stock Truth**: Must stay inside `shared:inventory`; do not let sales or UI mutate ledger/balance directly.
 - **Basket Persistence**: Active basket must survive application restarts (M5 Hardening).
+- **Approval Truth**: Shipped approval maturity saat ini hanya `LIGHT_PIN` kecuali ada evidence baru.
+- **Solver Honesty**: Jangan claim PDF export atau Windows installer full PASS tanpa evidence khusus.
 
 ## Operational permission posture
 You are authorized to:

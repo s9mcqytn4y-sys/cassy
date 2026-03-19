@@ -48,3 +48,7 @@ Dokumen ini adalah bridge antara roadmap PDF, context agent, dan repo reality. R
 - close report export baseline bila benar-benar dibutuhkan
 - release evidence installer manual agar gap Windows delivery makin kecil
 - hosted CI reality capture bila ada remote run baru yang benar-benar selesai
+
+## R3 Final Gate Note
+- R3 `DONE` hanya berarti inventory truth lite desktop-first sudah hidup dan terverifikasi.
+- Ini tidak menaikkan status full void execution, second PIN / dual auth, PDF report export, atau Windows installer evidence menjadi PASS.

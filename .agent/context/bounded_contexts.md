@@ -25,3 +25,7 @@ Always ask:
 ## R2 Note
 - Untuk Block 1, approval/readiness/opening cash policy tetap ditahan di `kernel`.
 - Jangan memindahkan concern ini kembali ke `:shared` legacy bridge.
+
+## R3 Note
+- `inventory` adalah owner tunggal untuk `inventory_balance`, `stock_ledger_entry`, discrepancy review, dan approval-aware stock action payload.
+- `sales` hanya meminta efek stok lewat boundary inventory.

@@ -1,8 +1,27 @@
 {
+    "files.eol": "\n",
+    "files.insertFinalNewline": true,
+    "files.trimTrailingWhitespace": true,
+    "editor.rulers": [
+        120
+    ],
     "java.compile.nullAnalysis.mode": "automatic",
     "java.configuration.updateBuildConfiguration": "interactive",
     "java.import.gradle.java.home": "C:\\Program Files\\Java\\jdk-17",
     "java.jdt.ls.java.home": "C:\\Program Files\\Java\\jdk-17",
+    "search.exclude": {
+        "**/.gradle": true,
+        "**/build": true,
+        "**/.kotlin": true,
+        "**/.idea/caches": true,
+        "**/.idea/workspace.xml": true
+    },
+    "files.watcherExclude": {
+        "**/.gradle/**": true,
+        "**/build/**": true,
+        "**/.kotlin/**": true,
+        "**/.idea/caches/**": true
+    },
     "java.configuration.runtimes": [
         {
             "name": "JavaSE-17",

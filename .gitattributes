@@ -12,6 +12,13 @@
 *.txt text eol=lf
 *.editorconfig text eol=lf
 *.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.sq text eol=lf
+*.sqm text eol=lf
+*.ps1 text eol=lf
+*.bat text eol=crlf
+*.sh text eol=lf
 
 # Binary files
 *.png binary
@@ -22,3 +29,5 @@
 *.webp binary
 *.jar binary
 *.zip binary
+*.exe binary
+*.db binary

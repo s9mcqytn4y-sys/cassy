@@ -6,6 +6,10 @@ Index hasil konversi seluruh dokumen proyek ke Markdown yang dinormalisasi untuk
 ## Purpose
 Memberi satu pintu masuk untuk seluruh artefak yang sudah dikonversi, beserta pemetaan hubungan antar dokumen dan catatan risiko penting.
 
+## Current Execution Truth Note
+- Dokumen di folder `docs/execution/` adalah reality snapshot yang paling dekat ke implementation repo saat ini.
+- Dokumen spesifikasi lama di folder `docs/` tetap dipertahankan sebagai artefak preskriptif/historis dan tidak otomatis berarti sudah shipped di code.
+
 ## Scope
 Seluruh 23 source document yang tersedia pada project aktif.
 

@@ -6,3 +6,4 @@ Use for work under desktop retail surfaces.
 - do not overclaim readiness
 - keep parity focused on semantics, not pixel sameness
 - call out placeholder or incomplete hardware assumptions explicitly
+- current state, explanation trail, dan discrepancy queue harus tampil terpisah bila flow inventory disentuh

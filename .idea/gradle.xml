@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="GradleMigrationSettings" migrationVersion="1" />
+  <component name="GradleSettings">
+    <option name="linkedExternalProjectsSettings">
+      <GradleProjectSettings>
+        <compositeConfiguration>
+          <compositeBuild compositeDefinitionSource="SCRIPT">
+            <builds>
+              <build path="$PROJECT_DIR$/tooling/build-logic" name="build-logic">
+                <projects>
+                  <project path="$PROJECT_DIR$/tooling/build-logic" />
+                </projects>
+              </build>
+            </builds>
+          </compositeBuild>
+        </compositeConfiguration>
+        <option name="testRunner" value="CHOOSE_PER_TEST" />
+        <option name="externalProjectPath" value="$PROJECT_DIR$" />
+        <option name="modules">
+          <set>
+            <option value="$PROJECT_DIR$" />
+            <option value="$PROJECT_DIR$/apps" />
+            <option value="$PROJECT_DIR$/apps/android-pos" />
+            <option value="$PROJECT_DIR$/apps/desktop-pos" />
+            <option value="$PROJECT_DIR$/shared" />
+            <option value="$PROJECT_DIR$/shared/inventory" />
+            <option value="$PROJECT_DIR$/shared/kernel" />
+            <option value="$PROJECT_DIR$/shared/masterdata" />
+            <option value="$PROJECT_DIR$/shared/sales" />
+            <option value="$PROJECT_DIR$/tooling" />
+            <option value="$PROJECT_DIR$/tooling/build-logic" />
+            <option value="$PROJECT_DIR$/tooling/sqlite-worker-init" />
+          </set>
+        </option>
+      </GradleProjectSettings>
+    </option>
+  </component>
+</project>

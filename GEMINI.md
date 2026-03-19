@@ -1,4 +1,4 @@
-# Cassy Gemini Entry (Updated 2026-03-20)
+# Cassy Gemini Entry (Updated 2026-03-19)
 
 ## UI Hardening Protocol (Phase 1-3)
 - **Sidebar:** Slim Rail (72dp) with brand icon only.
@@ -11,7 +11,8 @@
 ## Working mode
 - **Truthful Scope**: Prefer accurate implementation over broad ambition.
 - **Desktop-First**: Desktop is the primary target.
-- **Hardened Baseline**: M2-M5, UI-Phase1, UI-Phase2, UI-Phase3 are **DONE**.
+- **Hardened Baseline**: R1, R2, dan R3 inventory truth lite sudah verified pada desktop-first lane.
+- **Approval Truth**: `LIGHT_PIN` PASS, `SECOND_PIN` dan `DUAL_AUTH` belum shipped.
 
 ## Permission posture
 Authorized for all repo operations including build/test/git.

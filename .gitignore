@@ -4,7 +4,12 @@ build/
 */build/
 
 # IntelliJ IDEA
-.idea
+.idea/*
+!.idea/.gitignore
+!.idea/compiler.xml
+!.idea/gradle.xml
+!.idea/kotlinc.xml
+!.idea/misc.xml
 *.iml
 *.iws
 out/
@@ -42,3 +47,10 @@ secrets.properties
 
 # Log
 *.log
+
+# Local database/runtime noise
+*.db
+*.sqlite
+*.sqlite3
+*.db-wal
+*.db-shm

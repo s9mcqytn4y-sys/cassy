@@ -39,6 +39,22 @@
             "problemMatcher": []
         },
         {
+            "label": "Cassy R3 Hardened Gate",
+            "type": "shell",
+            "command": ".\\gradlew",
+            "args": [
+                ":shared:kernel:allTests",
+                ":shared:sales:desktopTest",
+                ":shared:inventory:desktopTest",
+                ":shared:inventory:verifyCommonMainInventoryDatabaseMigration",
+                ":apps:desktop-pos:test",
+                ":apps:desktop-pos:smokeRun",
+                "--no-configuration-cache",
+                "--console=plain"
+            ],
+            "problemMatcher": []
+        },
+        {
             "label": "Cassy Windows Package",
             "type": "shell",
             "command": ".\\gradlew",

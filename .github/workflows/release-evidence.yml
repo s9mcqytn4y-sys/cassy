@@ -20,9 +20,11 @@ jobs:
             echo "commit=${GITHUB_SHA}"
             echo "generated_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
             echo "required_pr_checks=validate-wrapper,shared-fast,android-pos-fast,desktop-fast,pr-gate-summary"
-            echo "mainline_artifacts=cassy-desktop-exe,cassy-desktop-app,cassy-desktop-deb,cassy-mainline-evidence"
+            echo "mainline_artifacts=cassy-desktop-exe,cassy-desktop-app,cassy-mainline-evidence"
             echo "installer-smoke=manual-required"
             echo "windows-pilot-truth=local-package-plus-hosted-mainline"
+            echo "shift-close-report=DIGITAL_ONLY"
+            echo "inventory-migration-verify=required"
           } > build/release-evidence/release-evidence-manifest.txt
       - uses: actions/upload-artifact@v4
         with:

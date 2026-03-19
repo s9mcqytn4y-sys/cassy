@@ -31,7 +31,15 @@ jobs:
           distribution: 'temurin'
           cache: gradle
       - name: Shared Fast Gate
-        run: ./gradlew dependencyGuard test detekt --configuration-cache --scan --no-daemon
+        run: >
+          ./gradlew
+          dependencyGuard
+          test
+          detekt
+          :shared:inventory:verifyCommonMainInventoryDatabaseMigration
+          --configuration-cache
+          --scan
+          --no-daemon
       - name: Upload Reports
         if: failure()
         uses: actions/upload-artifact@v6
@@ -71,7 +79,7 @@ jobs:
           distribution: 'temurin'
           cache: gradle
       - name: Build and Test Desktop
-        run: ./gradlew :apps:desktop-pos:build :apps:desktop-pos:run --args="--smoke-run" --no-daemon
+        run: ./gradlew :apps:desktop-pos:build :apps:desktop-pos:smokeRun --no-daemon
 
   pr-gate-summary:
     name: pr-gate-summary

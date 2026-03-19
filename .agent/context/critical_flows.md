@@ -14,6 +14,7 @@
 10. cash in / cash out / safe drop
 11. close shift reconciliation
 12. close business day readiness review
+13. inventory readback / count / discrepancy review / stock adjustment
 
 ## Mandatory semantics
 
@@ -29,6 +30,8 @@
 - validitas settlement tidak boleh bergantung pada printer side effect
 - history/readback/reprint harus mengambil dari snapshot struk final yang persisted
 - mutasi stok checkout hanya boleh terjadi lewat `shared:inventory`
+- stock adjustment final harus reason-based dan approval-aware bila policy meminta
+- count harus menghasilkan discrepancy dulu; tidak boleh auto-adjust silently
 - UI hanya memantulkan state; invariant tidak boleh tinggal di screen
 
 ## Cross-platform stance

@@ -12,6 +12,9 @@ Updated: 2026-03-19
 - `:shared` tetap ada sebagai legacy aggregator, tetapi concern operasional baru tidak ditambahkan ke sana.
 - R2 sudah menambah persistence durable untuk `ReasonCode`, `ApprovalRequest`, `CashMovement`, dan `ShiftCloseReport`.
 - Kernel migration untuk schema operasional sudah diverifikasi ulang lewat test desktop khusus migrasi.
+- R3 sudah menambah persistence durable untuk `InventoryApprovalAction`, migration inventory v3, dan FK/integrity proof untuk inventory truth.
+- `.github` gate sekarang sinkron dengan inventory migration verify dan desktop smoke task yang nyata.
+- README, AGENTS, CODEX, GEMINI, `.agent`, `.vscode`, dan tracked `.idea` subset telah disegarkan untuk posture desktop-first JDK 17 dan truth R3.
 
 ## ASSUMPTION
 - V1 tetap single-outlet, terminal-bound, dan local-first.
@@ -19,7 +22,7 @@ Updated: 2026-03-19
 
 ## INTERPRETATION
 - Repo truth saat ini konsisten dengan posture "guided operations + cashier core + inventory basic + operational guardrails".
-- Repo belum jujur disebut "full operational suite done" selama void execution dan release evidence installer belum ditutup.
+- R3 inventory truth lite sekarang layak ditutup `DONE` bila matrix final tetap hijau.
 
 ## RISK
 - Hosted CI remote completion tidak saya klaim dari verifikasi lokal.

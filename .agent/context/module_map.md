@@ -9,6 +9,7 @@
 - `shared:masterdata`: product catalog, lookup, barcode contract
 - `shared:sales`: cart state, checkout finality, payment state, receipt snapshot, readback source
 - `shared:inventory`: stock ownership baseline, ledger/balance writer, inventory application boundary
+- `shared:inventory` juga memegang discrepancy review, approval-aware adjustment payload, dan migration truth untuk inventory
 
 ## Target-state direction
 
@@ -24,3 +25,4 @@
 - Inventory tetap owner mutasi stok; sales tidak boleh menulis ledger/balance langsung.
 - Finality transaksi R1/M6 hidup di `shared:sales`; `apps:desktop-pos` hanya menjadi execution lane utama.
 - Control tower operasional R2 Block 1 hidup di `shared:kernel` dan dipresentasikan oleh desktop.
+- Inventory truth R3 hidup di `shared:inventory`; desktop hanya memantulkan current state, explanation trail, discrepancy, dan needs-approval queue.

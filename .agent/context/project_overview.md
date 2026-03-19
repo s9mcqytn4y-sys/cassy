@@ -30,7 +30,8 @@ Cassy adalah **Desktop-First Retail Operating Core** yang dirancang khusus untuk
 
 ## Strategic Bridge
 Status milestone saat ini:
-- M2-M6 desktop-first lane: verified
-- R2 Block 1 operational foundation: verified untuk desktop-first lane
+- R1 / M6 desktop-first lane: verified
+- R2 desktop-first lane: verified
+- R3 inventory truth lite desktop-first lane: verified
 
 Lihat `docs/execution/roadmap_bridge.md` untuk rincian kepatuhan repo.

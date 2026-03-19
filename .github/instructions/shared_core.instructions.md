@@ -7,3 +7,4 @@ Use for work under `shared/**`.
 - do not leak device/platform concerns into shared core
 - do not hide sync semantics
 - prefer bounded-context clarity over convenience
+- inventory truth tetap di `shared:inventory`; sales dan UI hanya boleh lewat explicit boundary

@@ -9,8 +9,9 @@
 - **Android Checkout Lane**: Checkout finality dibuktikan di desktop-first lane; Android tetap parity/business-semantics lane dan belum menjadi owner UX finality.
 - **Cross-Context Atomicity**: Finalisasi kini punya bundle durable + replay test sehingga operator tidak melihat sale final sebelum `inventory` dan intent `kernel` selesai. Namun ini tetap bukan satu transaksi ACID fisik lintas tiga database.
 - **Void Execution**: Dashboard readiness untuk void sudah jujur, tetapi resolver execution lintas sales/cashflow/inventory/reporting belum dibuka.
-- **Approval Lane Depth**: Approval operasional kini durable untuk opening cash, cash movement, dan close shift, tetapi masih light approval berbasis operator supervisor/owner aktif + alasan text/reason code.
+- **Approval Lane Depth**: Approval operasional dan inventory kini durable, tetapi masih light approval berbasis operator supervisor/owner aktif + reason code.
 - **Closing Report Export**: `ShiftCloseReport` sudah durable sebagai source-of-truth, tetapi export formal/PDF belum ada.
+- **Windows Installer Evidence**: install/uninstall full evidence tetap manual-soft-blocker dan tidak naik status selama R3.
 
 ## Gaps recently reduced (Hardened)
 
@@ -29,3 +30,4 @@
 - **R2 / Block 1 Operational Control**: Desktop kini memakai control tower/readiness snapshot dari `shared:kernel`, approval policy opening cash, outbox event open/close day dan shift, serta cleanup orphan UI lama di `:shared`.
 - **R2 / Block 2 Operational Hardening**: Desktop kini punya cash control baseline, approval inbox, close shift reconciliation, close day fail-closed review, migrasi kernel yang nyata, dan cleanup orphan dialog lama.
 - **R2 / Block 3 Final Gate**: Matrix verifikasi final sudah diulang pada 2026-03-19 dan tetap hijau, tetapi verdict R2 penuh masih harus jujur `PARTIAL` selama void execution dan release evidence installer belum ditutup.
+- **R3 / Block 1-2**: inventory truth boundary, balance/ledger baseline, discrepancy queue, approval-aware stock action, migration v3, dan FK/integrity proof sudah hidup dan tervalidasi.

@@ -759,6 +759,7 @@ Dokumen ini mengoreksi baseline lama pada area strategi UI.
 - Struktur telah dinormalisasi ke Markdown yang konsisten dan siap dipakai untuk design review / engineering handoff.
 - Istilah utama dipertahankan sedekat mungkin dengan dokumen sumber untuk menjaga traceability lintas artefak.
 - Bila ada konflik antar dokumen, prioritaskan source of truth, artefak yang paling preskriptif, dan baseline yang paling implementable.
+- Untuk repo reality 2026-03-19, lihat `docs/execution/r3_kmp_architecture_layering_audit.md` dan `docs/execution/roadmap_bridge.md`.
 
 ## Source Mapping
 - Original source: `cassy_module_project_structure_specification.pdf` (PDF, 12 pages)

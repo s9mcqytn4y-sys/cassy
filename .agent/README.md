@@ -7,6 +7,8 @@ This folder is the source-of-truth for Cassy's operational rules and architectur
 - Desktop-first retail operating core.
 - R1 desktop cashier finality sudah hidup dan diverifikasi.
 - R2 Block 1 operational foundation sudah menambah control tower, open day, start shift, opening cash policy, dan readiness truth.
+- R2 operational hardening dan R3 inventory truth lite juga sudah hidup pada lane desktop-first.
+- Approval maturity yang shipped saat ini tetap `LIGHT_PIN`.
 
 ## UI/UX Hardening Protocol
 1. **Screen Fit**: Standard application start is Maximized (`rememberWindowState`).

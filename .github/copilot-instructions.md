@@ -15,6 +15,7 @@ Work as if `AGENTS.md` is the repository constitution.
 - local-first
 - **Desktop-First**: Desktop is the primary release lane for V1.
 - Android is semantic parity lane.
+- `shared:inventory` is the only stock-truth owner.
 - no architecture theater
 
 ## Allowed operations

@@ -1,8 +1,8 @@
 # Cassy
 
-Desktop-first retail operating core untuk single outlet. Fokus V1 saat ini adalah cashier foundation yang tangguh: access gate, business day, shift, catalog, cart (basket), dan pricing baseline.
+Desktop-first retail operating core untuk single outlet. Fokus V1 saat ini adalah cashier core yang usable, guided operations yang jujur, dan inventory basic yang explainable.
 
-## Repo Truth & Milestone Status (2026-03-20)
+## Repo Truth & Milestone Status (2026-03-19)
 
 Status milestone di bawah ini didasarkan pada bukti nyata di dalam repository (code, unit tests, dan manual smoke evidence).
 
@@ -12,9 +12,11 @@ Status milestone di bawah ini didasarkan pada bukti nyata di dalam repository (c
 - **M3 (Bootstrap):** **DONE** (Desktop branding, Login, & State restore terverifikasi)
 - **M4 (Ops):** **DONE** (Business Day & Shift lifecycle guardrails terverifikasi)
 - **M5 (Catalog/Cart):** **DONE (Thin)** (Lookup barcode/SKU & Basket persistence stabil)
-- **M7 (Inventory):** **DONE (Thin)** (Integrasi mutasi stok otomatis saat checkout baseline)
+- **M6 (Checkout & Receipt Finality / R1):** **DONE** (desktop-first lane)
+- **R2 (Operational Control):** **DONE** (desktop-first operational slice)
+- **M7 / R3 (Inventory Truth Lite):** **DONE** (desktop-first hardened slice)
 
-**Milestone Berikutnya:** **M6 (Checkout & Payment)** - Menutup gap transaksi hingga finalisasi pembayaran dan cetak struk (Lunas).
+**Milestone berikutnya yang masih terbuka:** sync visibility breadth, hosted release evidence depth, dan future solver gaps yang memang belum di-scope.
 
 ## Verifikasi & Evidence Lane
 
@@ -36,20 +38,22 @@ Dokumentasi detail mengenai status dan cara verifikasi:
 Jalankan perintah berikut untuk memverifikasi kesehatan repository secara lokal:
 
 ```powershell
-# Jalankan smoke test UI Desktop (Otomatis exit setelah load)
-.\gradlew :apps:desktop-pos:smokeRun
+# Jalankan gate desktop-first R1/R2/R3 yang bermakna
+.\gradlew :shared:kernel:allTests :shared:sales:desktopTest :shared:inventory:desktopTest :shared:inventory:verifyCommonMainInventoryDatabaseMigration :apps:desktop-pos:test :apps:desktop-pos:smokeRun
 
-# Jalankan semua Unit Test (Shared & Desktop)
+# Jalankan build/test/lint repo
+.\gradlew build
 .\gradlew test
+.\gradlew detekt lint
 
-# Build installer Windows (EXE) secara lokal
-.\gradlew :apps:desktop-pos:packageExe
+# Build distribusi Windows lokal
+.\gradlew :apps:desktop-pos:createDistributable :apps:desktop-pos:packageDistributionForCurrentOS
 ```
 
 ## Catatan Penting
 - **JDK 17** adalah standar wajib untuk pengembangan Desktop.
 - **Active Basket Persistence:** M5 kini mendukung penyimpanan keranjang otomatis; jika aplikasi ditutup paksa, isi keranjang akan kembali saat dibuka (Survival on Restart).
-- **Checkout Baseline:** Checkout saat ini sudah mencatat transaksi ke database lokal dan memotong stok di `shared:inventory`, namun finalisasi pembayaran eksternal masih dalam pengembangan (M6).
+- **Solver honesty:** `LIGHT_PIN` only, `PDF_NOT_SHIPPED`, dan Windows installer install/uninstall full evidence tetap belum boleh dioverclaim.
 
 ---
 *Lihat `.agent/plan.md` untuk rencana eksekusi teknis mendalam.*

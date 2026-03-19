@@ -22,7 +22,10 @@ jobs:
           cache: gradle
       - name: Smoke Run Desktop Source
         shell: cmd
-        run: gradlew.bat :apps:desktop-pos:run --args=--smoke-run --no-daemon
+        run: gradlew.bat :apps:desktop-pos:smokeRun --no-daemon
+      - name: Verify Inventory Migration
+        shell: cmd
+        run: gradlew.bat :shared:inventory:verifyCommonMainInventoryDatabaseMigration --no-daemon
       - name: Build Windows Distribution
         shell: cmd
         run: gradlew.bat :apps:desktop-pos:createDistributable :apps:desktop-pos:packageDistributionForCurrentOS --no-daemon

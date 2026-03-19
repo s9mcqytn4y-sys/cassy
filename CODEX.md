@@ -1,4 +1,9 @@
-# Cassy Codex Entry (Updated 2026-03-20)
+# Cassy Codex Entry (Updated 2026-03-19)
+
+## Current Truth
+- Desktop adalah frontline utama.
+- R1 cashier finality, R2 operational control, dan R3 inventory truth lite sudah hidup di repo.
+- `shared:inventory` adalah owner tunggal untuk balance/ledger/discrepancy stock truth.
 
 ## UI Hardening Protocol (Finalized Phase 0-3)
 - **Startup**: Application MUST start maximized.
@@ -19,6 +24,6 @@
 3. `.agent/plan.md`
 
 ## Verification Order
-1. `.\gradlew :apps:desktop-pos:smokeRun`
-2. `.\gradlew test`
-3. `.\gradlew :apps:desktop-pos:run`
+1. `.\gradlew :shared:kernel:allTests :shared:sales:desktopTest :shared:inventory:desktopTest :shared:inventory:verifyCommonMainInventoryDatabaseMigration :apps:desktop-pos:test :apps:desktop-pos:smokeRun`
+2. `.\gradlew build`
+3. `.\gradlew detekt lint`
