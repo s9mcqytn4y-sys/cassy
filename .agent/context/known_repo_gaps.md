@@ -28,3 +28,4 @@
 - **R1 / M6 Desktop Cashier Flow**: Desktop kini memakai quote tunai dari service, preview struk final dari snapshot persisted, status print yang terlihat, tombol batal draft, dan reprint dari source final yang sama.
 - **R2 / Block 1 Operational Control**: Desktop kini memakai control tower/readiness snapshot dari `shared:kernel`, approval policy opening cash, outbox event open/close day dan shift, serta cleanup orphan UI lama di `:shared`.
 - **R2 / Block 2 Operational Hardening**: Desktop kini punya cash control baseline, approval inbox, close shift reconciliation, close day fail-closed review, migrasi kernel yang nyata, dan cleanup orphan dialog lama.
+- **R2 / Block 3 Final Gate**: Matrix verifikasi final sudah diulang pada 2026-03-19 dan tetap hijau, tetapi verdict R2 penuh masih harus jujur `PARTIAL` selama void execution dan release evidence installer belum ditutup.
