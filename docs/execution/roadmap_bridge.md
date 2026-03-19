@@ -15,7 +15,7 @@ Dokumen ini adalah bridge antara roadmap PDF, context agent, dan repo reality. R
 | M4 | Business Day & Shift | **DONE** | `ShiftService`, Guardrail Lifecycle | Lifecycle Open/Start/End/Close tervalidasi dengan guardrail operasional. |
 | M5 | Thin M5 (Catalog/Cart) | **DONE (BASELINES)** | `SalesService`, `ActiveBasket` persistence | Catalog lookup, cart mutation, dan basket persistence (survival on restart) sudah stabil. |
 | M6 | Checkout & Receipt | **DONE (DESKTOP-FIRST R1)** | `SalesService`, `SalesRepository`, `DesktopAppController`, sales DB migrations | Finality transaksi, snapshot struk final, readback/reprint dari source final, complete-sale facade, payment callback/idempotency guard, durable finalization bundle, crash/replay proof, cash tender helper, preview/print status, dan separation print vs settlement validity sudah tervalidasi untuk lane desktop. |
-| M7 | Inventory Basic | **DONE (R3 FOUNDATION SLICE)** | `InventoryService`, `InventoryRepository`, desktop inventory dialog, inventory DB migration | Sale -> inventory boundary sudah tegas, balance vs ledger baseline aktif, FIFO layer baseline ada, stock count/discrepancy review hidup, dan void-impact contract diblok jujur. |
+| M7 | Inventory Basic | **DONE (R3 HARDENED SLICE)** | `InventoryService`, `InventoryRepository`, desktop inventory dialog, inventory DB migration v3 | Sale -> inventory boundary sudah tegas, balance vs ledger baseline aktif, FIFO layer baseline ada, stock count/discrepancy review hidup, approval-aware adjustment queue ada, FK/integrity proof ada, dan void-impact contract diblok jujur. |
 | M8 | Reporting Dasar | **PENDING** | - | Belum ada implementasi runtime atau UI reporting. |
 | M9 | Sync Visibility | **PENDING** | outbox/infra parsial | Replay mechanism dan sync state visibility belum di-close. |
 | M10 | Release (Windows) | **FOUNDATION-OK** | `smokeRun`, hosted `Mainline Evidence`, manual evidence pack | Source/runtime smoke terbukti; install/uninstall installer masih manual-soft-blocker. |
@@ -28,7 +28,7 @@ Dokumen ini adalah bridge antara roadmap PDF, context agent, dan repo reality. R
 ### 1. Local Evidence (Unit/Integration Tests)
 - `.\gradlew :shared:kernel:allTests` -> Access, business day, shift, approval policy, dashboard readiness (PASSED)
 - `.\gradlew :shared:sales:desktopTest` -> Cart logic, receipt snapshot, failure path, retry/idempotency, replay (PASSED)
-- `.\gradlew :shared:inventory:desktopTest` -> Stock transaction invariants (PASSED)
+- `.\gradlew :shared:inventory:desktopTest` -> Stock transaction invariants, approval-aware adjustment, discrepancy resolution, migration/integrity persistence (PASSED)
 - `.\gradlew :shared:inventory:verifyCommonMainInventoryDatabaseMigration` -> SQLDelight migration verification for inventory truth baseline (PASSED)
 - `.\gradlew :apps:desktop-pos:test` -> Desktop cashier + operational control lane (PASSED)
 - `.\gradlew :shared:kernel:desktopTest --tests "id.azureenterprise.cassy.kernel.persistence.KernelPersistenceMigrationTest.*"` -> kernel operational migration proof (PASSED)

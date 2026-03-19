@@ -49,6 +49,18 @@ enum class InventoryLayerStatus {
     CONSUMED
 }
 
+enum class InventoryApprovalActionType {
+    STOCK_ADJUSTMENT,
+    DISCREPANCY_RESOLUTION
+}
+
+enum class InventoryApprovalActionStatus {
+    REQUESTED,
+    APPROVED,
+    DENIED,
+    APPLIED
+}
+
 enum class InventoryVoidImpactClassification {
     PRE_SETTLEMENT_VOID_NO_STOCK_EFFECT,
     POST_SETTLEMENT_REVERSAL_CANDIDATE,
@@ -116,6 +128,26 @@ data class InventoryLayer(
     val status: InventoryLayerStatus
 )
 
+data class InventoryApprovalAction(
+    val id: String,
+    val approvalRequestId: String?,
+    val actionType: InventoryApprovalActionType,
+    val productId: String,
+    val quantityDelta: Double,
+    val discrepancyReviewId: String?,
+    val reasonCode: String,
+    val reasonDetail: String?,
+    val requestedBy: String,
+    val terminalId: String,
+    val approvalMode: InventoryApprovalMode,
+    val status: InventoryApprovalActionStatus,
+    val createdAt: Instant,
+    val decidedAt: Instant?,
+    val decidedBy: String?,
+    val decisionNote: String?,
+    val appliedLedgerEntryId: String?
+)
+
 data class InventoryReadback(
     val balance: InventoryBalanceSnapshot,
     val ledgerEntries: List<StockLedgerEntry>,
@@ -147,6 +179,29 @@ data class StockAdjustmentDraft(
     val reasonCode: String,
     val reasonDetail: String?
 )
+
+data class InventoryAdjustmentPolicy(
+    val maxDirectQuantityWithoutApproval: Double = 10.0,
+    val maxDiscrepancyResolutionWithoutApproval: Double = 5.0,
+    val hardLimitQuantityDelta: Double = 10_000.0,
+    val shippedApprovalMode: InventoryApprovalMode = InventoryApprovalMode.LIGHT_PIN
+)
+
+sealed interface InventoryActionExecutionResult {
+    data class Applied(
+        val mutation: AppliedInventoryMutation,
+        val approvalApplied: Boolean
+    ) : InventoryActionExecutionResult
+
+    data class ApprovalRequired(
+        val action: InventoryApprovalAction,
+        val message: String
+    ) : InventoryActionExecutionResult
+
+    data class Blocked(
+        val message: String
+    ) : InventoryActionExecutionResult
+}
 
 data class VoidImpactAssessment(
     val classification: InventoryVoidImpactClassification,

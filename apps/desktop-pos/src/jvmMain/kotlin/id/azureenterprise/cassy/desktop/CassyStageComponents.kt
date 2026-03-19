@@ -617,6 +617,8 @@ private fun OperationType.toShortLabel(): String = when (this) {
     OperationType.CLOSE_SHIFT -> "Close Shift"
     OperationType.CLOSE_BUSINESS_DAY -> "Close Day"
     OperationType.VOID_SALE -> "Void"
+    OperationType.STOCK_ADJUSTMENT -> "Stock Adj"
+    OperationType.RESOLVE_STOCK_DISCREPANCY -> "Resolve Diff"
 }
 
 private fun CashMovementType.toUiLabel(): String = when (this) {

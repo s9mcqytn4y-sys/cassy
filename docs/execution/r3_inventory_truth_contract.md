@@ -13,9 +13,10 @@ Mengunci slice fondasi inventory truth Cassy V1 agar mutasi stok, readback, dan 
 - Mutasi stok final sekarang membawa `sourceType`, `sourceId`, dan `sourceLineId` bila relevan.
 - Stock count sekarang menghasilkan `InventoryDiscrepancyReview`; count tidak auto-adjust.
 - Manual adjustment sekarang butuh reason code kategori `INVENTORY_ADJUSTMENT`.
+- Adjustment dan resolusi discrepancy high-risk sekarang bisa masuk queue approval inventory yang durable.
 - Review discrepancy bisa di-resolve eksplisit atau ditandai `INVESTIGATION_REQUIRED`.
 - Void/reversal inventory masih contract-only; ambiguous path diblok, bukan dieksekusi diam-diam.
-- Desktop sekarang punya dialog inventory untuk current state, explanation trail, count, adjustment, dan review queue.
+- Desktop sekarang punya dialog inventory untuk current state, explanation trail, count, adjustment, review queue, dan needs-approval queue.
 
 ## ASSUMPTION
 - Repo tetap single-outlet, desktop-first, local-first.

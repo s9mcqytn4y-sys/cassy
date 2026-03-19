@@ -1,6 +1,8 @@
 package id.azureenterprise.cassy.desktop
 
 import id.azureenterprise.cassy.inventory.application.InventoryService
+import id.azureenterprise.cassy.inventory.domain.InventoryActionExecutionResult
+import id.azureenterprise.cassy.inventory.domain.InventoryApprovalAction
 import id.azureenterprise.cassy.inventory.domain.InventoryDiscrepancyReview
 import id.azureenterprise.cassy.inventory.domain.InventoryDiscrepancyStatus
 import id.azureenterprise.cassy.inventory.domain.InventoryReadback
@@ -750,7 +752,8 @@ class DesktopAppController(
             InventoryAdjustmentDirection.INCREASE -> quantity
             InventoryAdjustmentDirection.DECREASE -> -quantity
         }
-        val result = inventoryService.applyManualAdjustment(
+        when (
+            val result = inventoryService.applyManualAdjustment(
             StockAdjustmentDraft(
                 productId = productId,
                 quantityDelta = signedDelta,
@@ -759,17 +762,31 @@ class DesktopAppController(
                 reasonDetail = state.value.inventory.adjustmentReasonDetail.ifBlank { null }
             )
         )
-        refreshStage(
-            result.fold(
-                onSuccess = {
-                    UiBanner(
-                        tone = if (it.remainingShortageQuantity > 0.0 || it.balance.quantity < 0.0) UiTone.Warning else UiTone.Success,
-                        message = "Adjustment inventory dicatat. Balance sekarang ${it.balance.quantity}."
-                    )
-                },
-                onFailure = { UiBanner(UiTone.Danger, it.message ?: "Adjustment inventory gagal") }
+        ) {
+            is InventoryActionExecutionResult.Applied -> refreshStage(
+                UiBanner(
+                    tone = if (result.mutation.remainingShortageQuantity > 0.0 || result.mutation.balance.quantity < 0.0) {
+                        UiTone.Warning
+                    } else {
+                        UiTone.Success
+                    },
+                    message = if (result.approvalApplied) {
+                        "Adjustment inventory dicatat setelah LIGHT_PIN approval. Balance sekarang ${result.mutation.balance.quantity}."
+                    } else {
+                        "Adjustment inventory dicatat. Balance sekarang ${result.mutation.balance.quantity}."
+                    }
+                )
             )
-        )
+            is InventoryActionExecutionResult.ApprovalRequired -> refreshStage(
+                UiBanner(
+                    UiTone.Warning,
+                    "${result.message} Queue approval: ${result.action.id}."
+                )
+            )
+            is InventoryActionExecutionResult.Blocked -> refreshStage(
+                UiBanner(UiTone.Danger, result.message)
+            )
+        }
     }
 
     suspend fun resolveInventoryDiscrepancy(reviewId: String) {
@@ -779,19 +796,30 @@ class DesktopAppController(
             mutateBusy(false)
             return pushBanner(UiBanner(UiTone.Warning, "Pilih reason code sebelum resolve discrepancy"))
         }
-        val result = inventoryService.resolveStockCount(
+        when (
+            val result = inventoryService.resolveStockCount(
             reviewId = reviewId,
             reasonCode = reasonCode,
             reasonDetail = state.value.inventory.adjustmentReasonDetail.ifBlank { null }
         )
-        refreshStage(
-            result.fold(
-                onSuccess = {
-                    UiBanner(UiTone.Success, "Discrepancy diselesaikan dengan adjustment eksplisit.")
-                },
-                onFailure = { UiBanner(UiTone.Danger, it.message ?: "Resolve discrepancy gagal") }
+        ) {
+            is InventoryActionExecutionResult.Applied -> refreshStage(
+                UiBanner(
+                    if (result.approvalApplied) UiTone.Warning else UiTone.Success,
+                    if (result.approvalApplied) {
+                        "Discrepancy diselesaikan setelah LIGHT_PIN approval."
+                    } else {
+                        "Discrepancy diselesaikan dengan adjustment eksplisit."
+                    }
+                )
             )
-        )
+            is InventoryActionExecutionResult.ApprovalRequired -> refreshStage(
+                UiBanner(UiTone.Warning, result.message)
+            )
+            is InventoryActionExecutionResult.Blocked -> refreshStage(
+                UiBanner(UiTone.Danger, result.message)
+            )
+        }
     }
 
     suspend fun markInventoryDiscrepancyInvestigation(reviewId: String) {
@@ -806,6 +834,44 @@ class DesktopAppController(
                 onFailure = { UiBanner(UiTone.Danger, it.message ?: "Gagal menandai discrepancy") }
             )
         )
+    }
+
+    suspend fun approveInventoryAction(actionId: String) {
+        mutateBusy(true)
+        when (val result = inventoryService.approvePendingAction(actionId)) {
+            is InventoryActionExecutionResult.Applied -> refreshStage(
+                UiBanner(
+                    UiTone.Success,
+                    "Approval inventory diterapkan. Balance sekarang ${result.mutation.balance.quantity}."
+                )
+            )
+            is InventoryActionExecutionResult.ApprovalRequired -> refreshStage(
+                UiBanner(UiTone.Warning, result.message)
+            )
+            is InventoryActionExecutionResult.Blocked -> refreshStage(
+                UiBanner(UiTone.Danger, result.message)
+            )
+        }
+    }
+
+    suspend fun denyInventoryAction(actionId: String) {
+        mutateBusy(true)
+        val result = inventoryService.denyPendingAction(
+            actionId = actionId,
+            decisionNote = "Ditolak dari queue inventory desktop"
+        )
+        refreshStage(
+            result.fold(
+                onSuccess = { UiBanner(UiTone.Warning, "Approval inventory ditolak. Tidak ada mutasi stok final.") },
+                onFailure = { UiBanner(UiTone.Danger, it.message ?: "Penolakan approval inventory gagal") }
+            )
+        )
+    }
+
+    fun deferInventoryDiscrepancy(reviewId: String) {
+        val review = state.value.inventory.unresolvedDiscrepancies.firstOrNull { it.id == reviewId }
+        val productLabel = review?.productId ?: reviewId
+        pushBanner(UiBanner(UiTone.Info, "Discrepancy $productLabel dibiarkan tetap di review queue untuk tindak lanjut nanti."))
     }
 
     fun dismissBanner() {
@@ -952,6 +1018,7 @@ class DesktopAppController(
             inventoryService.getInventoryReadback(it).getOrNull()
         }
         val unresolved = inventoryService.listUnresolvedDiscrepancies()
+        val pendingApprovalActions = inventoryService.listPendingApprovalActions()
         val imageResolution = selectedProduct?.let(::resolveProductImage)
             ?: ProductImageResolution(
                 ref = null,
@@ -962,12 +1029,14 @@ class DesktopAppController(
             selectedProductId = selectedProductId,
             selectedReadback = selectedReadback,
             unresolvedDiscrepancies = unresolved,
+            pendingApprovalActions = pendingApprovalActions,
             adjustmentReasonOptions = reasonOptions,
             adjustmentReasonCode = selectedReasonCode,
             inputImagesFolder = File("input_images").absolutePath,
             selectedImageRef = imageResolution.ref,
             imageIoStatus = imageResolution.status,
-            voidContractNote = "Void inventory hanya classification contract. Jalur ambigu wajib diblok atau diinvestigasi manual."
+            voidContractNote = "Void inventory hanya classification contract. Jalur ambigu wajib diblok atau diinvestigasi manual.",
+            approvalLimitationNote = "Approval inventory yang shipped saat ini hanya LIGHT_PIN. SECOND_PIN dan DUAL_AUTH masih future hook."
         )
     }
 
@@ -1161,6 +1230,7 @@ data class InventoryPanelState(
     val selectedProductId: String? = null,
     val selectedReadback: InventoryReadback? = null,
     val unresolvedDiscrepancies: List<InventoryDiscrepancyReview> = emptyList(),
+    val pendingApprovalActions: List<InventoryApprovalAction> = emptyList(),
     val countQuantityInput: String = "",
     val adjustmentDirection: InventoryAdjustmentDirection = InventoryAdjustmentDirection.INCREASE,
     val adjustmentQuantityInput: String = "",
@@ -1170,7 +1240,8 @@ data class InventoryPanelState(
     val inputImagesFolder: String = "input_images",
     val selectedImageRef: String? = null,
     val imageIoStatus: String = "Folder input_images belum dipakai.",
-    val voidContractNote: String = "Void inventory masih contract-only."
+    val voidContractNote: String = "Void inventory masih contract-only.",
+    val approvalLimitationNote: String = "Approval inventory hanya LIGHT_PIN."
 )
 
 data class ReceiptPreviewState(
@@ -1211,6 +1282,8 @@ private fun OperationType.toUiLabel(): String = when (this) {
     OperationType.CLOSE_SHIFT -> "Tutup Shift"
     OperationType.CLOSE_BUSINESS_DAY -> "Tutup Hari"
     OperationType.VOID_SALE -> "Review Void"
+    OperationType.STOCK_ADJUSTMENT -> "Adjustment Stok"
+    OperationType.RESOLVE_STOCK_DISCREPANCY -> "Resolusi Discrepancy"
 }
 
 private fun CashMovementType.toReasonCategory(): ReasonCategory = when (this) {

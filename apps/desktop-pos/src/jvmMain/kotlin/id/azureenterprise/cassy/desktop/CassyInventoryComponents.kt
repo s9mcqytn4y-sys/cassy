@@ -24,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import id.azureenterprise.cassy.inventory.domain.InventoryApprovalAction
 import id.azureenterprise.cassy.inventory.domain.InventoryDiscrepancyReview
 import id.azureenterprise.cassy.inventory.domain.InventoryDiscrepancyStatus
 import id.azureenterprise.cassy.inventory.domain.StockLedgerEntry
@@ -41,7 +42,10 @@ fun InventoryTruthDialog(
     onAdjustmentReasonDetailChanged: (String) -> Unit,
     onApplyAdjustment: () -> Unit,
     onResolveDiscrepancy: (String) -> Unit,
-    onMarkInvestigation: (String) -> Unit
+    onMarkInvestigation: (String) -> Unit,
+    onApproveAction: (String) -> Unit,
+    onDenyAction: (String) -> Unit,
+    onDeferDiscrepancy: (String) -> Unit
 ) {
     val selectedProduct = state.availableProducts.firstOrNull { it.id == state.selectedProductId }
 
@@ -67,6 +71,7 @@ fun InventoryTruthDialog(
                         Text("Image I/O: ${state.imageIoStatus}")
                         Text("Folder: ${state.inputImagesFolder}")
                         Text("Image ref: ${state.selectedImageRef ?: "Belum ada file cocok / fallback hanya imageUrl"}")
+                        Text("Approval: ${state.approvalLimitationNote}")
                         Text("Void contract: ${state.voidContractNote}")
                     }
                 }
@@ -166,6 +171,10 @@ fun InventoryTruthDialog(
                             value = state.adjustmentReasonDetail,
                             onValueChange = onAdjustmentReasonDetailChanged
                         )
+                        Text(
+                            "Status operasi: Reason wajib durable. Jika reason/policy meminta approval, jalur yang shipped saat ini adalah LIGHT_PIN.",
+                            style = MaterialTheme.typography.bodySmall
+                        )
                         Button(onClick = onApplyAdjustment, modifier = Modifier.fillMaxWidth()) {
                             Text("Simpan Adjustment")
                         }
@@ -188,7 +197,31 @@ fun InventoryTruthDialog(
                                     productLabel = state.availableProducts.firstOrNull { it.id == review.productId }?.name
                                         ?: review.productId,
                                     onResolve = onResolveDiscrepancy,
-                                    onMarkInvestigation = onMarkInvestigation
+                                    onMarkInvestigation = onMarkInvestigation,
+                                    onDefer = onDeferDiscrepancy
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Surface(
+                    tonalElevation = 1.dp,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Needs Approval", fontWeight = FontWeight.Bold)
+                        if (state.pendingApprovalActions.isEmpty()) {
+                            Text("Belum ada action inventory yang menunggu LIGHT_PIN.")
+                        } else {
+                            state.pendingApprovalActions.forEach { action ->
+                                InventoryPendingApprovalRow(
+                                    action = action,
+                                    productLabel = state.availableProducts.firstOrNull { it.id == action.productId }?.name
+                                        ?: action.productId,
+                                    onApprove = onApproveAction,
+                                    onDeny = onDenyAction
                                 )
                             }
                         }
@@ -242,7 +275,8 @@ private fun InventoryDiscrepancyRow(
     review: InventoryDiscrepancyReview,
     productLabel: String,
     onResolve: (String) -> Unit,
-    onMarkInvestigation: (String) -> Unit
+    onMarkInvestigation: (String) -> Unit,
+    onDefer: (String) -> Unit
 ) {
     Surface(
         color = when (review.status) {
@@ -262,11 +296,44 @@ private fun InventoryDiscrepancyRow(
             if (review.status == InventoryDiscrepancyStatus.PENDING_REVIEW) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = { onResolve(review.id) }, modifier = Modifier.weight(1f)) {
-                        Text("Resolve")
+                        Text("Approve")
                     }
                     OutlinedButton(onClick = { onMarkInvestigation(review.id) }, modifier = Modifier.weight(1f)) {
                         Text("Investigasi")
                     }
+                    OutlinedButton(onClick = { onDefer(review.id) }, modifier = Modifier.weight(1f)) {
+                        Text("Defer")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun InventoryPendingApprovalRow(
+    action: InventoryApprovalAction,
+    productLabel: String,
+    onApprove: (String) -> Unit,
+    onDeny: (String) -> Unit
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.tertiaryContainer,
+        shape = RoundedCornerShape(10.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(productLabel, fontWeight = FontWeight.Bold)
+            Text("Status: Needs Approval | Mode: ${action.approvalMode.name}")
+            Text("Action: ${action.actionType.name} | Delta: ${action.quantityDelta}")
+            Text("Reason: ${action.reasonCode} | Requested by: ${action.requestedBy}")
+            action.reasonDetail?.takeIf { it.isNotBlank() }?.let { Text("Catatan: $it") }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { onApprove(action.id) }, modifier = Modifier.weight(1f)) {
+                    Text("Approve")
+                }
+                OutlinedButton(onClick = { onDeny(action.id) }, modifier = Modifier.weight(1f)) {
+                    Text("Deny")
                 }
             }
         }

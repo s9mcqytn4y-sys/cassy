@@ -3,6 +3,9 @@ package id.azureenterprise.cassy.inventory.data
 import id.azureenterprise.cassy.inventory.db.InventoryDatabase
 import id.azureenterprise.cassy.inventory.domain.AppliedInventoryMutation
 import id.azureenterprise.cassy.inventory.domain.InventoryApprovalMode
+import id.azureenterprise.cassy.inventory.domain.InventoryApprovalAction
+import id.azureenterprise.cassy.inventory.domain.InventoryApprovalActionStatus
+import id.azureenterprise.cassy.inventory.domain.InventoryApprovalActionType
 import id.azureenterprise.cassy.inventory.domain.InventoryBalanceSnapshot
 import id.azureenterprise.cassy.inventory.domain.InventoryDiscrepancyReview
 import id.azureenterprise.cassy.inventory.domain.InventoryDiscrepancyStatus
@@ -170,6 +173,59 @@ class InventoryRepository(
         queries.listActiveLayersByProduct(productId).executeAsList().map { it.toLayer() }
     }
 
+    suspend fun createApprovalAction(action: InventoryApprovalAction): InventoryApprovalAction = withContext(ioDispatcher) {
+        queries.insertApprovalAction(
+            id = action.id,
+            approvalRequestId = action.approvalRequestId,
+            actionType = action.actionType.name,
+            productId = action.productId,
+            quantityDelta = action.quantityDelta,
+            discrepancyReviewId = action.discrepancyReviewId,
+            reasonCode = action.reasonCode,
+            reasonDetail = action.reasonDetail,
+            requestedBy = action.requestedBy,
+            terminalId = action.terminalId,
+            approvalMode = action.approvalMode.name,
+            status = action.status.name,
+            createdAt = action.createdAt.toEpochMilliseconds(),
+            decidedAt = action.decidedAt?.toEpochMilliseconds(),
+            decidedBy = action.decidedBy,
+            decisionNote = action.decisionNote,
+            appliedLedgerEntryId = action.appliedLedgerEntryId
+        )
+        getApprovalActionById(action.id) ?: error("Gagal menyimpan inventory approval action")
+    }
+
+    suspend fun getApprovalActionById(id: String): InventoryApprovalAction? = withContext(ioDispatcher) {
+        queries.getApprovalActionById(id).executeAsOneOrNull()?.toApprovalAction()
+    }
+
+    suspend fun listPendingApprovalActions(): List<InventoryApprovalAction> = withContext(ioDispatcher) {
+        queries.listPendingApprovalActions().executeAsList().map { it.toApprovalAction() }
+    }
+
+    suspend fun listApprovalActionsByProduct(productId: String): List<InventoryApprovalAction> = withContext(ioDispatcher) {
+        queries.listApprovalActionsByProduct(productId).executeAsList().map { it.toApprovalAction() }
+    }
+
+    suspend fun resolveApprovalAction(
+        id: String,
+        status: InventoryApprovalActionStatus,
+        decidedBy: String,
+        decisionNote: String?,
+        appliedLedgerEntryId: String?
+    ): InventoryApprovalAction = withContext(ioDispatcher) {
+        queries.resolveApprovalAction(
+            status = status.name,
+            decidedAt = clock.now().toEpochMilliseconds(),
+            decidedBy = decidedBy,
+            decisionNote = decisionNote,
+            appliedLedgerEntryId = appliedLedgerEntryId,
+            id = id
+        )
+        getApprovalActionById(id) ?: error("Gagal memperbarui inventory approval action")
+    }
+
     suspend fun resolveDiscrepancy(
         id: String,
         status: InventoryDiscrepancyStatus,
@@ -294,6 +350,28 @@ class InventoryRepository(
             expiryAt = expiryAt?.let(Instant::fromEpochMilliseconds),
             rotationPolicy = RotationPolicy.valueOf(rotationPolicy),
             status = InventoryLayerStatus.valueOf(status)
+        )
+    }
+
+    private fun id.azureenterprise.cassy.inventory.db.InventoryApprovalAction.toApprovalAction(): InventoryApprovalAction {
+        return InventoryApprovalAction(
+            id = id,
+            approvalRequestId = approvalRequestId,
+            actionType = InventoryApprovalActionType.valueOf(actionType),
+            productId = productId,
+            quantityDelta = quantityDelta,
+            discrepancyReviewId = discrepancyReviewId,
+            reasonCode = reasonCode,
+            reasonDetail = reasonDetail,
+            requestedBy = requestedBy,
+            terminalId = terminalId,
+            approvalMode = InventoryApprovalMode.valueOf(approvalMode),
+            status = InventoryApprovalActionStatus.valueOf(status),
+            createdAt = Instant.fromEpochMilliseconds(createdAt),
+            decidedAt = decidedAt?.let(Instant::fromEpochMilliseconds),
+            decidedBy = decidedBy,
+            decisionNote = decisionNote,
+            appliedLedgerEntryId = appliedLedgerEntryId
         )
     }
 }

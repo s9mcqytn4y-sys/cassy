@@ -194,7 +194,14 @@ fun main(args: Array<String>) {
                             },
                             onMarkInvestigation = { reviewId ->
                                 scope.launch { controller.markInventoryDiscrepancyInvestigation(reviewId) }
-                            }
+                            },
+                            onApproveAction = { actionId ->
+                                scope.launch { controller.approveInventoryAction(actionId) }
+                            },
+                            onDenyAction = { actionId ->
+                                scope.launch { controller.denyInventoryAction(actionId) }
+                            },
+                            onDeferDiscrepancy = controller::deferInventoryDiscrepancy
                         )
                     }
 

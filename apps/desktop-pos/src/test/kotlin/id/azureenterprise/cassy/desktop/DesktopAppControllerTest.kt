@@ -524,6 +524,54 @@ class DesktopAppControllerTest {
         }
     }
 
+    @Test
+    fun `cashier inventory adjustment enters approval queue and supervisor can approve from desktop state`() {
+        runBlocking {
+            val fixture = desktopFixture()
+            val controller = fixture.newController()
+
+            controller.load()
+            controller.updateBootstrapField(BootstrapField.StoreName, "Store")
+            controller.updateBootstrapField(BootstrapField.TerminalName, "T1")
+            controller.updateBootstrapField(BootstrapField.CashierName, "C1")
+            controller.updateBootstrapField(BootstrapField.CashierPin, "111111")
+            controller.updateBootstrapField(BootstrapField.SupervisorName, "S1")
+            controller.updateBootstrapField(BootstrapField.SupervisorPin, "222222")
+            controller.bootstrapStore()
+            controller.selectOperator(controller.state.value.login.operators.first { it.roleLabel == "SUPERVISOR" }.id)
+            controller.updatePin("222222")
+            controller.login()
+            controller.openBusinessDay()
+            controller.updateOpeningCashInput("100000")
+            controller.startShift()
+            controller.logout()
+            controller.selectOperator(controller.state.value.login.operators.first { it.roleLabel == "CASHIER" }.id)
+            controller.updatePin("111111")
+            controller.login()
+
+            val productId = controller.state.value.inventory.availableProducts.first().id
+            controller.selectInventoryProduct(productId)
+            controller.updateInventoryAdjustmentDirection(InventoryAdjustmentDirection.INCREASE)
+            controller.updateInventoryAdjustmentQuantityInput("15")
+            controller.updateInventoryAdjustmentReasonCode("MANUAL_CORRECTION")
+            controller.updateInventoryAdjustmentReasonDetail("Perlu koreksi stok besar")
+            controller.applyInventoryAdjustment()
+
+            assertTrue(controller.state.value.banner?.message?.contains("LIGHT_PIN") == true)
+            val actionId = controller.state.value.inventory.pendingApprovalActions.first().id
+            assertEquals(null, controller.state.value.inventory.selectedReadback)
+
+            controller.logout()
+            controller.selectOperator(controller.state.value.login.operators.first { it.roleLabel == "SUPERVISOR" }.id)
+            controller.updatePin("222222")
+            controller.login()
+            controller.approveInventoryAction(actionId)
+
+            assertTrue(controller.state.value.inventory.pendingApprovalActions.isEmpty())
+            assertEquals(15.0, controller.state.value.inventory.selectedReadback?.balance?.quantity)
+        }
+    }
+
     @Suppress("LongMethod")
     private fun desktopFixture(
         hardwarePort: CashierHardwarePort = FakeCashierHardwarePort(),

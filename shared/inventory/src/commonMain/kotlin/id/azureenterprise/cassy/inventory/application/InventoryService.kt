@@ -2,6 +2,11 @@ package id.azureenterprise.cassy.inventory.application
 
 import id.azureenterprise.cassy.inventory.data.InventoryRepository
 import id.azureenterprise.cassy.inventory.domain.AppliedInventoryMutation
+import id.azureenterprise.cassy.inventory.domain.InventoryActionExecutionResult
+import id.azureenterprise.cassy.inventory.domain.InventoryAdjustmentPolicy
+import id.azureenterprise.cassy.inventory.domain.InventoryApprovalAction
+import id.azureenterprise.cassy.inventory.domain.InventoryApprovalActionStatus
+import id.azureenterprise.cassy.inventory.domain.InventoryApprovalActionType
 import id.azureenterprise.cassy.inventory.domain.InventoryApprovalMode
 import id.azureenterprise.cassy.inventory.domain.InventoryDiscrepancyReview
 import id.azureenterprise.cassy.inventory.domain.InventoryDiscrepancyStatus
@@ -17,8 +22,11 @@ import id.azureenterprise.cassy.inventory.domain.VoidImpactAssessment
 import id.azureenterprise.cassy.kernel.application.AccessService
 import id.azureenterprise.cassy.kernel.data.KernelRepository
 import id.azureenterprise.cassy.kernel.domain.AccessCapability
+import id.azureenterprise.cassy.kernel.domain.ApprovalStatus
 import id.azureenterprise.cassy.kernel.domain.IdGenerator
+import id.azureenterprise.cassy.kernel.domain.OperationType
 import id.azureenterprise.cassy.kernel.domain.ReasonCategory
+import id.azureenterprise.cassy.kernel.domain.supports
 import kotlinx.datetime.Clock
 
 class InventoryService(
@@ -26,7 +34,8 @@ class InventoryService(
     private val accessService: AccessService,
     private val kernelRepository: KernelRepository,
     private val voidImpactPolicy: InventoryVoidImpactPolicy,
-    private val clock: Clock
+    private val clock: Clock,
+    private val policy: InventoryAdjustmentPolicy = InventoryAdjustmentPolicy()
 ) {
     suspend fun recordSaleCompletion(
         saleId: String,
@@ -101,7 +110,7 @@ class InventoryService(
                 } else {
                     InventoryDiscrepancyStatus.PENDING_REVIEW
                 },
-                approvalMode = InventoryApprovalMode.LIGHT_PIN,
+                approvalMode = policy.shippedApprovalMode,
                 sourceType = InventorySourceType.STOCK_OPNAME_COUNT,
                 sourceId = IdGenerator.nextId("stock_opname"),
                 sourceLineId = null,
@@ -129,93 +138,170 @@ class InventoryService(
         review
     }
 
-    suspend fun applyManualAdjustment(draft: StockAdjustmentDraft): Result<AppliedInventoryMutation> = runCatching {
-        val operator = accessService.requireCapability(AccessCapability.APPLY_STOCK_ADJUSTMENT).getOrThrow()
-        require(draft.productId.isNotBlank()) { "Produk wajib dipilih" }
-        require(draft.quantityDelta != 0.0) { "Adjustment quantity tidak boleh nol" }
-        require(draft.terminalId.isNotBlank()) { "Terminal wajib ada" }
-        kernelRepository.ensureDefaultReasonCodes()
-        val reason = kernelRepository.getReasonCode(draft.reasonCode)
-            ?: error("Reason code inventory tidak valid")
-        check(reason.category == ReasonCategory.INVENTORY_ADJUSTMENT) { "Reason code inventory tidak valid" }
-        val adjustmentId = IdGenerator.nextId("inv_adjustment")
-        val entry = StockLedgerEntry(
-            id = IdGenerator.nextId("stock_ledger"),
-            productId = draft.productId,
-            quantityDelta = draft.quantityDelta,
-            mutationType = InventoryMutationType.STOCK_ADJUSTMENT,
-            sourceType = InventorySourceType.MANUAL_STOCK_ADJUSTMENT,
-            sourceId = adjustmentId,
-            sourceLineId = null,
-            reasonCode = reason.code,
-            reasonDetail = draft.reasonDetail,
-            actorId = operator.id,
-            terminalId = draft.terminalId,
-            status = InventoryLedgerStatus.FINAL,
-            createdAt = clock.now()
-        )
-        val applied = inventoryRepository.applyMutation(entry)
-        createInvestigationReviewIfNeeded(
-            applied = applied,
-            terminalId = draft.terminalId,
-            requestedBy = operator.id,
-            note = "Adjustment diterapkan tetapi provenance layer stok masih perlu investigasi."
-        )
-        recordAudit("Manual adjustment ${entry.sourceId} untuk ${draft.productId} delta ${draft.quantityDelta}")
-        recordEvent(
-            eventId = "event_inventory_adjustment_${entry.sourceId}",
-            type = "INVENTORY_ADJUSTMENT_RECORDED",
-            payload = """{"sourceId":"${entry.sourceId}","productId":"${entry.productId}","delta":${entry.quantityDelta},"approvalMode":"LIGHT_PIN"}"""
-        )
-        applied
+    suspend fun applyManualAdjustment(draft: StockAdjustmentDraft): InventoryActionExecutionResult {
+        return runCatching {
+            val context = requireInventoryOperationalContext()
+            require(draft.productId.isNotBlank()) { "Produk wajib dipilih" }
+            require(draft.quantityDelta != 0.0) { "Adjustment quantity tidak boleh nol" }
+            require(draft.terminalId.isNotBlank()) { "Terminal wajib ada" }
+            require(kotlin.math.abs(draft.quantityDelta) <= policy.hardLimitQuantityDelta) {
+                "Adjustment melewati hard limit inventory."
+            }
+            kernelRepository.ensureDefaultReasonCodes()
+            val reason = kernelRepository.getReasonCode(draft.reasonCode)
+                ?: error("Reason code inventory tidak valid")
+            check(reason.category == ReasonCategory.INVENTORY_ADJUSTMENT) { "Reason code inventory tidak valid" }
+
+            val requiresApproval = reason.requiresApproval ||
+                kotlin.math.abs(draft.quantityDelta) > policy.maxDirectQuantityWithoutApproval
+            val canApproveNow = context.operator.role.supports(AccessCapability.APPROVE_STOCK_ADJUSTMENT)
+            if (requiresApproval && !canApproveNow) {
+                return requestApprovalForManualAdjustment(context, draft, reason.code)
+            }
+
+            val applied = applyManualAdjustmentNow(
+                draft = draft,
+                actorId = context.operator.id,
+                approvalApplied = requiresApproval
+            )
+            InventoryActionExecutionResult.Applied(
+                mutation = applied,
+                approvalApplied = requiresApproval
+            )
+        }.getOrElse { InventoryActionExecutionResult.Blocked(it.message ?: "Adjustment inventory gagal") }
     }
 
-    suspend fun resolveStockCount(reviewId: String, reasonCode: String, reasonDetail: String?): Result<AppliedInventoryMutation> = runCatching {
-        val operator = accessService.requireCapability(AccessCapability.APPROVE_STOCK_ADJUSTMENT).getOrThrow()
-        val review = inventoryRepository.getDiscrepancyById(reviewId) ?: error("Review discrepancy tidak ditemukan")
-        require(review.status == InventoryDiscrepancyStatus.PENDING_REVIEW) { "Review discrepancy tidak lagi menunggu" }
-        kernelRepository.ensureDefaultReasonCodes()
-        val reason = kernelRepository.getReasonCode(reasonCode) ?: error("Reason code inventory tidak valid")
-        check(reason.category == ReasonCategory.INVENTORY_ADJUSTMENT) { "Reason code inventory tidak valid" }
+    suspend fun resolveStockCount(
+        reviewId: String,
+        reasonCode: String,
+        reasonDetail: String?
+    ): InventoryActionExecutionResult {
+        return runCatching {
+            val context = requireInventoryOperationalContext()
+            val review = inventoryRepository.getDiscrepancyById(reviewId) ?: error("Review discrepancy tidak ditemukan")
+            require(review.status == InventoryDiscrepancyStatus.PENDING_REVIEW) { "Review discrepancy tidak lagi menunggu" }
+            kernelRepository.ensureDefaultReasonCodes()
+            val reason = kernelRepository.getReasonCode(reasonCode) ?: error("Reason code inventory tidak valid")
+            check(reason.category == ReasonCategory.INVENTORY_ADJUSTMENT) { "Reason code inventory tidak valid" }
 
-        val entry = StockLedgerEntry(
-            id = IdGenerator.nextId("stock_ledger"),
-            productId = review.productId,
-            quantityDelta = review.varianceQuantity,
-            mutationType = InventoryMutationType.STOCK_OPNAME_ADJUSTMENT,
-            sourceType = InventorySourceType.STOCK_OPNAME_RESOLUTION,
-            sourceId = review.id,
-            sourceLineId = review.sourceLineId,
-            reasonCode = reason.code,
-            reasonDetail = reasonDetail ?: review.reasonDetail,
-            actorId = operator.id,
-            terminalId = review.terminalId,
-            status = InventoryLedgerStatus.FINAL,
-            createdAt = clock.now()
+            val requiresApproval = reason.requiresApproval ||
+                kotlin.math.abs(review.varianceQuantity) > policy.maxDiscrepancyResolutionWithoutApproval
+            val canApproveNow = context.operator.role.supports(AccessCapability.APPROVE_STOCK_ADJUSTMENT)
+            if (requiresApproval && !canApproveNow) {
+                return requestApprovalForDiscrepancyResolution(
+                    context = context,
+                    review = review,
+                    reasonCode = reason.code,
+                    reasonDetail = reasonDetail
+                )
+            }
+
+            val applied = resolveStockCountNow(
+                review = review,
+                reasonCode = reason.code,
+                reasonDetail = reasonDetail,
+                actorId = context.operator.id,
+                approvalApplied = requiresApproval
+            )
+            InventoryActionExecutionResult.Applied(
+                mutation = applied,
+                approvalApplied = requiresApproval
+            )
+        }.getOrElse { InventoryActionExecutionResult.Blocked(it.message ?: "Resolve discrepancy gagal") }
+    }
+
+    suspend fun approvePendingAction(actionId: String): InventoryActionExecutionResult {
+        return runCatching {
+            val operator = accessService.requireCapability(AccessCapability.APPROVE_STOCK_ADJUSTMENT).getOrThrow()
+            val action = inventoryRepository.getApprovalActionById(actionId)
+                ?: error("Inventory approval action tidak ditemukan")
+            require(action.status == InventoryApprovalActionStatus.REQUESTED) {
+                "Inventory approval action sudah diproses"
+            }
+            action.approvalRequestId?.let { requestId ->
+                val request = kernelRepository.getApprovalRequestById(requestId)
+                    ?: error("Approval request inventory tidak ditemukan")
+                if (request.status == ApprovalStatus.REQUESTED) {
+                    kernelRepository.resolveApprovalRequest(
+                        id = requestId,
+                        status = ApprovalStatus.APPROVED,
+                        approvedBy = operator.id,
+                        decisionNote = "Light approval oleh ${operator.displayName}"
+                    )
+                }
+            }
+            val applied = when (action.actionType) {
+                InventoryApprovalActionType.STOCK_ADJUSTMENT -> applyManualAdjustmentNow(
+                    draft = StockAdjustmentDraft(
+                        productId = action.productId,
+                        quantityDelta = action.quantityDelta,
+                        terminalId = action.terminalId,
+                        reasonCode = action.reasonCode,
+                        reasonDetail = action.reasonDetail
+                    ),
+                    actorId = operator.id,
+                    approvalApplied = true,
+                    sourceIdOverride = action.id
+                )
+                InventoryApprovalActionType.DISCREPANCY_RESOLUTION -> {
+                    val review = action.discrepancyReviewId
+                        ?.let { inventoryRepository.getDiscrepancyById(it) }
+                        ?: error("Review discrepancy approval tidak ditemukan")
+                    resolveStockCountNow(
+                        review = review,
+                        reasonCode = action.reasonCode,
+                        reasonDetail = action.reasonDetail,
+                        actorId = operator.id,
+                        approvalApplied = true,
+                        sourceIdOverride = action.id
+                    )
+                }
+            }
+            inventoryRepository.resolveApprovalAction(
+                id = action.id,
+                status = InventoryApprovalActionStatus.APPLIED,
+                decidedBy = operator.id,
+                decisionNote = "Light approval diterapkan",
+                appliedLedgerEntryId = applied.ledgerEntry.id
+            )
+            InventoryActionExecutionResult.Applied(
+                mutation = applied,
+                approvalApplied = true
+            )
+        }.getOrElse { InventoryActionExecutionResult.Blocked(it.message ?: "Approve inventory action gagal") }
+    }
+
+    suspend fun denyPendingAction(actionId: String, decisionNote: String): Result<InventoryApprovalAction> = runCatching {
+        val operator = accessService.requireCapability(AccessCapability.APPROVE_STOCK_ADJUSTMENT).getOrThrow()
+        val action = inventoryRepository.getApprovalActionById(actionId)
+            ?: error("Inventory approval action tidak ditemukan")
+        require(action.status == InventoryApprovalActionStatus.REQUESTED) { "Inventory approval action sudah diproses" }
+        action.approvalRequestId?.let { requestId ->
+            val request = kernelRepository.getApprovalRequestById(requestId)
+                ?: error("Approval request inventory tidak ditemukan")
+            if (request.status == ApprovalStatus.REQUESTED) {
+                kernelRepository.resolveApprovalRequest(
+                    id = requestId,
+                    status = ApprovalStatus.DENIED,
+                    approvedBy = operator.id,
+                    decisionNote = decisionNote.ifBlank { "Ditolak ${operator.displayName}" }
+                )
+            }
+        }
+        val denied = inventoryRepository.resolveApprovalAction(
+            id = action.id,
+            status = InventoryApprovalActionStatus.DENIED,
+            decidedBy = operator.id,
+            decisionNote = decisionNote.ifBlank { "Ditolak ${operator.displayName}" },
+            appliedLedgerEntryId = null
         )
-        val applied = inventoryRepository.applyMutation(entry)
-        inventoryRepository.resolveDiscrepancy(
-            id = review.id,
-            status = InventoryDiscrepancyStatus.RESOLVED_ADJUSTED,
-            reasonCode = reason.code,
-            reasonDetail = reasonDetail,
-            resolvedBy = operator.id,
-            resolutionNote = "Selisih stock opname disesuaikan eksplisit",
-            relatedLedgerEntryId = applied.ledgerEntry.id
-        )
-        createInvestigationReviewIfNeeded(
-            applied = applied,
-            terminalId = review.terminalId,
-            requestedBy = operator.id,
-            note = "Resolusi stock opname membutuhkan investigasi layer lanjutan."
-        )
-        recordAudit("Review stock opname ${review.id} diselesaikan untuk ${review.productId}")
+        recordAudit("Inventory approval action ${action.id} ditolak")
         recordEvent(
-            eventId = "event_inventory_discrepancy_${review.id}",
-            type = "INVENTORY_DISCREPANCY_RESOLVED",
-            payload = """{"reviewId":"${review.id}","ledgerId":"${applied.ledgerEntry.id}","approvalMode":"LIGHT_PIN"}"""
+            eventId = "event_inventory_approval_denied_${action.id}",
+            type = "INVENTORY_APPROVAL_DENIED",
+            payload = """{"actionId":"${action.id}","actionType":"${action.actionType.name}"}"""
         )
-        applied
+        denied
     }
 
     suspend fun markDiscrepancyForInvestigation(reviewId: String, note: String): Result<InventoryDiscrepancyReview> = runCatching {
@@ -254,6 +340,10 @@ class InventoryService(
         return inventoryRepository.listUnresolvedDiscrepancies()
     }
 
+    suspend fun listPendingApprovalActions(): List<InventoryApprovalAction> {
+        return inventoryRepository.listPendingApprovalActions()
+    }
+
     fun classifyVoidImpact(
         paymentSettled: Boolean,
         physicalReturnConfirmed: Boolean,
@@ -263,6 +353,215 @@ class InventoryService(
             paymentSettled = paymentSettled,
             physicalReturnConfirmed = physicalReturnConfirmed,
             explicitInventoryReasonProvided = explicitInventoryReasonProvided
+        )
+    }
+
+    private suspend fun requestApprovalForManualAdjustment(
+        context: InventoryOperationalContext,
+        draft: StockAdjustmentDraft,
+        reasonCode: String
+    ): InventoryActionExecutionResult.ApprovalRequired {
+        val actionId = IdGenerator.nextId("inv_action")
+        val approval = kernelRepository.insertApprovalRequest(
+            id = IdGenerator.nextId("approval"),
+            operationType = OperationType.STOCK_ADJUSTMENT,
+            entityId = actionId,
+            businessDayId = context.businessDayId,
+            shiftId = context.shiftId,
+            terminalId = context.terminalId,
+            amount = kotlin.math.abs(draft.quantityDelta),
+            reasonCode = reasonCode,
+            reasonDetail = draft.reasonDetail,
+            requestedBy = context.operator.id,
+            approvedBy = null,
+            status = ApprovalStatus.REQUESTED
+        )
+        val action = inventoryRepository.createApprovalAction(
+            InventoryApprovalAction(
+                id = actionId,
+                approvalRequestId = approval.id,
+                actionType = InventoryApprovalActionType.STOCK_ADJUSTMENT,
+                productId = draft.productId,
+                quantityDelta = draft.quantityDelta,
+                discrepancyReviewId = null,
+                reasonCode = reasonCode,
+                reasonDetail = draft.reasonDetail,
+                requestedBy = context.operator.id,
+                terminalId = context.terminalId,
+                approvalMode = policy.shippedApprovalMode,
+                status = InventoryApprovalActionStatus.REQUESTED,
+                createdAt = clock.now(),
+                decidedAt = null,
+                decidedBy = null,
+                decisionNote = null,
+                appliedLedgerEntryId = null
+            )
+        )
+        recordAudit("Approval inventory diminta untuk adjustment $actionId pada ${draft.productId}")
+        recordEvent(
+            eventId = "event_inventory_approval_requested_$actionId",
+            type = "INVENTORY_APPROVAL_REQUESTED",
+            payload = """{"actionId":"$actionId","operationType":"STOCK_ADJUSTMENT","productId":"${draft.productId}","approvalMode":"${policy.shippedApprovalMode.name}"}"""
+        )
+        return InventoryActionExecutionResult.ApprovalRequired(
+            action = action,
+            message = "Adjustment inventory butuh LIGHT_PIN supervisor/owner. SECOND_PIN dan DUAL_AUTH belum shipped."
+        )
+    }
+
+    private suspend fun requestApprovalForDiscrepancyResolution(
+        context: InventoryOperationalContext,
+        review: InventoryDiscrepancyReview,
+        reasonCode: String,
+        reasonDetail: String?
+    ): InventoryActionExecutionResult.ApprovalRequired {
+        val actionId = IdGenerator.nextId("inv_action")
+        val approval = kernelRepository.insertApprovalRequest(
+            id = IdGenerator.nextId("approval"),
+            operationType = OperationType.RESOLVE_STOCK_DISCREPANCY,
+            entityId = actionId,
+            businessDayId = context.businessDayId,
+            shiftId = context.shiftId,
+            terminalId = context.terminalId,
+            amount = kotlin.math.abs(review.varianceQuantity),
+            reasonCode = reasonCode,
+            reasonDetail = reasonDetail ?: review.reasonDetail,
+            requestedBy = context.operator.id,
+            approvedBy = null,
+            status = ApprovalStatus.REQUESTED
+        )
+        val action = inventoryRepository.createApprovalAction(
+            InventoryApprovalAction(
+                id = actionId,
+                approvalRequestId = approval.id,
+                actionType = InventoryApprovalActionType.DISCREPANCY_RESOLUTION,
+                productId = review.productId,
+                quantityDelta = review.varianceQuantity,
+                discrepancyReviewId = review.id,
+                reasonCode = reasonCode,
+                reasonDetail = reasonDetail ?: review.reasonDetail,
+                requestedBy = context.operator.id,
+                terminalId = context.terminalId,
+                approvalMode = policy.shippedApprovalMode,
+                status = InventoryApprovalActionStatus.REQUESTED,
+                createdAt = clock.now(),
+                decidedAt = null,
+                decidedBy = null,
+                decisionNote = null,
+                appliedLedgerEntryId = null
+            )
+        )
+        recordAudit("Approval inventory diminta untuk discrepancy ${review.id}")
+        recordEvent(
+            eventId = "event_inventory_discrepancy_approval_$actionId",
+            type = "INVENTORY_DISCREPANCY_APPROVAL_REQUESTED",
+            payload = """{"actionId":"$actionId","reviewId":"${review.id}","approvalMode":"${policy.shippedApprovalMode.name}"}"""
+        )
+        return InventoryActionExecutionResult.ApprovalRequired(
+            action = action,
+            message = "Resolusi discrepancy butuh LIGHT_PIN supervisor/owner. SECOND_PIN dan DUAL_AUTH belum shipped."
+        )
+    }
+
+    private suspend fun applyManualAdjustmentNow(
+        draft: StockAdjustmentDraft,
+        actorId: String,
+        approvalApplied: Boolean,
+        sourceIdOverride: String? = null
+    ): AppliedInventoryMutation {
+        val sourceId = sourceIdOverride ?: IdGenerator.nextId("inv_adjustment")
+        val entry = StockLedgerEntry(
+            id = IdGenerator.nextId("stock_ledger"),
+            productId = draft.productId,
+            quantityDelta = draft.quantityDelta,
+            mutationType = InventoryMutationType.STOCK_ADJUSTMENT,
+            sourceType = InventorySourceType.MANUAL_STOCK_ADJUSTMENT,
+            sourceId = sourceId,
+            sourceLineId = null,
+            reasonCode = draft.reasonCode,
+            reasonDetail = draft.reasonDetail,
+            actorId = actorId,
+            terminalId = draft.terminalId,
+            status = InventoryLedgerStatus.FINAL,
+            createdAt = clock.now()
+        )
+        val applied = inventoryRepository.applyMutation(entry)
+        createInvestigationReviewIfNeeded(
+            applied = applied,
+            terminalId = draft.terminalId,
+            requestedBy = actorId,
+            note = "Adjustment diterapkan tetapi provenance layer stok masih perlu investigasi."
+        )
+        recordAudit("Manual adjustment ${entry.sourceId} untuk ${draft.productId} delta ${draft.quantityDelta}")
+        recordEvent(
+            eventId = "event_inventory_adjustment_${entry.sourceId}",
+            type = "INVENTORY_ADJUSTMENT_RECORDED",
+            payload = """{"sourceId":"${entry.sourceId}","productId":"${entry.productId}","delta":${entry.quantityDelta},"approvalMode":"${policy.shippedApprovalMode.name}","approvalApplied":$approvalApplied}"""
+        )
+        return applied
+    }
+
+    private suspend fun resolveStockCountNow(
+        review: InventoryDiscrepancyReview,
+        reasonCode: String,
+        reasonDetail: String?,
+        actorId: String,
+        approvalApplied: Boolean,
+        sourceIdOverride: String? = null
+    ): AppliedInventoryMutation {
+        val entry = StockLedgerEntry(
+            id = IdGenerator.nextId("stock_ledger"),
+            productId = review.productId,
+            quantityDelta = review.varianceQuantity,
+            mutationType = InventoryMutationType.STOCK_OPNAME_ADJUSTMENT,
+            sourceType = InventorySourceType.STOCK_OPNAME_RESOLUTION,
+            sourceId = sourceIdOverride ?: review.id,
+            sourceLineId = review.sourceLineId,
+            reasonCode = reasonCode,
+            reasonDetail = reasonDetail ?: review.reasonDetail,
+            actorId = actorId,
+            terminalId = review.terminalId,
+            status = InventoryLedgerStatus.FINAL,
+            createdAt = clock.now()
+        )
+        val applied = inventoryRepository.applyMutation(entry)
+        inventoryRepository.resolveDiscrepancy(
+            id = review.id,
+            status = InventoryDiscrepancyStatus.RESOLVED_ADJUSTED,
+            reasonCode = reasonCode,
+            reasonDetail = reasonDetail,
+            resolvedBy = actorId,
+            resolutionNote = "Selisih stock opname disesuaikan eksplisit",
+            relatedLedgerEntryId = applied.ledgerEntry.id
+        )
+        createInvestigationReviewIfNeeded(
+            applied = applied,
+            terminalId = review.terminalId,
+            requestedBy = actorId,
+            note = "Resolusi stock opname membutuhkan investigasi layer lanjutan."
+        )
+        recordAudit("Review stock opname ${review.id} diselesaikan untuk ${review.productId}")
+        recordEvent(
+            eventId = "event_inventory_discrepancy_${review.id}",
+            type = "INVENTORY_DISCREPANCY_RESOLVED",
+            payload = """{"reviewId":"${review.id}","ledgerId":"${applied.ledgerEntry.id}","approvalMode":"${policy.shippedApprovalMode.name}","approvalApplied":$approvalApplied}"""
+        )
+        return applied
+    }
+
+    private suspend fun requireInventoryOperationalContext(): InventoryOperationalContext {
+        val context = accessService.restoreContext()
+        val operator = context.activeOperator ?: error("Login operator diperlukan sebelum tindakan inventory.")
+        val binding = context.terminalBinding ?: error("Terminal belum terikat ke store.")
+        val businessDay = kernelRepository.getActiveBusinessDay()
+            ?: error("Business day harus aktif sebelum tindakan inventory.")
+        val shift = kernelRepository.getActiveShift(binding.terminalId)
+            ?: error("Shift aktif diperlukan sebelum tindakan inventory.")
+        return InventoryOperationalContext(
+            operator = operator,
+            terminalId = binding.terminalId,
+            businessDayId = businessDay.id,
+            shiftId = shift.id
         )
     }
 
@@ -287,7 +586,7 @@ class InventoryService(
                     -applied.balance.quantity
                 },
                 status = InventoryDiscrepancyStatus.INVESTIGATION_REQUIRED,
-                approvalMode = InventoryApprovalMode.LIGHT_PIN,
+                approvalMode = policy.shippedApprovalMode,
                 sourceType = applied.ledgerEntry.sourceType,
                 sourceId = applied.ledgerEntry.sourceId,
                 sourceLineId = applied.ledgerEntry.sourceLineId,
@@ -334,3 +633,10 @@ class InventoryService(
             }
     }
 }
+
+private data class InventoryOperationalContext(
+    val operator: id.azureenterprise.cassy.kernel.domain.OperatorAccount,
+    val terminalId: String,
+    val businessDayId: String,
+    val shiftId: String
+)

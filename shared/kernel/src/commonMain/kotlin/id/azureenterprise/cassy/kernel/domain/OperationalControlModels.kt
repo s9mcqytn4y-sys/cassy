@@ -16,7 +16,9 @@ enum class OperationType {
     SAFE_DROP,
     CLOSE_SHIFT,
     CLOSE_BUSINESS_DAY,
-    VOID_SALE
+    VOID_SALE,
+    STOCK_ADJUSTMENT,
+    RESOLVE_STOCK_DISCREPANCY
 }
 
 enum class OperationBlockerCode {

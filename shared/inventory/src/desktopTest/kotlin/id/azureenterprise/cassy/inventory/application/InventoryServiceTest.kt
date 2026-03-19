@@ -3,12 +3,14 @@ package id.azureenterprise.cassy.inventory.application
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import id.azureenterprise.cassy.inventory.data.InventoryRepository
 import id.azureenterprise.cassy.inventory.db.InventoryDatabase
+import id.azureenterprise.cassy.inventory.domain.InventoryActionExecutionResult
+import id.azureenterprise.cassy.inventory.domain.InventoryApprovalActionStatus
 import id.azureenterprise.cassy.inventory.domain.InventoryDiscrepancyStatus
 import id.azureenterprise.cassy.inventory.domain.InventoryLayerStatus
 import id.azureenterprise.cassy.inventory.domain.InventoryVoidImpactClassification
 import id.azureenterprise.cassy.inventory.domain.SaleInventoryLine
-import id.azureenterprise.cassy.inventory.domain.StockCountDraft
 import id.azureenterprise.cassy.inventory.domain.StockAdjustmentDraft
+import id.azureenterprise.cassy.inventory.domain.StockCountDraft
 import id.azureenterprise.cassy.kernel.application.AccessService
 import id.azureenterprise.cassy.kernel.data.KernelRepository
 import id.azureenterprise.cassy.kernel.db.KernelDatabase
@@ -20,6 +22,7 @@ import kotlinx.datetime.Clock
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -56,9 +59,10 @@ class InventoryServiceTest {
     fun `stock count records discrepancy without silent auto adjustment`() {
         runBlocking {
             val fixture = inventoryFixture()
+            fixture.activateOperations()
             fixture.login(OperatorRole.SUPERVISOR)
 
-            fixture.service.applyManualAdjustment(
+            val seeded = fixture.service.applyManualAdjustment(
                 id.azureenterprise.cassy.inventory.domain.StockAdjustmentDraft(
                     productId = "product_1",
                     quantityDelta = 8.0,
@@ -66,7 +70,8 @@ class InventoryServiceTest {
                     reasonCode = "FOUND_STOCK",
                     reasonDetail = "Saldo awal untuk tes count"
                 )
-            ).getOrThrow()
+            )
+            assertIs<InventoryActionExecutionResult.Applied>(seeded)
             fixture.login(OperatorRole.CASHIER)
 
             val review = fixture.service.submitStockCount(
@@ -138,9 +143,11 @@ class InventoryServiceTest {
     fun `positive layers are consumed in FIFO order for non expiry stock`() {
         runBlocking {
             val fixture = inventoryFixture()
+            fixture.activateOperations()
             fixture.login(OperatorRole.SUPERVISOR)
 
-            fixture.service.applyManualAdjustment(
+            assertIs<InventoryActionExecutionResult.Applied>(
+                fixture.service.applyManualAdjustment(
                 StockAdjustmentDraft(
                     productId = "product_1",
                     quantityDelta = 5.0,
@@ -148,8 +155,10 @@ class InventoryServiceTest {
                     reasonCode = "FOUND_STOCK",
                     reasonDetail = "Batch pertama"
                 )
-            ).getOrThrow()
-            fixture.service.applyManualAdjustment(
+                )
+            )
+            assertIs<InventoryActionExecutionResult.Applied>(
+                fixture.service.applyManualAdjustment(
                 StockAdjustmentDraft(
                     productId = "product_1",
                     quantityDelta = 4.0,
@@ -157,7 +166,8 @@ class InventoryServiceTest {
                     reasonCode = "FOUND_STOCK",
                     reasonDetail = "Batch kedua"
                 )
-            ).getOrThrow()
+                )
+            )
 
             fixture.service.recordSaleCompletion(
                 saleId = "sale_fifo_1",
@@ -174,6 +184,87 @@ class InventoryServiceTest {
             assertEquals(4.0, layers.single().acquiredQuantity)
             assertEquals(3.0, layers.single().remainingQuantity)
             assertEquals(InventoryLayerStatus.OPEN, layers.single().status)
+        }
+    }
+
+    @Test
+    fun `high risk stock adjustment creates pending approval and denied action does not mutate stock`() {
+        runBlocking {
+            val fixture = inventoryFixture()
+            fixture.activateOperations()
+            fixture.login(OperatorRole.CASHIER)
+
+            val result = fixture.service.applyManualAdjustment(
+                StockAdjustmentDraft(
+                    productId = "product_1",
+                    quantityDelta = 15.0,
+                    terminalId = "terminal_1",
+                    reasonCode = "MANUAL_CORRECTION",
+                    reasonDetail = "Perlu koreksi besar"
+                )
+            )
+
+            val pending = assertIs<InventoryActionExecutionResult.ApprovalRequired>(result)
+            assertEquals(InventoryApprovalActionStatus.REQUESTED, pending.action.status)
+            assertTrue(fixture.repository.getInventoryReadback("product_1") == null)
+
+            fixture.login(OperatorRole.SUPERVISOR)
+            val denied = fixture.service.denyPendingAction(
+                actionId = pending.action.id,
+                decisionNote = "Tolak sampai cek fisik selesai"
+            ).getOrThrow()
+
+            assertEquals(InventoryApprovalActionStatus.DENIED, denied.status)
+            assertTrue(fixture.service.listPendingApprovalActions().isEmpty())
+            assertTrue(fixture.repository.getInventoryReadback("product_1") == null)
+        }
+    }
+
+    @Test
+    fun `discrepancy resolution above threshold needs light approval and approved path applies final mutation`() {
+        runBlocking {
+            val fixture = inventoryFixture()
+            fixture.activateOperations()
+            fixture.login(OperatorRole.SUPERVISOR)
+            assertIs<InventoryActionExecutionResult.Applied>(
+                fixture.service.applyManualAdjustment(
+                    StockAdjustmentDraft(
+                        productId = "product_1",
+                        quantityDelta = 20.0,
+                        terminalId = "terminal_1",
+                        reasonCode = "FOUND_STOCK",
+                        reasonDetail = "Seed saldo"
+                    )
+                )
+            )
+            fixture.login(OperatorRole.CASHIER)
+
+            val review = fixture.service.submitStockCount(
+                StockCountDraft(
+                    productId = "product_1",
+                    countedQuantity = 8.0,
+                    terminalId = "terminal_1"
+                )
+            ).getOrThrow()
+
+            val pending = fixture.service.resolveStockCount(
+                reviewId = review.id,
+                reasonCode = "MANUAL_CORRECTION",
+                reasonDetail = "Variance besar harus approve"
+            )
+
+            val approvalRequired = assertIs<InventoryActionExecutionResult.ApprovalRequired>(pending)
+            fixture.login(OperatorRole.SUPERVISOR)
+            val approved = fixture.service.approvePendingAction(approvalRequired.action.id)
+
+            val applied = assertIs<InventoryActionExecutionResult.Applied>(approved)
+            val readback = fixture.repository.getInventoryReadback("product_1")
+
+            assertEquals(8.0, applied.mutation.balance.quantity)
+            assertNotNull(readback)
+            assertEquals(8.0, readback.balance.quantity)
+            assertTrue(readback.discrepancies.any { it.id == review.id && it.status == InventoryDiscrepancyStatus.RESOLVED_ADJUSTED })
+            assertTrue(readback.ledgerEntries.any { it.sourceType.name == "STOCK_OPNAME_RESOLUTION" })
         }
     }
 }
@@ -220,5 +311,22 @@ private data class InventoryFixture(
         accessService.logout()
         val operator = kernelRepository.listActiveOperators().first { it.role == role }
         accessService.login(operator.id, if (role == OperatorRole.CASHIER) "111111" else "222222")
+    }
+
+    suspend fun activateOperations() {
+        val binding = kernelRepository.getTerminalBinding() ?: error("Terminal binding belum ada")
+        val supervisor = kernelRepository.listActiveOperators().first { it.role == OperatorRole.SUPERVISOR }
+        if (!kernelRepository.isBusinessDayOpen()) {
+            kernelRepository.openBusinessDay("day_test")
+        }
+        if (kernelRepository.getActiveShift(binding.terminalId) == null) {
+            kernelRepository.openShift(
+                id = "shift_test",
+                businessDayId = kernelRepository.getActiveBusinessDay()!!.id,
+                terminalId = binding.terminalId,
+                openingCash = 100.0,
+                openedBy = supervisor.id
+            )
+        }
     }
 }

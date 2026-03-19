@@ -33,6 +33,7 @@ Updated: 2026-03-19
 - Untuk item non-expiry, fallback rotation sekarang FIFO.
 - Untuk mode FEFO, query ordering expiry sudah disiapkan.
 - Negative legacy balance saat migrasi tidak di-overwrite diam-diam; ia masuk review/investigation path.
+- Inventory schema hardening sekarang juga menambah FK internal dan `InventoryApprovalAction` untuk payload approval-aware yang durable.
 
 ## ASSUMPTION
 - `InventoryLayer` saat ini cukup sebagai fondasi traceability kuantitas, belum untuk breadth lot/serial penuh.

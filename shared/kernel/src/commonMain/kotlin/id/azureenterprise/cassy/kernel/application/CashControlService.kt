@@ -329,4 +329,6 @@ private fun OperationType.toTitle(): String = when (this) {
     OperationType.OPEN_BUSINESS_DAY -> "Buka Business Day"
     OperationType.START_SHIFT -> "Buka Shift"
     OperationType.VOID_SALE -> "Void Penjualan"
+    OperationType.STOCK_ADJUSTMENT -> "Adjustment Stok"
+    OperationType.RESOLVE_STOCK_DISCREPANCY -> "Resolusi Discrepancy Stok"
 }
