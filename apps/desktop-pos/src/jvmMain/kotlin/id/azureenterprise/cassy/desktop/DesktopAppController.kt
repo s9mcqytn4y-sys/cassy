@@ -2,10 +2,14 @@ package id.azureenterprise.cassy.desktop
 
 import id.azureenterprise.cassy.kernel.application.AccessService
 import id.azureenterprise.cassy.kernel.application.BusinessDayService
+import id.azureenterprise.cassy.kernel.application.OperationalControlService
 import id.azureenterprise.cassy.kernel.application.ShiftService
 import id.azureenterprise.cassy.kernel.domain.AccessCapability
 import id.azureenterprise.cassy.kernel.domain.BootstrapStoreRequest
 import id.azureenterprise.cassy.kernel.domain.LoginResult
+import id.azureenterprise.cassy.kernel.domain.OperationType
+import id.azureenterprise.cassy.kernel.domain.OperationalControlSnapshot
+import id.azureenterprise.cassy.kernel.domain.StartShiftExecutionResult
 import id.azureenterprise.cassy.kernel.domain.supports
 import id.azureenterprise.cassy.masterdata.data.ProductRepository
 import id.azureenterprise.cassy.masterdata.domain.Product
@@ -27,6 +31,7 @@ class DesktopAppController(
     private val accessService: AccessService,
     private val businessDayService: BusinessDayService,
     private val shiftService: ShiftService,
+    private val operationalControlService: OperationalControlService,
     private val productRepository: ProductRepository,
     private val productLookupUseCase: ProductLookupUseCase,
     private val salesService: SalesService,
@@ -153,11 +158,27 @@ class DesktopAppController(
             mutateBusy(false)
             return pushBanner(UiBanner(UiTone.Warning, "Opening cash harus berupa angka"))
         }
-        val result = shiftService.startShift(openingCash)
-        refreshStage(result.fold(
-            onSuccess = { UiBanner(UiTone.Success, "Shift ${it.id} dimulai") },
-            onFailure = { UiBanner(UiTone.Danger, it.message ?: "Start shift gagal") }
-        ))
+        when (
+            val result = shiftService.submitStartShift(
+                openingCash = openingCash,
+                approvalReason = state.value.operations.openingCashReason
+            )
+        ) {
+            is StartShiftExecutionResult.Started -> {
+                val message = if (result.approvalApplied) {
+                    "Shift ${result.shift.id} dimulai dengan approval opening cash"
+                } else {
+                    "Shift ${result.shift.id} dimulai"
+                }
+                refreshStage(UiBanner(UiTone.Success, message))
+            }
+            is StartShiftExecutionResult.ApprovalRequired -> {
+                refreshStage(UiBanner(UiTone.Warning, result.decision.message))
+            }
+            is StartShiftExecutionResult.Blocked -> {
+                refreshStage(UiBanner(UiTone.Danger, result.decision.message))
+            }
+        }
     }
 
     suspend fun endShift() {
@@ -468,6 +489,10 @@ class DesktopAppController(
         _state.update { it.copy(operations = it.operations.copy(closingCashInput = value)) }
     }
 
+    fun updateOpeningCashReasonInput(value: String) {
+        _state.update { it.copy(operations = it.operations.copy(openingCashReason = value)) }
+    }
+
     fun updateCashReceivedInput(value: String) {
         val digitsOnly = value.filter { it.isDigit() }
         val receivedAmount = digitsOnly.toDoubleOrNull() ?: 0.0
@@ -489,9 +514,13 @@ class DesktopAppController(
         val context = accessService.restoreContext()
         val businessDay = businessDayService.getActiveBusinessDay()
         val activeShift = shiftService.getActiveShift()
+        val operationalSnapshot = operationalControlService.buildSnapshot(
+            openingCashInput = state.value.operations.openingCashInput,
+            openingCashReason = state.value.operations.openingCashReason
+        )
         val activeOperator = context.activeOperator
         val operators = context.operators.map { OperatorOption(it.id, it.displayName, it.role.name) }
-        val products = if (businessDay != null && activeShift != null) {
+        val products = if (operationalSnapshot.canAccessSalesHome) {
             loadProducts(state.value.catalog.searchQuery)
         } else {
             emptyList()
@@ -501,7 +530,7 @@ class DesktopAppController(
             context.terminalBinding == null || context.operators.isEmpty() -> DesktopStage.Bootstrap
             context.activeSession == null -> DesktopStage.Login
             businessDay == null -> DesktopStage.OpenDay
-            activeShift == null -> DesktopStage.StartShift
+            !operationalSnapshot.canAccessSalesHome -> DesktopStage.StartShift
             else -> DesktopStage.Catalog
         }
         var resolvedBanner = banner
@@ -529,7 +558,8 @@ class DesktopAppController(
                     operatorName = activeOperator?.displayName,
                     roleLabel = activeOperator?.role?.name,
                     dayStatus = businessDay?.status ?: "CLOSED",
-                    shiftStatus = activeShift?.status ?: "LOCKED"
+                    shiftStatus = activeShift?.status ?: "LOCKED",
+                    nextActionLabel = operationalSnapshot.primaryAction?.toUiLabel()
                 ),
                 login = it.login.copy(
                     operators = operators,
@@ -543,12 +573,14 @@ class DesktopAppController(
                         context.activeSession == null -> "Login operator diperlukan"
                         businessDay == null && activeOperator?.role?.supports(AccessCapability.OPEN_DAY) != true ->
                             "Supervisor diperlukan untuk membuka business day"
-                        else -> null
+                        else -> operationalSnapshot.salesHomeBlocker
                     },
-                    businessDayLabel = businessDay?.id,
-                    shiftLabel = activeShift?.id,
+                    businessDayLabel = operationalSnapshot.businessDayId,
+                    shiftLabel = operationalSnapshot.shiftId,
                     openingCashInput = it.operations.openingCashInput,
-                    closingCashInput = it.operations.closingCashInput
+                    closingCashInput = it.operations.closingCashInput,
+                    openingCashReason = it.operations.openingCashReason,
+                    dashboard = operationalSnapshot
                 ),
                 catalog = it.catalog.copy(
                     products = products,
@@ -620,7 +652,8 @@ data class DesktopShellState(
     val operatorName: String? = null,
     val roleLabel: String? = null,
     val dayStatus: String = "CLOSED",
-    val shiftStatus: String = "LOCKED"
+    val shiftStatus: String = "LOCKED",
+    val nextActionLabel: String? = null
 )
 
 data class BootstrapState(
@@ -659,8 +692,18 @@ data class OperationsState(
     val blockingMessage: String? = null,
     val businessDayLabel: String? = null,
     val shiftLabel: String? = null,
-    val openingCashInput: String = "0.00",
-    val closingCashInput: String = "0.00"
+    val openingCashInput: String = "",
+    val closingCashInput: String = "",
+    val openingCashReason: String = "",
+    val dashboard: OperationalControlSnapshot = OperationalControlSnapshot(
+        headline = "Operasional belum siap.",
+        primaryAction = null,
+        canAccessSalesHome = false,
+        salesHomeBlocker = "Login operator diperlukan.",
+        businessDayId = null,
+        shiftId = null,
+        decisions = emptyList()
+    )
 )
 
 data class DesktopCatalogState(
@@ -704,3 +747,9 @@ data class UiBanner(
     val tone: UiTone,
     val message: String
 )
+
+private fun OperationType.toUiLabel(): String = when (this) {
+    OperationType.OPEN_BUSINESS_DAY -> "Buka Business Day"
+    OperationType.START_SHIFT -> "Buka Shift"
+    OperationType.VOID_SALE -> "Review Void"
+}

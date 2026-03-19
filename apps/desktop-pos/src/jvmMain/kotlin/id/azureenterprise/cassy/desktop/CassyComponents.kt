@@ -264,13 +264,16 @@ fun CassyTopBar(
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = " • ${state.terminalName ?: "T01"}",
+                    text = " | ${state.terminalName ?: "T01"}",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                 )
             }
 
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                state.nextActionLabel?.let {
+                    StatusIndicator(label = "Next", status = it, tone = UiTone.Info)
+                }
                 StatusIndicator(label = "Sync", status = syncStatus, tone = if (syncStatus == "Online") UiTone.Success else UiTone.Warning)
                 StatusIndicator(label = "Print", status = hardware.printer.label, tone = hardwareTone(hardware.printer.status))
                 StatusIndicator(label = "Scan", status = hardware.scanner.label, tone = hardwareTone(hardware.scanner.status))

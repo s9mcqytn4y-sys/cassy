@@ -1,4 +1,4 @@
-# Cassy Known Repo Gaps (Updated 2026-03-20)
+# Cassy Known Repo Gaps (Updated 2026-03-19)
 
 ## Risks that must stay visible
 
@@ -8,6 +8,8 @@
 - **Sync/Reporting**: Migration replay, sync visibility, dan reporting penuh masih di luar cakupan foundation saat ini.
 - **Android Checkout Lane**: Checkout finality dibuktikan di desktop-first lane; Android tetap parity/business-semantics lane dan belum menjadi owner UX finality.
 - **Cross-Context Atomicity**: Finalisasi kini punya bundle durable + replay test sehingga operator tidak melihat sale final sebelum `inventory` dan intent `kernel` selesai. Namun ini tetap bukan satu transaksi ACID fisik lintas tiga database.
+- **Void Execution**: Dashboard readiness untuk void sudah jujur, tetapi resolver execution lintas sales/cashflow/inventory/reporting belum dibuka.
+- **Approval Lane Depth**: Opening cash approval saat ini masih light approval berbasis operator supervisor/owner aktif + alasan text.
 
 ## Gaps recently reduced (Hardened)
 
@@ -23,3 +25,4 @@
 - **Hardware Honesty**: Desktop tidak lagi menampilkan printer siap palsu; status printer/scanner/cash drawer kini lewat hardware port yang bisa di-fake di test tanpa device fisik.
 - **R1 / M6 Finalization Bundle**: `shared:sales` kini menyimpan bundle finalisasi durable, lalu crash/replay tests membuktikan recovery setelah gagal di sela inventory dan kernel tanpa efek ganda.
 - **R1 / M6 Desktop Cashier Flow**: Desktop kini memakai quote tunai dari service, preview struk final dari snapshot persisted, status print yang terlihat, tombol batal draft, dan reprint dari source final yang sama.
+- **R2 / Block 1 Operational Control**: Desktop kini memakai control tower/readiness snapshot dari `shared:kernel`, approval policy opening cash, outbox event open/close day dan shift, serta cleanup orphan UI lama di `:shared`.

@@ -6,7 +6,9 @@ import id.azureenterprise.cassy.kernel.data.OutboxRepository
 import id.azureenterprise.cassy.kernel.data.KernelRepository
 import id.azureenterprise.cassy.kernel.application.AccessService
 import id.azureenterprise.cassy.kernel.application.BusinessDayService
+import id.azureenterprise.cassy.kernel.application.OperationalControlService
 import id.azureenterprise.cassy.kernel.application.ShiftService
+import id.azureenterprise.cassy.kernel.domain.OpeningCashPolicy
 import id.azureenterprise.cassy.kernel.domain.PinHasher
 import kotlinx.datetime.Clock
 import kotlin.coroutines.CoroutineContext
@@ -19,8 +21,10 @@ val kernelModule = module {
     single { OutboxRepository(get(), get(), get()) }
     single { KernelRepository(get(), get(), get()) }
     single { AccessService(get(), get(), get()) }
+    single { OpeningCashPolicy() }
     single { BusinessDayService(get(), get()) }
-    single { ShiftService(get(), get()) }
+    single { ShiftService(get(), get(), get()) }
+    single { OperationalControlService(get(), get(), get()) }
 }
 
 expect val databaseModule: Module

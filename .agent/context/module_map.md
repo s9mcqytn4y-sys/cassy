@@ -3,9 +3,9 @@
 ## Runtime-visible topology
 
 - `apps/android-pos`: Android parity lane
-- `apps/desktop-pos`: desktop cashier shell dan primary release lane
-- `shared`: legacy UI/DI bridge yang masih perlu disusutkan
-- `shared:kernel`: access, terminal binding, business day, shift, audit kernel
+- `apps/desktop-pos`: desktop cashier shell, control tower, dan primary release lane
+- `shared`: legacy aggregator/DI bridge yang terus disusutkan
+- `shared:kernel`: access, terminal binding, business day, shift, approval/readiness, audit kernel
 - `shared:masterdata`: product catalog, lookup, barcode contract
 - `shared:sales`: cart state, checkout finality, payment state, receipt snapshot, readback source
 - `shared:inventory`: stock ownership baseline, ledger/balance writer, inventory application boundary
@@ -23,3 +23,4 @@
 - Android mengikuti business semantics, bukan memimpin scope.
 - Inventory tetap owner mutasi stok; sales tidak boleh menulis ledger/balance langsung.
 - Finality transaksi R1/M6 hidup di `shared:sales`; `apps:desktop-pos` hanya menjadi execution lane utama.
+- Control tower operasional R2 Block 1 hidup di `shared:kernel` dan dipresentasikan oleh desktop.

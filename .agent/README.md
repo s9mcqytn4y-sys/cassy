@@ -1,9 +1,14 @@
-# Cassy AI Context README (Hardened UI/UX Focus)
+# Cassy AI Context README
 
 ## Purpose
 This folder is the source-of-truth for Cassy's operational rules and architectural guardrails.
 
-## UI/UX Hardening Protocol (Phase 0-3 DONE)
+## Current Truth
+- Desktop-first retail operating core.
+- R1 desktop cashier finality sudah hidup dan diverifikasi.
+- R2 Block 1 operational foundation sudah menambah control tower, open day, start shift, opening cash policy, dan readiness truth.
+
+## UI/UX Hardening Protocol
 1. **Screen Fit**: Standard application start is Maximized (`rememberWindowState`).
 2. **Auto-Feedback**: All `UiBanner` (toasts) MUST auto-dismiss after 3000ms.
 3. **Safety Gates**: Critical actions (End Shift, Close Day) MUST use `CassySafetyDialog` with human-readable warnings.
@@ -11,6 +16,7 @@ This folder is the source-of-truth for Cassy's operational rules and architectur
    - `F1/F5`: Sync/Refresh.
    - `F11/F12`: End Shift / Close Day.
    - `NumPadEnter`: Fast submit for currency inputs.
+   - shortcut nominal diprioritaskan untuk opening cash dan lane tunai yang throughput-sensitive.
 5. **Terminology**: Avoid engineering jargon.
    - Use "ID Terminal" instead of "Node ID".
    - Use "Buka Kasir" instead of "Start Shift".

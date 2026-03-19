@@ -16,6 +16,8 @@
 
 - user tidak boleh masuk catalog/cart tanpa access context valid
 - cart tidak boleh berjalan tanpa business day dan shift aktif
+- dashboard harus menunjukkan blocker/readiness secara eksplisit sebelum operator masuk ke lane kasir
+- opening cash di luar kebijakan harus ditahan oleh approval requirement yang jujur
 - PIN validation, lockout baseline, dan capability gate harus hidup di shared boundary
 - pricing, subtotal, tax, dan discount baseline harus konsisten lintas platform
 - validitas settlement tidak boleh bergantung pada printer side effect

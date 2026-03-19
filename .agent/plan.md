@@ -1,12 +1,13 @@
-# Cassy Rolling Execution Plan (Updated: R1 / M6 Finalization Flow Hardening)
+# Cassy Rolling Execution Plan (Updated: R2 Block 1 Operational Foundation)
 
-## Current Default Focus: R1 / M6 Cashier Core Finality
-Closing transaction truth from checkout to persisted receipt snapshot on the desktop-first lane.
-- **Phase 1 (DONE):** Scope lock and owner boundary for sales finality.
-- **Phase 2 (DONE):** Typed finality contract for payment state, sale completion, readback, and print separation.
-- **Phase 3 (DONE):** Persistence hardening for sales schema, migration, FK behavior, and fresh-install/upgrade-path verification.
-- **Phase 4 (DONE with atomicity caveat):** Complete-sale facade, payment gateway stub, callback/idempotency guard, and honest desktop hardware status.
-- **Phase 5 (DONE for desktop-first lane):** Durable finalization bundle with crash/replay proof, cashier preview/print/reprint/readback flow, cash tender helper, draft cancellation, and visible print status.
+## Current Default Focus: R2 Block 1 Operational Foundation
+- **DONE:** R1 re-verification refresh.
+- **DONE:** owner boundary refresh untuk business day / shift / approval / readiness.
+- **DONE:** control tower snapshot di `shared:kernel`.
+- **DONE:** open business day hardening + audit/outbox event.
+- **DONE:** start shift hardening + opening cash policy + light approval gate.
+- **DONE:** cleanup orphan legacy UI/DI di `:shared`.
+- **NEXT:** cash in/out, close day one-shift flow, approval depth, dan void execution truth.
 
 ## Current Status Posture
 - M0 - M5: **DONE & STABLE**
@@ -14,6 +15,7 @@ Closing transaction truth from checkout to persisted receipt snapshot on the des
 - R1 / M6 Persistence Hardening: **DONE**
 - R1 / M6 Finalization Flow Hardening: **DONE for desktop-first lane**
 - M6 (Checkout & Receipt Finality): **DONE for desktop-first lane**
+- R2 Block 1 Operational Foundation: **DONE for desktop-first lane**
 - Operational atomicity at persistence boundary: **PROVEN via durable bundle + replay tests**
 - Single ACID transaction across `sales` + `inventory` + `kernel`: **NOT CLAIMED**
 

@@ -112,6 +112,7 @@ fun CassyCatalogView(
 @Composable
 fun CassyCartPanel(
     state: DesktopCatalogState,
+    operations: OperationsState,
     closingCashInput: String,
     onClosingCashChanged: (String) -> Unit,
     onCashReceivedChanged: (String) -> Unit,
@@ -132,6 +133,8 @@ fun CassyCartPanel(
     ) {
         Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
             Text("Ringkasan Pesanan", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(16.dp))
+            OperationalDashboardCard(operations.dashboard)
             Spacer(modifier = Modifier.height(16.dp))
 
             if (state.basket.items.isEmpty()) {
@@ -292,7 +295,7 @@ fun CassyCartPanel(
                 Text("Riwayat Final", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                 state.recentSales.take(3).forEach { entry ->
                     Text(
-                        text = "${entry.localNumber} • ${entry.paymentMethod} • Rp ${entry.finalAmount.toInt()}",
+                        text = "${entry.localNumber} | ${entry.paymentMethod} | Rp ${entry.finalAmount.toInt()}",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                     )

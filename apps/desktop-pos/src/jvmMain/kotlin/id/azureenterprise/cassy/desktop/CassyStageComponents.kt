@@ -4,17 +4,25 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import id.azureenterprise.cassy.kernel.domain.OperationDecision
+import id.azureenterprise.cassy.kernel.domain.OperationStatus
+import id.azureenterprise.cassy.kernel.domain.OperationType
+import id.azureenterprise.cassy.kernel.domain.OperationalControlSnapshot
 
 @Composable
 fun LoadingStage() {
@@ -126,15 +134,18 @@ fun OpenDayStage(
 ) {
     CenterPanel(
         title = "Hari Bisnis Belum Dibuka",
-        subtitle = state.operations.blockingMessage ?: "Tekan tombol di bawah untuk membuka operasional toko hari ini.",
+        subtitle = state.operations.dashboard.headline,
         action = {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                if (state.operations.canOpenDay) {
-                    Button(onClick = onOpenDay, enabled = !state.isBusy, modifier = Modifier.height(48.dp)) {
-                        Text(if (state.isBusy) "Memproses..." else "Buka Hari Bisnis")
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                OperationalDashboardCard(state.operations.dashboard)
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (state.operations.canOpenDay) {
+                        Button(onClick = onOpenDay, enabled = !state.isBusy, modifier = Modifier.height(48.dp)) {
+                            Text(if (state.isBusy) "Memproses..." else "Buka Hari Bisnis")
+                        }
+                    } else {
+                        OutlinedButton(onClick = onLogout, modifier = Modifier.height(48.dp)) { Text("Ganti Operator") }
                     }
-                } else {
-                    OutlinedButton(onClick = onLogout, modifier = Modifier.height(48.dp)) { Text("Ganti Operator") }
                 }
             }
         }
@@ -145,13 +156,20 @@ fun OpenDayStage(
 fun StartShiftStage(
     state: DesktopAppState,
     onOpeningCashChanged: (String) -> Unit,
+    onOpeningCashReasonChanged: (String) -> Unit,
+    onShortcutSelected: (String) -> Unit,
     onStartShift: () -> Unit
 ) {
     CenterPanel(
         title = "Buka Kasir",
-        subtitle = "Masukkan saldo kas awal (Modal Awal) sebelum memulai transaksi.",
+        subtitle = state.operations.dashboard.headline,
         action = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                OperationalDashboardCard(state.operations.dashboard)
+                ShortcutNominalRow(
+                    values = listOf("100000", "200000", "500000", "1000000"),
+                    onShortcutSelected = onShortcutSelected
+                )
                 CassyCurrencyInput(
                     label = "Modal Awal Tunai",
                     value = state.operations.openingCashInput,
@@ -159,6 +177,11 @@ fun StartShiftStage(
                     helperText = "Jumlah uang tunai yang ada di laci kas saat ini.",
                     onImeAction = onStartShift
                 )
+                FormField(
+                    label = "Alasan / Catatan Operasional",
+                    value = state.operations.openingCashReason,
+                    helperText = "Wajib diisi bila opening cash di luar kebijakan."
+                ) { onOpeningCashReasonChanged(it) }
                 state.operations.blockingMessage?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 Button(onClick = onStartShift, enabled = !state.isBusy, modifier = Modifier.fillMaxWidth().height(48.dp)) {
                     Text(if (state.isBusy) "Memulai..." else "Buka Kasir")
@@ -166,6 +189,116 @@ fun StartShiftStage(
             }
         }
     )
+}
+
+@Composable
+fun OperationalDashboardCard(
+    snapshot: OperationalControlSnapshot,
+    modifier: Modifier = Modifier
+) {
+    ElevatedCard(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text("Control Tower", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(snapshot.headline, style = MaterialTheme.typography.bodyMedium)
+            snapshot.salesHomeBlocker?.let {
+                Text(
+                    text = "Status kasir: $it",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                snapshot.decisions.forEach { decision ->
+                    OperationDecisionRow(decision)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OperationDecisionRow(decision: OperationDecision) {
+    val tone = when (decision.status) {
+        OperationStatus.READY -> UiTone.Success
+        OperationStatus.COMPLETED -> UiTone.Info
+        OperationStatus.REQUIRES_APPROVAL -> UiTone.Warning
+        OperationStatus.BLOCKED,
+        OperationStatus.UNAVAILABLE -> UiTone.Danger
+    }
+    val icon = when (decision.status) {
+        OperationStatus.READY,
+        OperationStatus.COMPLETED -> Icons.Default.CheckCircle
+        OperationStatus.REQUIRES_APPROVAL -> Icons.Default.Warning
+        OperationStatus.BLOCKED,
+        OperationStatus.UNAVAILABLE -> Icons.Default.Lock
+    }
+    Surface(
+        color = toneColor(tone).copy(alpha = 0.08f),
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OperationDecisionIcon(icon, tone)
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(decision.title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                Text(decision.message, style = MaterialTheme.typography.bodySmall)
+            }
+            Text(
+                text = decision.actionLabel ?: decision.type.toShortLabel(),
+                style = MaterialTheme.typography.labelSmall,
+                color = toneColor(tone)
+            )
+        }
+    }
+}
+
+@Composable
+private fun OperationDecisionIcon(icon: ImageVector, tone: UiTone) {
+    Icon(
+        imageVector = icon,
+        contentDescription = null,
+        tint = toneColor(tone)
+    )
+}
+
+@Composable
+private fun ShortcutNominalRow(
+    values: List<String>,
+    onShortcutSelected: (String) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Shortcut nominal", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            values.take(2).forEach { value ->
+                OutlinedButton(
+                    onClick = { onShortcutSelected(value) },
+                    modifier = Modifier.weight(1f).height(40.dp)
+                ) {
+                    Text(value.toShortcutLabel())
+                }
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            values.drop(2).forEach { value ->
+                OutlinedButton(
+                    onClick = { onShortcutSelected(value) },
+                    modifier = Modifier.weight(1f).height(40.dp)
+                ) {
+                    Text(value.toShortcutLabel())
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -235,4 +368,18 @@ fun BannerCard(banner: UiBanner, onDismiss: () -> Unit) {
             IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, contentDescription = "Close") }
         }
     }
+}
+
+private fun OperationType.toShortLabel(): String = when (this) {
+    OperationType.OPEN_BUSINESS_DAY -> "Open Day"
+    OperationType.START_SHIFT -> "Start Shift"
+    OperationType.VOID_SALE -> "Void"
+}
+
+private fun String.toShortcutLabel(): String = when (this) {
+    "100000" -> "Rp 100rb"
+    "200000" -> "Rp 200rb"
+    "500000" -> "Rp 500rb"
+    "1000000" -> "Rp 1jt"
+    else -> "Rp $this"
 }

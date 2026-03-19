@@ -15,7 +15,8 @@ class FakeKernelRepository : id.azureenterprise.cassy.kernel.data.KernelReposito
     private var activeSession: AccessSession? = null
     private var activeBusinessDay: BusinessDay? = null
     private val shifts = mutableMapOf<String, Shift>()
-    private val audits = mutableListOf<String>()
+    val audits = mutableListOf<String>()
+    val events = mutableListOf<String>()
 
     override suspend fun isBusinessDayOpen(): Boolean = activeBusinessDay?.status == "OPEN"
     override suspend fun getTerminalBinding(): TerminalBinding? = terminalBinding
@@ -54,4 +55,7 @@ class FakeKernelRepository : id.azureenterprise.cassy.kernel.data.KernelReposito
         return shift
     }
     override suspend fun insertAudit(id: String, message: String, level: String) { audits.add(message) }
+    override suspend fun insertEvent(id: String, type: String, payload: String) {
+        events.add("$type|$payload")
+    }
 }

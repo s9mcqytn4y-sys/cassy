@@ -36,6 +36,8 @@ class BusinessDayServiceTest {
         assertTrue(result.isSuccess)
         assertTrue(service.isOpen())
         assertNotNull(service.getActiveBusinessDay())
+        assertTrue(fakeRepo.audits.any { it.contains("dibuka oleh") })
+        assertTrue(fakeRepo.events.any { it.contains("BUSINESS_DAY_OPENED") })
     }
 
     @Test
@@ -56,5 +58,27 @@ class BusinessDayServiceTest {
         val result = service.closeCurrentDay()
         assertTrue(result.isSuccess)
         assertFalse(service.isOpen())
+        assertTrue(fakeRepo.events.any { it.contains("BUSINESS_DAY_CLOSED") })
+    }
+
+    @Test
+    fun `evaluate open day blocks cashier and allows supervisor`() = runTest {
+        accessService.bootstrapStore(
+            BootstrapStoreRequest("S1", "T1", "Kasir", "111111", "Sup", "222222")
+        )
+        val cashier = accessService.restoreContext().operators.find { it.role == OperatorRole.CASHIER }!!
+        accessService.login(cashier.id, "111111")
+
+        val cashierDecision = service.evaluateOpenDay()
+
+        assertTrue(cashierDecision.message.contains("Supervisor"))
+
+        accessService.logout()
+        val supervisor = accessService.restoreContext().operators.find { it.role == OperatorRole.SUPERVISOR }!!
+        accessService.login(supervisor.id, "222222")
+        val supervisorDecision = service.evaluateOpenDay()
+
+        assertEquals("Buka Business Day", supervisorDecision.title)
+        assertEquals("Buka Business Day", supervisorDecision.actionLabel)
     }
 }

@@ -20,8 +20,6 @@ class KoinVerifyTest : KoinTest {
     @OptIn(KoinExperimentalAPI::class)
     @Test
     fun verifyKoinModules() {
-        // We verify the aggregation of all modules.
-        // Verifying them together ensures cross-module dependencies are satisfied.
         module {
             includes(
                 kernelModule,
@@ -32,8 +30,7 @@ class KoinVerifyTest : KoinTest {
                 salesDatabaseModule,
                 salesPlatformModule,
                 inventoryModule,
-                inventoryDatabaseModule,
-                catalogModule
+                inventoryDatabaseModule
             )
         }.verify()
     }

@@ -12,24 +12,19 @@ import id.azureenterprise.cassy.sales.di.salesPlatformModule
 import id.azureenterprise.cassy.inventory.di.inventoryModule
 import id.azureenterprise.cassy.inventory.di.inventoryDatabaseModule
 
-/**
- * Main entry point for Koin DI.
- * Aggregates all feature modules and kernel infrastructure.
- */
 fun initKoin(appDeclaration: KoinAppDeclaration = {}) =
     startKoin {
         appDeclaration()
         modules(
-            kernelModule,            // Infrastructure (Dispatchers, Clock, Outbox)
-            databaseModule,          // Kernel Database (Audit, Outbox, Day/Shift)
-            masterDataModule,        // Product & Metadata
-            masterDataDatabaseModule, // Product DB
-            salesModule,             // Transaction & Pricing
-            salesDatabaseModule,      // Sales DB
-            salesPlatformModule,      // Sales -> Kernel bridge
-            inventoryModule,         // Inventory Domain & Data
-            inventoryDatabaseModule, // Inventory DB
-            catalogModule            // Presentation & ViewModels
+            kernelModule,
+            databaseModule,
+            masterDataModule,
+            masterDataDatabaseModule,
+            salesModule,
+            salesDatabaseModule,
+            salesPlatformModule,
+            inventoryModule,
+            inventoryDatabaseModule
         )
     }
 

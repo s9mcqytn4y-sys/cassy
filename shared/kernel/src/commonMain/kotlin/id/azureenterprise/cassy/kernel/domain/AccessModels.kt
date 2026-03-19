@@ -13,6 +13,7 @@ enum class AccessCapability {
     CLOSE_DAY,
     START_SHIFT,
     END_SHIFT,
+    APPROVE_OPENING_CASH_EXCEPTION,
     ACCESS_CATALOG
 }
 

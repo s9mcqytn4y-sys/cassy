@@ -1,8 +1,10 @@
 # Cassy Roadmap Execution Bridge
 
+Updated: 2026-03-19
+
 Dokumen ini adalah bridge antara roadmap PDF, context agent, dan repo reality. Repo diperlakukan sebagai implementation snapshot; status milestone hanya boleh naik bila ada evidence kode, test, dan verifikasi yang nyata.
 
-## Status Ringkas per 2026-03-20
+## Status Ringkas
 
 | ID | Milestone | Status Repo Jujur | Evidence Utama | Catatan |
 |:---|:---|:---|:---|:---|
@@ -16,27 +18,28 @@ Dokumen ini adalah bridge antara roadmap PDF, context agent, dan repo reality. R
 | M7 | Inventory Basic | **DONE (THIN)** | `InventoryService`, `recordSaleCompletion` | Integrasi transaksi stok otomatis saat checkout baseline sudah aktif. |
 | M8 | Reporting Dasar | **PENDING** | - | Belum ada implementasi runtime atau UI reporting. |
 | M9 | Sync Visibility | **PENDING** | outbox/infra parsial | Replay mechanism dan sync state visibility belum di-close. |
-| M10 | Release (Windows) | **FOUNDATION-OK** | `packageExe` task, Manual Evidence Pack | Installer lokal tervalidasi manual, menunggu stabilisasi CI hosted runner. |
+| M10 | Release (Windows) | **FOUNDATION-OK** | `smokeRun`, hosted `Mainline Evidence`, manual evidence pack | Source/runtime smoke terbukti; install/uninstall installer masih manual-soft-blocker. |
+| R2-B1 | Operational Control Foundation | **DONE (FOUNDATION SLICE)** | `OperationalControlService`, `BusinessDayService`, `ShiftService`, `DesktopAppController` | Control tower, open day, shift gating, opening cash approval, dan legacy orphan cleanup sudah hidup di desktop-first lane. |
 
 ## Bukti Verifikasi (Evidence Matrix)
 
 ### 1. Local Evidence (Unit/Integration Tests)
-- `.\gradlew :shared:kernel:desktopTest` -> Lifecycle Shift & Access (PASSED)
-- `.\gradlew :shared:sales:commonTest` -> Cart Logic & Persistence (PASSED)
-- `.\gradlew :shared:inventory:commonTest` -> Stock Transaction Invariants (PASSED)
+- `.\gradlew :shared:kernel:allTests` -> Access, business day, shift, approval policy, dashboard readiness (PASSED)
+- `.\gradlew :shared:sales:desktopTest` -> Cart logic, receipt snapshot, failure path, retry/idempotency, replay (PASSED)
+- `.\gradlew :shared:inventory:desktopTest` -> Stock transaction invariants (PASSED)
+- `.\gradlew :apps:desktop-pos:test` -> Desktop cashier + operational control lane (PASSED)
 
-### 2. Manual Evidence (Smoke Test)
-- **Windows Installer:** `Cassy-0.1.0.exe` berhasil install/uninstall dan launch (Lihat `docs/execution/windows_installer_smoke_checklist.md`).
-- **Product Lookup:** Barcode entry di UI Desktop berhasil menarik data `shared:masterdata`.
-- **Basket Persistence:** Menutup aplikasi saat basket terisi, lalu membukanya kembali: basket ter-restore otomatis (M5 baseline).
+### 2. Manual / Local Smoke Evidence
+- `.\gradlew :apps:desktop-pos:smokeRun` -> PASS
+- Source smoke dan distribution smoke repo-local sudah ada.
+- **Installer install/uninstall** masih belum boleh diklaim PASS sebelum checklist manual di `docs/execution/windows_installer_smoke_checklist.md` dijalankan.
 
 ### 3. Hosted Evidence (CI/CD)
 - Hosted evidence harus dibuktikan dari run remote yang benar-benar selesai.
 - Status hosted run tidak boleh diangkat dari verifikasi lokal saja.
 
-## Milestone Berikutnya: Post-R1 Hardening
-**Target:** Menutup area di luar kontrak minimum R1 tanpa merusak desktop cashier lane.
-- hardening bundle lebih lanjut hanya bila ingin satu coordinator lintas context yang lebih luas dari R1
-- hosted installer evidence yang repeatable
-- Android parity follow-up tanpa memindahkan ownership ke `:shared`
-- pembuktian atomicity lintas `sales` / `inventory` / `kernel` bila memang ingin diklaim ACID penuh
+## Next Truthful Focus
+- `cash in/out`
+- `close day` / one-shift close scenario
+- approval lane yang lebih eksplisit
+- void execution resolver lintas sales/cashflow/inventory/reporting bila memang sudah siap dibuka

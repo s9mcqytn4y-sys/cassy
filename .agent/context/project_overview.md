@@ -1,4 +1,4 @@
-# Cassy Project Overview (Updated 2026-03-20)
+# Cassy Project Overview (Updated 2026-03-19)
 
 ## Product Shape & Business Context
 Cassy adalah **Desktop-First Retail Operating Core** yang dirancang khusus untuk **Single-Outlet Retail**.
@@ -29,4 +29,8 @@ Cassy adalah **Desktop-First Retail Operating Core** yang dirancang khusus untuk
 - Koin (DI).
 
 ## Strategic Bridge
-Status milestone saat ini (M2-M5 Done & Stable) diverifikasi melalui kode dan bukti manual. Lihat `docs/execution/roadmap_bridge.md` untuk rincian kepatuhan repo.
+Status milestone saat ini:
+- M2-M6 desktop-first lane: verified
+- R2 Block 1 operational foundation: verified untuk desktop-first lane
+
+Lihat `docs/execution/roadmap_bridge.md` untuk rincian kepatuhan repo.

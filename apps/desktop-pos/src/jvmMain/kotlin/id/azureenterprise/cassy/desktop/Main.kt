@@ -96,6 +96,8 @@ fun main(args: Array<String>) {
                                         DesktopStage.StartShift -> StartShiftStage(
                                             state = state,
                                             onOpeningCashChanged = controller::updateOpeningCashInput,
+                                            onOpeningCashReasonChanged = controller::updateOpeningCashReasonInput,
+                                            onShortcutSelected = controller::updateOpeningCashInput,
                                             onStartShift = { scope.launch { controller.startShift() } }
                                         )
                                         DesktopStage.Catalog -> {
@@ -110,6 +112,7 @@ fun main(args: Array<String>) {
                                                 )
                                                 CassyCartPanel(
                                                     state = state.catalog,
+                                                    operations = state.operations,
                                                     closingCashInput = state.operations.closingCashInput,
                                                     onClosingCashChanged = controller::updateClosingCashInput,
                                                     onCashReceivedChanged = controller::updateCashReceivedInput,

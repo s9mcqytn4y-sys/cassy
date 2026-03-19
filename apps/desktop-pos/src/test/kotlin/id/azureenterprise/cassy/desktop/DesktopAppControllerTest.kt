@@ -6,6 +6,7 @@ import id.azureenterprise.cassy.inventory.data.InventoryRepository
 import id.azureenterprise.cassy.inventory.db.InventoryDatabase
 import id.azureenterprise.cassy.kernel.application.AccessService
 import id.azureenterprise.cassy.kernel.application.BusinessDayService
+import id.azureenterprise.cassy.kernel.application.OperationalControlService
 import id.azureenterprise.cassy.kernel.application.ShiftService
 import id.azureenterprise.cassy.kernel.data.KernelRepository
 import id.azureenterprise.cassy.kernel.db.KernelDatabase
@@ -137,7 +138,102 @@ class DesktopAppControllerTest {
             // Negative amount
             controller.updateOpeningCashInput("-50.0")
             controller.startShift()
-            assertEquals("Opening cash tidak boleh negatif", controller.state.value.banner?.message)
+            assertEquals("Opening cash tidak boleh negatif.", controller.state.value.banner?.message)
+        }
+    }
+
+    @Test
+    fun `dashboard blocks cashier until business day and shift are ready`() {
+        runBlocking {
+            val fixture = desktopFixture()
+            val controller = fixture.newController()
+
+            controller.load()
+            controller.updateBootstrapField(BootstrapField.StoreName, "Store")
+            controller.updateBootstrapField(BootstrapField.TerminalName, "T1")
+            controller.updateBootstrapField(BootstrapField.CashierName, "C1")
+            controller.updateBootstrapField(BootstrapField.CashierPin, "111111")
+            controller.updateBootstrapField(BootstrapField.SupervisorName, "S1")
+            controller.updateBootstrapField(BootstrapField.SupervisorPin, "222222")
+            controller.bootstrapStore()
+            controller.selectOperator(controller.state.value.login.operators.first { it.roleLabel == "CASHIER" }.id)
+            controller.updatePin("111111")
+            controller.login()
+
+            assertEquals(DesktopStage.OpenDay, controller.state.value.stage)
+            assertEquals("Buka Business Day", controller.state.value.shell.nextActionLabel)
+            assertTrue(
+                controller.state.value.operations.dashboard.salesHomeBlocker
+                    ?.contains("Business day harus aktif") == true
+            )
+        }
+    }
+
+    @Test
+    fun `cashier out of policy opening cash is blocked until supervisor approval lane takes over`() {
+        runBlocking {
+            val fixture = desktopFixture()
+            val controller = fixture.newController()
+
+            controller.load()
+            controller.updateBootstrapField(BootstrapField.StoreName, "Store")
+            controller.updateBootstrapField(BootstrapField.TerminalName, "T1")
+            controller.updateBootstrapField(BootstrapField.CashierName, "C1")
+            controller.updateBootstrapField(BootstrapField.CashierPin, "111111")
+            controller.updateBootstrapField(BootstrapField.SupervisorName, "S1")
+            controller.updateBootstrapField(BootstrapField.SupervisorPin, "222222")
+            controller.bootstrapStore()
+            controller.selectOperator(controller.state.value.login.operators.first { it.roleLabel == "SUPERVISOR" }.id)
+            controller.updatePin("222222")
+            controller.login()
+            controller.openBusinessDay()
+            controller.logout()
+            controller.selectOperator(controller.state.value.login.operators.first { it.roleLabel == "CASHIER" }.id)
+            controller.updatePin("111111")
+            controller.login()
+
+            controller.updateOpeningCashInput("750000")
+            controller.updateOpeningCashReasonInput("Butuh pecahan pembukaan")
+            controller.startShift()
+
+            assertEquals(DesktopStage.StartShift, controller.state.value.stage)
+            assertEquals(
+                "Opening cash di atas batas kasir. Login supervisor/owner untuk menyetujui.",
+                controller.state.value.banner?.message
+            )
+        }
+    }
+
+    @Test
+    fun `supervisor can start shift with approval reason when opening cash is out of policy`() {
+        runBlocking {
+            val fixture = desktopFixture()
+            val controller = fixture.newController()
+
+            controller.load()
+            controller.updateBootstrapField(BootstrapField.StoreName, "Store")
+            controller.updateBootstrapField(BootstrapField.TerminalName, "T1")
+            controller.updateBootstrapField(BootstrapField.CashierName, "C1")
+            controller.updateBootstrapField(BootstrapField.CashierPin, "111111")
+            controller.updateBootstrapField(BootstrapField.SupervisorName, "S1")
+            controller.updateBootstrapField(BootstrapField.SupervisorPin, "222222")
+            controller.bootstrapStore()
+            controller.selectOperator(controller.state.value.login.operators.first { it.roleLabel == "SUPERVISOR" }.id)
+            controller.updatePin("222222")
+            controller.login()
+            controller.openBusinessDay()
+
+            controller.updateOpeningCashInput("750000")
+            controller.updateOpeningCashReasonInput("Hari ramai, butuh pecahan tambahan")
+            controller.startShift()
+
+            assertEquals(DesktopStage.Catalog, controller.state.value.stage)
+            assertEquals(
+                "Shift aktif sudah ada di terminal ini.",
+                controller.state.value.operations.dashboard.decisions
+                    .first { it.type.name == "START_SHIFT" }
+                    .message
+            )
         }
     }
 
@@ -299,6 +395,7 @@ class DesktopAppControllerTest {
         val accessService = AccessService(kernelRepository, PinHasher(), Clock.System)
         val businessDayService = BusinessDayService(kernelRepository, accessService)
         val shiftService = ShiftService(kernelRepository, accessService)
+        val operationalControlService = OperationalControlService(accessService, businessDayService, shiftService)
         val productRepository = ProductRepository(MasterDataDatabase(masterDataDriver), EmptyCoroutineContext)
         val productLookupUseCase = ProductLookupUseCase(
             ProductLookupRepositoryImpl(MasterDataDatabase(masterDataDriver), EmptyCoroutineContext),
@@ -324,6 +421,7 @@ class DesktopAppControllerTest {
             accessService = accessService,
             businessDayService = businessDayService,
             shiftService = shiftService,
+            operationalControlService = operationalControlService,
             productRepository = productRepository,
             productLookupUseCase = productLookupUseCase,
             salesService = salesService,
@@ -336,6 +434,7 @@ private data class DesktopFixture(
     val accessService: AccessService,
     val businessDayService: BusinessDayService,
     val shiftService: ShiftService,
+    val operationalControlService: OperationalControlService,
     val productRepository: ProductRepository,
     val productLookupUseCase: ProductLookupUseCase,
     val salesService: SalesService,
@@ -345,6 +444,7 @@ private data class DesktopFixture(
         accessService = accessService,
         businessDayService = businessDayService,
         shiftService = shiftService,
+        operationalControlService = operationalControlService,
         productRepository = productRepository,
         productLookupUseCase = productLookupUseCase,
         salesService = salesService,
