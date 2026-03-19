@@ -7,6 +7,7 @@ import id.azureenterprise.cassy.sales.domain.FinalizationBundleState
 import id.azureenterprise.cassy.sales.domain.FinalizationInventoryLine
 import id.azureenterprise.cassy.sales.domain.Payment
 import id.azureenterprise.cassy.sales.domain.PaymentState
+import id.azureenterprise.cassy.sales.domain.PaymentStatus
 import id.azureenterprise.cassy.sales.domain.PendingSaleReadback
 import id.azureenterprise.cassy.sales.domain.PreparedSaleFinalizationBundle
 import id.azureenterprise.cassy.sales.domain.PersistedSaleItem
@@ -14,6 +15,8 @@ import id.azureenterprise.cassy.sales.domain.PersistedReceiptSnapshot
 import id.azureenterprise.cassy.sales.domain.ReceiptSnapshotDocument
 import id.azureenterprise.cassy.sales.domain.SaleStatus
 import id.azureenterprise.cassy.sales.domain.SaleHistoryEntry
+import id.azureenterprise.cassy.kernel.domain.PendingTransactionSummary
+import id.azureenterprise.cassy.kernel.domain.ShiftSalesSummary
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
 import kotlinx.datetime.Clock
@@ -331,6 +334,26 @@ class SalesRepository(
                 paymentState = receipt.payment.state
             )
         }
+    }
+
+    suspend fun getShiftSalesSummary(shiftId: String): ShiftSalesSummary = withContext(ioDispatcher) {
+        val pendingTransactions = queries.listPendingSalesByShift(shiftId).executeAsList().map {
+            PendingTransactionSummary(
+                saleId = it.id,
+                localNumber = it.localNumber,
+                amount = it.finalAmount
+            )
+        }
+        val paymentRows = queries.getShiftPaymentMethodSummary(shiftId).executeAsList()
+        val cashTotal = paymentRows.firstOrNull { it.method == "CASH" }?.totalAmount ?: 0.0
+        val nonCashTotal = paymentRows.filterNot { it.method == "CASH" }.sumOf { it.totalAmount }
+        val completedSaleCount = paymentRows.sumOf { it.paymentCount.toInt() }
+        ShiftSalesSummary(
+            completedCashSalesTotal = cashTotal,
+            completedNonCashSalesTotal = nonCashTotal,
+            completedSaleCount = completedSaleCount,
+            pendingTransactions = pendingTransactions
+        )
     }
 
     private inline fun <reified T : Enum<T>> enumValueOfOrNull(value: String): T? =

@@ -23,11 +23,21 @@ class OperationalControlServiceTest {
         val accessService = AccessService(repository, LocalFakePinHasher(), Clock.System)
         val businessDayService = BusinessDayService(repository, accessService)
         val shiftService = ShiftService(repository, accessService)
+        val cashControlService = CashControlService(repository, accessService)
+        val shiftClosingService = ShiftClosingService(repository, accessService, NoopOperationalSalesPort)
         return Fixture(
             accessService = accessService,
             businessDayService = businessDayService,
             shiftService = shiftService,
-            service = OperationalControlService(accessService, businessDayService, shiftService)
+            cashControlService = cashControlService,
+            shiftClosingService = shiftClosingService,
+            service = OperationalControlService(
+                accessService,
+                businessDayService,
+                shiftService,
+                cashControlService,
+                shiftClosingService
+            )
         )
     }
 
@@ -70,6 +80,8 @@ private data class Fixture(
     val accessService: AccessService,
     val businessDayService: BusinessDayService,
     val shiftService: ShiftService,
+    val cashControlService: CashControlService,
+    val shiftClosingService: ShiftClosingService,
     val service: OperationalControlService
 ) {
     suspend fun bootstrapAndLogin(role: OperatorRole) {

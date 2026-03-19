@@ -9,7 +9,8 @@
 - **Android Checkout Lane**: Checkout finality dibuktikan di desktop-first lane; Android tetap parity/business-semantics lane dan belum menjadi owner UX finality.
 - **Cross-Context Atomicity**: Finalisasi kini punya bundle durable + replay test sehingga operator tidak melihat sale final sebelum `inventory` dan intent `kernel` selesai. Namun ini tetap bukan satu transaksi ACID fisik lintas tiga database.
 - **Void Execution**: Dashboard readiness untuk void sudah jujur, tetapi resolver execution lintas sales/cashflow/inventory/reporting belum dibuka.
-- **Approval Lane Depth**: Opening cash approval saat ini masih light approval berbasis operator supervisor/owner aktif + alasan text.
+- **Approval Lane Depth**: Approval operasional kini durable untuk opening cash, cash movement, dan close shift, tetapi masih light approval berbasis operator supervisor/owner aktif + alasan text/reason code.
+- **Closing Report Export**: `ShiftCloseReport` sudah durable sebagai source-of-truth, tetapi export formal/PDF belum ada.
 
 ## Gaps recently reduced (Hardened)
 
@@ -26,3 +27,4 @@
 - **R1 / M6 Finalization Bundle**: `shared:sales` kini menyimpan bundle finalisasi durable, lalu crash/replay tests membuktikan recovery setelah gagal di sela inventory dan kernel tanpa efek ganda.
 - **R1 / M6 Desktop Cashier Flow**: Desktop kini memakai quote tunai dari service, preview struk final dari snapshot persisted, status print yang terlihat, tombol batal draft, dan reprint dari source final yang sama.
 - **R2 / Block 1 Operational Control**: Desktop kini memakai control tower/readiness snapshot dari `shared:kernel`, approval policy opening cash, outbox event open/close day dan shift, serta cleanup orphan UI lama di `:shared`.
+- **R2 / Block 2 Operational Hardening**: Desktop kini punya cash control baseline, approval inbox, close shift reconciliation, close day fail-closed review, migrasi kernel yang nyata, dan cleanup orphan dialog lama.

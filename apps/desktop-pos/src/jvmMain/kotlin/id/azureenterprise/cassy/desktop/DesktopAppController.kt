@@ -2,13 +2,21 @@ package id.azureenterprise.cassy.desktop
 
 import id.azureenterprise.cassy.kernel.application.AccessService
 import id.azureenterprise.cassy.kernel.application.BusinessDayService
+import id.azureenterprise.cassy.kernel.application.CashControlService
 import id.azureenterprise.cassy.kernel.application.OperationalControlService
 import id.azureenterprise.cassy.kernel.application.ShiftService
+import id.azureenterprise.cassy.kernel.application.ShiftClosingService
 import id.azureenterprise.cassy.kernel.domain.AccessCapability
 import id.azureenterprise.cassy.kernel.domain.BootstrapStoreRequest
+import id.azureenterprise.cassy.kernel.domain.CashMovementExecutionResult
+import id.azureenterprise.cassy.kernel.domain.CashMovementType
 import id.azureenterprise.cassy.kernel.domain.LoginResult
 import id.azureenterprise.cassy.kernel.domain.OperationType
 import id.azureenterprise.cassy.kernel.domain.OperationalControlSnapshot
+import id.azureenterprise.cassy.kernel.domain.PendingApprovalSummary
+import id.azureenterprise.cassy.kernel.domain.ReasonCategory
+import id.azureenterprise.cassy.kernel.domain.ShiftCloseExecutionResult
+import id.azureenterprise.cassy.kernel.domain.ShiftCloseReview
 import id.azureenterprise.cassy.kernel.domain.StartShiftExecutionResult
 import id.azureenterprise.cassy.kernel.domain.supports
 import id.azureenterprise.cassy.masterdata.data.ProductRepository
@@ -31,6 +39,8 @@ class DesktopAppController(
     private val accessService: AccessService,
     private val businessDayService: BusinessDayService,
     private val shiftService: ShiftService,
+    private val cashControlService: CashControlService,
+    private val shiftClosingService: ShiftClosingService,
     private val operationalControlService: OperationalControlService,
     private val productRepository: ProductRepository,
     private val productLookupUseCase: ProductLookupUseCase,
@@ -188,11 +198,22 @@ class DesktopAppController(
             mutateBusy(false)
             return pushBanner(UiBanner(UiTone.Warning, "Closing cash harus berupa angka"))
         }
-        val result = shiftService.endShift(closingCash)
-        refreshStage(result.fold(
-            onSuccess = { UiBanner(UiTone.Success, "Shift ${it.id} ditutup") },
-            onFailure = { UiBanner(UiTone.Danger, it.message ?: "Close shift gagal") }
-        ))
+        when (
+            val result = shiftClosingService.closeShift(
+                actualCash = closingCash,
+                reasonCode = state.value.operations.closeShiftReasonCode,
+                reasonDetail = state.value.operations.closeShiftReasonDetail
+            )
+        ) {
+            is ShiftCloseExecutionResult.Closed -> refreshStage(
+                UiBanner(
+                    if (result.approvalApplied) UiTone.Warning else UiTone.Success,
+                    "Shift ${result.shift.id} ditutup. Selisih kas Rp ${result.report.variance.toInt()}"
+                )
+            )
+            is ShiftCloseExecutionResult.ApprovalRequired -> refreshStage(UiBanner(UiTone.Warning, result.decision.message))
+            is ShiftCloseExecutionResult.Blocked -> refreshStage(UiBanner(UiTone.Danger, result.decision.message))
+        }
     }
 
     suspend fun closeBusinessDay() {
@@ -493,6 +514,108 @@ class DesktopAppController(
         _state.update { it.copy(operations = it.operations.copy(openingCashReason = value)) }
     }
 
+    fun updateCashMovementType(type: CashMovementType) {
+        _state.update { current ->
+            current.copy(
+                operations = current.operations.copy(
+                    cashMovementType = type,
+                    cashMovementReasonCode = "",
+                    cashMovementReasonDetail = ""
+                )
+            )
+        }
+    }
+
+    fun updateCashMovementAmountInput(value: String) {
+        _state.update { it.copy(operations = it.operations.copy(cashMovementAmountInput = value.filter(Char::isDigit))) }
+    }
+
+    fun updateCashMovementReasonCode(value: String) {
+        _state.update { it.copy(operations = it.operations.copy(cashMovementReasonCode = value)) }
+    }
+
+    fun updateCashMovementReasonDetail(value: String) {
+        _state.update { it.copy(operations = it.operations.copy(cashMovementReasonDetail = value)) }
+    }
+
+    suspend fun submitCashMovement() {
+        mutateBusy(true)
+        val amount = state.value.operations.cashMovementAmountInput.toDoubleOrNull()
+        if (amount == null) {
+            mutateBusy(false)
+            return pushBanner(UiBanner(UiTone.Warning, "Nominal kontrol kas harus berupa angka"))
+        }
+        when (
+            val result = cashControlService.submitMovement(
+                type = state.value.operations.cashMovementType,
+                amount = amount,
+                reasonCode = state.value.operations.cashMovementReasonCode,
+                reasonDetail = state.value.operations.cashMovementReasonDetail
+            )
+        ) {
+            is CashMovementExecutionResult.Recorded -> refreshStage(
+                UiBanner(
+                    if (result.approvalApplied) UiTone.Warning else UiTone.Success,
+                    "${result.movement.type.name.replace('_', ' ')} dicatat Rp ${result.movement.amount.toInt()}"
+                )
+            )
+            is CashMovementExecutionResult.ApprovalRequired -> refreshStage(UiBanner(UiTone.Warning, result.decision.message))
+            is CashMovementExecutionResult.Blocked -> refreshStage(UiBanner(UiTone.Danger, result.decision.message))
+        }
+    }
+
+    suspend fun approveCashMovement(requestId: String) {
+        mutateBusy(true)
+        when (val result = cashControlService.approveCashMovement(requestId)) {
+            is CashMovementExecutionResult.Recorded -> refreshStage(
+                UiBanner(UiTone.Success, "${result.movement.type.name.replace('_', ' ')} disetujui dan dicatat")
+            )
+            is CashMovementExecutionResult.ApprovalRequired -> refreshStage(UiBanner(UiTone.Warning, result.decision.message))
+            is CashMovementExecutionResult.Blocked -> refreshStage(UiBanner(UiTone.Danger, result.decision.message))
+        }
+    }
+
+    suspend fun denyCashMovement(requestId: String) {
+        mutateBusy(true)
+        val denied = cashControlService.denyCashMovement(requestId, "Ditolak dari dashboard desktop")
+        refreshStage(
+            UiBanner(
+                tone = if (denied != null) UiTone.Warning else UiTone.Danger,
+                message = if (denied != null) "Approval ${denied.id} ditolak" else "Approval tidak bisa ditolak"
+            )
+        )
+    }
+
+    fun updateCloseShiftReasonCode(value: String) {
+        _state.update { it.copy(operations = it.operations.copy(closeShiftReasonCode = value)) }
+    }
+
+    fun updateCloseShiftReasonDetail(value: String) {
+        _state.update { it.copy(operations = it.operations.copy(closeShiftReasonDetail = value)) }
+    }
+
+    suspend fun approveCloseShift(requestId: String) {
+        mutateBusy(true)
+        when (val result = shiftClosingService.approveCloseShift(requestId)) {
+            is ShiftCloseExecutionResult.Closed -> refreshStage(
+                UiBanner(UiTone.Success, "Shift ${result.shift.id} ditutup lewat approval")
+            )
+            is ShiftCloseExecutionResult.ApprovalRequired -> refreshStage(UiBanner(UiTone.Warning, result.decision.message))
+            is ShiftCloseExecutionResult.Blocked -> refreshStage(UiBanner(UiTone.Danger, result.decision.message))
+        }
+    }
+
+    suspend fun denyCloseShift(requestId: String) {
+        mutateBusy(true)
+        val denied = shiftClosingService.denyCloseShift(requestId, "Ditolak dari wizard close shift")
+        refreshStage(
+            UiBanner(
+                tone = if (denied) UiTone.Warning else UiTone.Danger,
+                message = if (denied) "Approval close shift ditolak" else "Approval close shift tidak bisa ditolak"
+            )
+        )
+    }
+
     fun updateCashReceivedInput(value: String) {
         val digitsOnly = value.filter { it.isDigit() }
         val receivedAmount = digitsOnly.toDoubleOrNull() ?: 0.0
@@ -518,6 +641,21 @@ class DesktopAppController(
             openingCashInput = state.value.operations.openingCashInput,
             openingCashReason = state.value.operations.openingCashReason
         )
+        val cashReasonOptions = cashControlService.listReasonCodes(
+            state.value.operations.cashMovementType.toReasonCategory()
+        ).map { ReasonOption(it.code, it.title) }
+        val selectedCashReasonCode = state.value.operations.cashMovementReasonCode
+            .takeIf { code -> cashReasonOptions.any { it.code == code } }
+            ?: cashReasonOptions.firstOrNull()?.code.orEmpty()
+        val closeShiftReasonOptions = shiftClosingService.listVarianceReasonCodes()
+            .map { ReasonOption(it.code, it.title) }
+        val selectedCloseShiftReasonCode = state.value.operations.closeShiftReasonCode
+            .takeIf { code -> closeShiftReasonOptions.any { it.code == code } }
+            ?: closeShiftReasonOptions.firstOrNull()?.code.orEmpty()
+        val closeShiftReview = shiftClosingService.reviewCloseShift(
+            state.value.operations.closingCashInput.toDoubleOrNull()
+        )
+        val pendingApprovals = cashControlService.listPendingApprovals() + shiftClosingService.listPendingApprovals()
         val activeOperator = context.activeOperator
         val operators = context.operators.map { OperatorOption(it.id, it.displayName, it.role.name) }
         val products = if (operationalSnapshot.canAccessSalesHome) {
@@ -580,6 +718,16 @@ class DesktopAppController(
                     openingCashInput = it.operations.openingCashInput,
                     closingCashInput = it.operations.closingCashInput,
                     openingCashReason = it.operations.openingCashReason,
+                    cashMovementType = it.operations.cashMovementType,
+                    cashMovementAmountInput = it.operations.cashMovementAmountInput,
+                    cashMovementReasonCode = selectedCashReasonCode,
+                    cashMovementReasonDetail = it.operations.cashMovementReasonDetail,
+                    cashMovementReasonOptions = cashReasonOptions,
+                    closeShiftReasonCode = selectedCloseShiftReasonCode,
+                    closeShiftReasonDetail = it.operations.closeShiftReasonDetail,
+                    closeShiftReasonOptions = closeShiftReasonOptions,
+                    closeShiftReview = closeShiftReview,
+                    pendingApprovals = pendingApprovals,
                     dashboard = operationalSnapshot
                 ),
                 catalog = it.catalog.copy(
@@ -695,6 +843,16 @@ data class OperationsState(
     val openingCashInput: String = "",
     val closingCashInput: String = "",
     val openingCashReason: String = "",
+    val cashMovementType: CashMovementType = CashMovementType.CASH_IN,
+    val cashMovementAmountInput: String = "",
+    val cashMovementReasonCode: String = "",
+    val cashMovementReasonDetail: String = "",
+    val cashMovementReasonOptions: List<ReasonOption> = emptyList(),
+    val closeShiftReasonCode: String = "",
+    val closeShiftReasonDetail: String = "",
+    val closeShiftReasonOptions: List<ReasonOption> = emptyList(),
+    val closeShiftReview: ShiftCloseReview? = null,
+    val pendingApprovals: List<PendingApprovalSummary> = emptyList(),
     val dashboard: OperationalControlSnapshot = OperationalControlSnapshot(
         headline = "Operasional belum siap.",
         primaryAction = null,
@@ -702,8 +860,14 @@ data class OperationsState(
         salesHomeBlocker = "Login operator diperlukan.",
         businessDayId = null,
         shiftId = null,
+        pendingApprovalCount = 0,
         decisions = emptyList()
     )
+)
+
+data class ReasonOption(
+    val code: String,
+    val title: String
 )
 
 data class DesktopCatalogState(
@@ -751,5 +915,16 @@ data class UiBanner(
 private fun OperationType.toUiLabel(): String = when (this) {
     OperationType.OPEN_BUSINESS_DAY -> "Buka Business Day"
     OperationType.START_SHIFT -> "Buka Shift"
+    OperationType.CASH_IN -> "Cash In"
+    OperationType.CASH_OUT -> "Cash Out"
+    OperationType.SAFE_DROP -> "Safe Drop"
+    OperationType.CLOSE_SHIFT -> "Tutup Shift"
+    OperationType.CLOSE_BUSINESS_DAY -> "Tutup Hari"
     OperationType.VOID_SALE -> "Review Void"
+}
+
+private fun CashMovementType.toReasonCategory(): ReasonCategory = when (this) {
+    CashMovementType.CASH_IN -> ReasonCategory.CASH_IN
+    CashMovementType.CASH_OUT -> ReasonCategory.CASH_OUT
+    CashMovementType.SAFE_DROP -> ReasonCategory.SAFE_DROP
 }

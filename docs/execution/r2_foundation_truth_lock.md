@@ -24,9 +24,11 @@ Updated: 2026-03-19
 ## INTERPRETATION
 - Block 1 boleh lanjut karena R1 core tidak regress.
 - Claim desktop readiness harus tetap dibatasi: cashier core + operational foundation, bukan full operational suite.
+- Setelah Block 2, foundation operasional sudah mencakup cash control baseline, approval/reason durability, close shift review, dan close day fail-closed.
 
 ## RISK
 - Jika docs bridge kembali stale, repo akan tampak lebih matang daripada evidence aktualnya.
 
 ## RECOMMENDATION
 - Setiap block R2 harus memperbarui bridge, contract doc, dan `.agent` file inti di hari yang sama dengan code change.
+- Evidence installer manual tetap harus dipisahkan jelas dari proof runtime desktop/source smoke.

@@ -11,6 +11,9 @@
 7. pricing baseline
 8. checkout finalization
 9. receipt readback / reprint from persisted snapshot
+10. cash in / cash out / safe drop
+11. close shift reconciliation
+12. close business day readiness review
 
 ## Mandatory semantics
 
@@ -18,6 +21,9 @@
 - cart tidak boleh berjalan tanpa business day dan shift aktif
 - dashboard harus menunjukkan blocker/readiness secara eksplisit sebelum operator masuk ke lane kasir
 - opening cash di luar kebijakan harus ditahan oleh approval requirement yang jujur
+- cash movement operasional harus terikat shift aktif, reason code valid, dan approval threshold yang durable
+- close shift tidak boleh lolos bila masih ada transaksi pending
+- close day harus fail-closed bila masih ada shift aktif atau approval operasional yang belum selesai
 - PIN validation, lockout baseline, dan capability gate harus hidup di shared boundary
 - pricing, subtotal, tax, dan discount baseline harus konsisten lintas platform
 - validitas settlement tidak boleh bergantung pada printer side effect
@@ -30,6 +36,7 @@
 ### Mandatory parity
 - access capability semantics
 - business day / shift transition semantics
+- cash control / approval / close shift semantics
 - product lookup
 - cart semantics
 - pricing / totals baseline

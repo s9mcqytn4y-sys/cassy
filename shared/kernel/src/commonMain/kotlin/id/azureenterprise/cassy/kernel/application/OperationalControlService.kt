@@ -4,11 +4,14 @@ import id.azureenterprise.cassy.kernel.domain.OperationDecision
 import id.azureenterprise.cassy.kernel.domain.OperationStatus
 import id.azureenterprise.cassy.kernel.domain.OperationType
 import id.azureenterprise.cassy.kernel.domain.OperationalControlSnapshot
+import id.azureenterprise.cassy.kernel.domain.CashMovementType
 
 class OperationalControlService(
     private val accessService: AccessService,
     private val businessDayService: BusinessDayService,
-    private val shiftService: ShiftService
+    private val shiftService: ShiftService,
+    private val cashControlService: CashControlService,
+    private val shiftClosingService: ShiftClosingService
 ) {
     suspend fun buildSnapshot(
         openingCashInput: String,
@@ -24,6 +27,11 @@ class OperationalControlService(
             openingCash = parsedOpeningCash,
             approvalReason = openingCashReason
         ).decision
+        val cashInDecision = cashControlService.evaluateMovement(CashMovementType.CASH_IN, 1.0, "FLOAT_TOP_UP")
+        val cashOutDecision = cashControlService.evaluateMovement(CashMovementType.CASH_OUT, 1.0, "PETTY_CASH")
+        val safeDropDecision = cashControlService.evaluateMovement(CashMovementType.SAFE_DROP, 1.0, "SAFE_DROP_ROUTINE")
+        val closeShiftDecision = shiftClosingService.evaluateCloseShiftReadiness()
+        val closeDayDecision = businessDayService.evaluateCloseDay()
         val voidDecision = evaluateVoidDecision(
             businessDayActive = businessDay != null,
             shiftActive = activeShift != null
@@ -38,18 +46,33 @@ class OperationalControlService(
             else -> null
         }
 
-        val decisions = listOf(openDayDecision, startShiftDecision, voidDecision)
+        val decisions = listOf(
+            openDayDecision,
+            startShiftDecision,
+            cashInDecision,
+            cashOutDecision,
+            safeDropDecision,
+            closeShiftDecision,
+            closeDayDecision,
+            voidDecision
+        )
         val primaryAction = when {
             businessDay == null -> OperationType.OPEN_BUSINESS_DAY
             activeShift == null -> OperationType.START_SHIFT
+            closeShiftDecision.status == OperationStatus.BLOCKED &&
+                closeShiftDecision.blockerCode == id.azureenterprise.cassy.kernel.domain.OperationBlockerCode.PENDING_TRANSACTION_PRESENT ->
+                OperationType.CLOSE_SHIFT
             else -> decisions.firstOrNull { it.status in actionableStatuses }?.type
         }
         val headline = when {
             canAccessSalesHome -> "Kasir siap dipakai di terminal ini."
             primaryAction == OperationType.OPEN_BUSINESS_DAY -> "Buka business day untuk memulai operasional."
             primaryAction == OperationType.START_SHIFT -> "Buka shift agar kasir bisa dipakai."
+            primaryAction == OperationType.CLOSE_SHIFT -> "Tindak lanjuti blocker shift sebelum operasional ditutup."
             else -> salesHomeBlocker ?: "Operasional belum siap."
         }
+        val pendingApprovalCount = cashControlService.listPendingApprovals().size +
+            shiftClosingService.listPendingApprovals().size
 
         return OperationalControlSnapshot(
             headline = headline,
@@ -58,6 +81,7 @@ class OperationalControlService(
             salesHomeBlocker = salesHomeBlocker,
             businessDayId = businessDay?.id,
             shiftId = activeShift?.id,
+            pendingApprovalCount = pendingApprovalCount,
             decisions = decisions
         )
     }

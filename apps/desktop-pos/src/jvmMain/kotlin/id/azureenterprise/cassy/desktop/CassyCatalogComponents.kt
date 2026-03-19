@@ -113,8 +113,6 @@ fun CassyCatalogView(
 fun CassyCartPanel(
     state: DesktopCatalogState,
     operations: OperationsState,
-    closingCashInput: String,
-    onClosingCashChanged: (String) -> Unit,
     onCashReceivedChanged: (String) -> Unit,
     onIncrement: (Product) -> Unit,
     onDecrement: (Product, Double) -> Unit,
@@ -122,6 +120,7 @@ fun CassyCartPanel(
     onPrintLastReceipt: () -> Unit,
     onReprintLastReceipt: () -> Unit,
     onCancelSale: () -> Unit,
+    onCashControl: () -> Unit,
     onEndShift: () -> Unit,
     onClosingDay: () -> Unit,
     modifier: Modifier = Modifier
@@ -277,15 +276,26 @@ fun CassyCartPanel(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            CassyCurrencyInput(
-                label = "Uang Kas Akhir",
-                value = closingCashInput,
-                onValueChange = onClosingCashChanged
-            )
+            if (operations.pendingApprovals.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Surface(
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "${operations.pendingApprovals.size} approval operasional menunggu review",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = onCashControl, modifier = Modifier.weight(1f).height(48.dp)) { Text("Kontrol Kas") }
                 OutlinedButton(onClick = onEndShift, modifier = Modifier.weight(1f).height(48.dp)) { Text("Tutup Shift") }
                 Button(onClick = onClosingDay, modifier = Modifier.weight(1f).height(48.dp)) { Text("Tutup Hari") }
             }

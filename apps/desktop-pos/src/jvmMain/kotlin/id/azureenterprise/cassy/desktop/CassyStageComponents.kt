@@ -19,6 +19,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import id.azureenterprise.cassy.kernel.domain.CashMovementType
 import id.azureenterprise.cassy.kernel.domain.OperationDecision
 import id.azureenterprise.cassy.kernel.domain.OperationStatus
 import id.azureenterprise.cassy.kernel.domain.OperationType
@@ -206,6 +207,13 @@ fun OperationalDashboardCard(
         ) {
             Text("Control Tower", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Text(snapshot.headline, style = MaterialTheme.typography.bodyMedium)
+            if (snapshot.pendingApprovalCount > 0) {
+                Text(
+                    text = "${snapshot.pendingApprovalCount} approval operasional menunggu keputusan.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = toneColor(UiTone.Warning)
+                )
+            }
             snapshot.salesHomeBlocker?.let {
                 Text(
                     text = "Status kasir: $it",
@@ -217,6 +225,236 @@ fun OperationalDashboardCard(
                 snapshot.decisions.forEach { decision ->
                     OperationDecisionRow(decision)
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun CashControlDialog(
+    state: OperationsState,
+    onDismiss: () -> Unit,
+    onTypeSelected: (CashMovementType) -> Unit,
+    onAmountChanged: (String) -> Unit,
+    onReasonCodeChanged: (String) -> Unit,
+    onReasonDetailChanged: (String) -> Unit,
+    onSubmit: () -> Unit,
+    onApprove: (String) -> Unit,
+    onDeny: (String) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Kontrol Kas", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OperationalDashboardCard(state.dashboard)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CashMovementType.entries.forEach { type ->
+                        FilterChip(
+                            selected = state.cashMovementType == type,
+                            onClick = { onTypeSelected(type) },
+                            label = { Text(type.toUiLabel()) }
+                        )
+                    }
+                }
+                ShortcutNominalRow(
+                    values = listOf("50000", "100000", "200000", "500000"),
+                    onShortcutSelected = onAmountChanged
+                )
+                CassyCurrencyInput(
+                    label = "Nominal",
+                    value = state.cashMovementAmountInput,
+                    onValueChange = onAmountChanged,
+                    helperText = "Shift aktif wajib ada. Reason code harus valid."
+                )
+                ReasonOptionGroup(
+                    title = "Pilih Alasan",
+                    options = state.cashMovementReasonOptions,
+                    selectedCode = state.cashMovementReasonCode,
+                    onSelected = onReasonCodeChanged
+                )
+                FormField(
+                    label = "Catatan",
+                    value = state.cashMovementReasonDetail,
+                    helperText = "Isi singkat konteks perpindahan kas."
+                ) { onReasonDetailChanged(it) }
+                if (state.pendingApprovals.isNotEmpty()) {
+                    Text("Approval Menunggu", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                    state.pendingApprovals.filter {
+                        it.operationType == OperationType.CASH_IN ||
+                            it.operationType == OperationType.CASH_OUT ||
+                            it.operationType == OperationType.SAFE_DROP
+                    }.forEach { approval ->
+                        PendingApprovalRow(approval, onApprove, onDeny)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = onSubmit) { Text("Simpan Kontrol Kas") }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onDismiss) { Text("Tutup") }
+        }
+    )
+}
+
+@Composable
+fun CloseShiftWizardDialog(
+    state: OperationsState,
+    onDismiss: () -> Unit,
+    onClosingCashChanged: (String) -> Unit,
+    onReasonCodeChanged: (String) -> Unit,
+    onReasonDetailChanged: (String) -> Unit,
+    onSubmit: () -> Unit,
+    onApprove: (String) -> Unit,
+    onDeny: (String) -> Unit
+) {
+    val review = state.closeShiftReview
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Wizard Tutup Shift", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OperationalDashboardCard(state.dashboard)
+                review?.let {
+                    Surface(
+                        tonalElevation = 1.dp,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("Review Readiness", fontWeight = FontWeight.Bold)
+                            Text(it.decision.message)
+                            Text("Expected cash: Rp ${it.expectedCash.toInt()}")
+                            Text("Cash sales: Rp ${it.cashSalesTotal.toInt()}")
+                            Text("Cash in: Rp ${it.cashMovementTotals.cashInTotal.toInt()}")
+                            Text("Cash out: Rp ${it.cashMovementTotals.cashOutTotal.toInt()}")
+                            Text("Safe drop: Rp ${it.cashMovementTotals.safeDropTotal.toInt()}")
+                            it.variance?.let { variance -> Text("Variance: Rp ${variance.toInt()}") }
+                            if (it.pendingTransactions.isNotEmpty()) {
+                                Text("Pending transaction:", fontWeight = FontWeight.Bold)
+                                it.pendingTransactions.forEach { pending ->
+                                    Text("${pending.localNumber} | Rp ${pending.amount.toInt()}")
+                                }
+                            }
+                        }
+                    }
+                }
+                CassyCurrencyInput(
+                    label = "Closing Cash Aktual",
+                    value = state.closingCashInput,
+                    onValueChange = onClosingCashChanged,
+                    helperText = "Hitung kas aktual dulu, baru review variance."
+                )
+                ReasonOptionGroup(
+                    title = "Alasan Selisih",
+                    options = state.closeShiftReasonOptions,
+                    selectedCode = state.closeShiftReasonCode,
+                    onSelected = onReasonCodeChanged
+                )
+                FormField(
+                    label = "Catatan Selisih",
+                    value = state.closeShiftReasonDetail,
+                    helperText = "Wajib diisi bila variance perlu approval."
+                ) { onReasonDetailChanged(it) }
+                state.pendingApprovals.filter { it.operationType == OperationType.CLOSE_SHIFT }.forEach { approval ->
+                    PendingApprovalRow(approval, onApprove, onDeny)
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = onSubmit) { Text("Eksekusi Tutup Shift") }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onDismiss) { Text("Kembali") }
+        }
+    )
+}
+
+@Composable
+fun CloseDayReviewDialog(
+    operations: OperationsState,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val closeDayDecision = operations.dashboard.decisions.firstOrNull { it.type == OperationType.CLOSE_BUSINESS_DAY }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Review Tutup Hari", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OperationalDashboardCard(operations.dashboard)
+                closeDayDecision?.let {
+                    Surface(
+                        color = toneColor(
+                            when (it.status) {
+                                OperationStatus.READY -> UiTone.Success
+                                OperationStatus.REQUIRES_APPROVAL -> UiTone.Warning
+                                else -> UiTone.Danger
+                            }
+                        ).copy(alpha = 0.08f),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(it.title, fontWeight = FontWeight.Bold)
+                            Text(it.message)
+                            Text("CTA: ${it.actionLabel ?: "Perbaiki blocker lalu review ulang"}")
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                enabled = closeDayDecision?.status == OperationStatus.READY
+            ) { Text("Tutup Hari") }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onDismiss) { Text("Tinjau Lagi") }
+        }
+    )
+}
+
+@Composable
+private fun ReasonOptionGroup(
+    title: String,
+    options: List<ReasonOption>,
+    selectedCode: String,
+    onSelected: (String) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+        options.forEach { option ->
+            FilterChip(
+                selected = selectedCode == option.code,
+                onClick = { onSelected(option.code) },
+                label = { Text(option.title) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun PendingApprovalRow(
+    approval: id.azureenterprise.cassy.kernel.domain.PendingApprovalSummary,
+    onApprove: (String) -> Unit,
+    onDeny: (String) -> Unit
+) {
+    Surface(
+        tonalElevation = 1.dp,
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(approval.title, fontWeight = FontWeight.Bold)
+            Text(approval.detail)
+            approval.amount?.let { Text("Nominal: Rp ${it.toInt()}") }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { onDeny(approval.id) }, modifier = Modifier.weight(1f)) { Text("Tolak") }
+                Button(onClick = { onApprove(approval.id) }, modifier = Modifier.weight(1f)) { Text("Setujui") }
             }
         }
     }
@@ -373,7 +611,18 @@ fun BannerCard(banner: UiBanner, onDismiss: () -> Unit) {
 private fun OperationType.toShortLabel(): String = when (this) {
     OperationType.OPEN_BUSINESS_DAY -> "Open Day"
     OperationType.START_SHIFT -> "Start Shift"
+    OperationType.CASH_IN -> "Cash In"
+    OperationType.CASH_OUT -> "Cash Out"
+    OperationType.SAFE_DROP -> "Safe Drop"
+    OperationType.CLOSE_SHIFT -> "Close Shift"
+    OperationType.CLOSE_BUSINESS_DAY -> "Close Day"
     OperationType.VOID_SALE -> "Void"
+}
+
+private fun CashMovementType.toUiLabel(): String = when (this) {
+    CashMovementType.CASH_IN -> "Cash In"
+    CashMovementType.CASH_OUT -> "Cash Out"
+    CashMovementType.SAFE_DROP -> "Safe Drop"
 }
 
 private fun String.toShortcutLabel(): String = when (this) {

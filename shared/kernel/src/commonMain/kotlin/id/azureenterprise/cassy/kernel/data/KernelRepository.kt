@@ -2,6 +2,15 @@ package id.azureenterprise.cassy.kernel.data
 
 import id.azureenterprise.cassy.kernel.db.KernelDatabase
 import id.azureenterprise.cassy.kernel.domain.AccessSession
+import id.azureenterprise.cassy.kernel.domain.ApprovalRequest
+import id.azureenterprise.cassy.kernel.domain.ApprovalStatus
+import id.azureenterprise.cassy.kernel.domain.CashMovement
+import id.azureenterprise.cassy.kernel.domain.CashMovementTotals
+import id.azureenterprise.cassy.kernel.domain.CashMovementType
+import id.azureenterprise.cassy.kernel.domain.OperationType
+import id.azureenterprise.cassy.kernel.domain.ReasonCategory
+import id.azureenterprise.cassy.kernel.domain.ReasonCode
+import id.azureenterprise.cassy.kernel.domain.ShiftCloseReport
 import id.azureenterprise.cassy.kernel.domain.Shift
 import id.azureenterprise.cassy.kernel.domain.OperatorAccount
 import id.azureenterprise.cassy.kernel.domain.OperatorRole
@@ -204,6 +213,23 @@ open class KernelRepository(
         }
     }
 
+    open suspend fun getShiftById(id: String): Shift? = withContext(ioDispatcher) {
+        queries?.getShiftById(id)?.executeAsOneOrNull()?.let { record ->
+            Shift(
+                id = record.id,
+                businessDayId = record.businessDayId,
+                terminalId = record.terminalId,
+                openedAt = Instant.fromEpochMilliseconds(record.openedAt),
+                openingCash = record.openingCash,
+                closedAt = record.closedAt?.let(Instant::fromEpochMilliseconds),
+                closingCash = record.closingCash,
+                openedBy = record.openedBy,
+                closedBy = record.closedBy,
+                status = record.status
+            )
+        }
+    }
+
     open suspend fun openShift(
         id: String,
         businessDayId: String,
@@ -248,6 +274,229 @@ open class KernelRepository(
         } ?: error("Failed to close shift")
     }
 
+    open suspend fun countOpenShiftsByBusinessDay(businessDayId: String): Long = withContext(ioDispatcher) {
+        queries?.countOpenShiftsByBusinessDay(businessDayId)?.executeAsOneOrNull() ?: 0L
+    }
+
+    open suspend fun ensureDefaultReasonCodes() {
+        withContext(ioDispatcher) {
+            defaultReasonCodes.forEach { reason ->
+                queries?.insertOrIgnoreReasonCode(
+                    reason.code,
+                    reason.category.name,
+                    reason.title,
+                    reason.requiresApproval,
+                    reason.isActive,
+                    reason.sortOrder.toLong()
+                )
+            }
+        }
+    }
+
+    open suspend fun listActiveReasonCodes(category: ReasonCategory): List<ReasonCode> = withContext(ioDispatcher) {
+        queries?.listActiveReasonCodesByCategory(category.name)?.executeAsList()?.map { record ->
+            ReasonCode(
+                code = record.code,
+                category = ReasonCategory.valueOf(record.category),
+                title = record.title,
+                requiresApproval = record.requiresApproval,
+                isActive = record.isActive,
+                sortOrder = record.sortOrder.toInt()
+            )
+        } ?: emptyList()
+    }
+
+    open suspend fun getReasonCode(code: String): ReasonCode? {
+        return listActiveReasonCodes(category = ReasonCategory.CASH_IN)
+            .plus(listActiveReasonCodes(ReasonCategory.CASH_OUT))
+            .plus(listActiveReasonCodes(ReasonCategory.SAFE_DROP))
+            .plus(listActiveReasonCodes(ReasonCategory.SHIFT_CLOSE_VARIANCE))
+            .plus(listActiveReasonCodes(ReasonCategory.OPENING_CASH_EXCEPTION))
+            .firstOrNull { it.code == code }
+    }
+
+    open suspend fun insertApprovalRequest(
+        id: String,
+        operationType: OperationType,
+        entityId: String,
+        businessDayId: String,
+        shiftId: String?,
+        terminalId: String,
+        amount: Double?,
+        reasonCode: String,
+        reasonDetail: String?,
+        requestedBy: String,
+        approvedBy: String?,
+        status: ApprovalStatus,
+        decisionNote: String? = null
+    ): ApprovalRequest = withContext(ioDispatcher) {
+        val requestedAt = clock.now().toEpochMilliseconds()
+        val decidedAt = if (status == ApprovalStatus.REQUESTED) null else requestedAt
+        queries?.insertApprovalRequest(
+            id,
+            operationType.name,
+            entityId,
+            businessDayId,
+            shiftId,
+            terminalId,
+            amount,
+            reasonCode,
+            reasonDetail,
+            requestedBy,
+            approvedBy,
+            status.name,
+            requestedAt,
+            decidedAt,
+            decisionNote
+        )
+        getApprovalRequestById(id) ?: error("Failed to insert approval request")
+    }
+
+    open suspend fun getApprovalRequestById(id: String): ApprovalRequest? = withContext(ioDispatcher) {
+        queries?.getApprovalRequestById(id)?.executeAsOneOrNull()?.toApprovalRequest()
+    }
+
+    open suspend fun listPendingApprovalRequests(): List<ApprovalRequest> = withContext(ioDispatcher) {
+        queries?.listPendingApprovalRequests()?.executeAsList()?.map { it.toApprovalRequest() } ?: emptyList()
+    }
+
+    open suspend fun countPendingApprovalRequestsByBusinessDay(businessDayId: String): Long = withContext(ioDispatcher) {
+        queries?.countPendingApprovalRequestsByBusinessDay(businessDayId)?.executeAsOneOrNull() ?: 0L
+    }
+
+    open suspend fun resolveApprovalRequest(
+        id: String,
+        status: ApprovalStatus,
+        approvedBy: String,
+        decisionNote: String?
+    ): ApprovalRequest = withContext(ioDispatcher) {
+        queries?.resolveApprovalRequest(
+            status.name,
+            approvedBy,
+            clock.now().toEpochMilliseconds(),
+            decisionNote,
+            id
+        )
+        getApprovalRequestById(id) ?: error("Failed to resolve approval request")
+    }
+
+    open suspend fun insertCashMovement(
+        id: String,
+        businessDayId: String,
+        shiftId: String,
+        terminalId: String,
+        type: CashMovementType,
+        amount: Double,
+        reasonCode: String,
+        reasonDetail: String?,
+        approvalRequestId: String?,
+        performedBy: String
+    ): CashMovement = withContext(ioDispatcher) {
+        val createdAt = clock.now().toEpochMilliseconds()
+        queries?.insertCashMovement(
+            id,
+            businessDayId,
+            shiftId,
+            terminalId,
+            type.name,
+            amount,
+            reasonCode,
+            reasonDetail,
+            approvalRequestId,
+            performedBy,
+            createdAt
+        )
+        listCashMovementsByShift(shiftId).firstOrNull { it.id == id } ?: error("Failed to insert cash movement")
+    }
+
+    open suspend fun listCashMovementsByShift(shiftId: String): List<CashMovement> = withContext(ioDispatcher) {
+        queries?.listCashMovementsByShift(shiftId)?.executeAsList()?.map { record ->
+            CashMovement(
+                id = record.id,
+                businessDayId = record.businessDayId,
+                shiftId = record.shiftId,
+                terminalId = record.terminalId,
+                type = CashMovementType.valueOf(record.type),
+                amount = record.amount,
+                reasonCode = record.reasonCode,
+                reasonDetail = record.reasonDetail,
+                approvalRequestId = record.approvalRequestId,
+                performedBy = record.performedBy,
+                createdAtEpochMs = record.createdAt
+            )
+        } ?: emptyList()
+    }
+
+    open suspend fun getCashMovementTotalsByShift(shiftId: String): CashMovementTotals = withContext(ioDispatcher) {
+        CashMovementTotals(
+            cashInTotal = queries?.sumCashMovementAmountByShiftAndType(shiftId, CashMovementType.CASH_IN.name)?.executeAsOneOrNull() ?: 0.0,
+            cashOutTotal = queries?.sumCashMovementAmountByShiftAndType(shiftId, CashMovementType.CASH_OUT.name)?.executeAsOneOrNull() ?: 0.0,
+            safeDropTotal = queries?.sumCashMovementAmountByShiftAndType(shiftId, CashMovementType.SAFE_DROP.name)?.executeAsOneOrNull() ?: 0.0
+        )
+    }
+
+    open suspend fun insertShiftCloseReport(
+        id: String,
+        shiftId: String,
+        businessDayId: String,
+        terminalId: String,
+        openingCash: Double,
+        cashSalesTotal: Double,
+        cashInTotal: Double,
+        cashOutTotal: Double,
+        safeDropTotal: Double,
+        expectedCash: Double,
+        actualCash: Double,
+        variance: Double,
+        pendingTransactionCount: Int,
+        approvalRequestId: String?,
+        generatedBy: String
+    ): ShiftCloseReport = withContext(ioDispatcher) {
+        val generatedAt = clock.now().toEpochMilliseconds()
+        queries?.insertShiftCloseReport(
+            id,
+            shiftId,
+            businessDayId,
+            terminalId,
+            openingCash,
+            cashSalesTotal,
+            cashInTotal,
+            cashOutTotal,
+            safeDropTotal,
+            expectedCash,
+            actualCash,
+            variance,
+            pendingTransactionCount.toLong(),
+            approvalRequestId,
+            generatedBy,
+            generatedAt
+        )
+        getShiftCloseReport(shiftId) ?: error("Failed to insert shift close report")
+    }
+
+    open suspend fun getShiftCloseReport(shiftId: String): ShiftCloseReport? = withContext(ioDispatcher) {
+        queries?.getShiftCloseReport(shiftId)?.executeAsOneOrNull()?.let { record ->
+            ShiftCloseReport(
+                id = record.id,
+                shiftId = record.shiftId,
+                businessDayId = record.businessDayId,
+                terminalId = record.terminalId,
+                openingCash = record.openingCash,
+                cashSalesTotal = record.cashSalesTotal,
+                cashInTotal = record.cashInTotal,
+                cashOutTotal = record.cashOutTotal,
+                safeDropTotal = record.safeDropTotal,
+                expectedCash = record.expectedCash,
+                actualCash = record.actualCash,
+                variance = record.variance,
+                pendingTransactionCount = record.pendingTransactionCount.toInt(),
+                approvalRequestId = record.approvalRequestId,
+                generatedBy = record.generatedBy,
+                generatedAtEpochMs = record.generatedAt
+            )
+        }
+    }
+
     open suspend fun insertAudit(id: String, message: String, level: String) {
         withContext(ioDispatcher) {
             queries?.insertAudit(id, clock.now().toEpochMilliseconds(), message, level)
@@ -258,5 +507,40 @@ open class KernelRepository(
         withContext(ioDispatcher) {
             queries?.insertEvent(id, clock.now().toEpochMilliseconds(), type, payload, "PENDING")
         }
+    }
+
+    private fun id.azureenterprise.cassy.kernel.db.ApprovalRequest.toApprovalRequest(): ApprovalRequest {
+        return ApprovalRequest(
+            id = id,
+            operationType = OperationType.valueOf(operationType),
+            entityId = entityId,
+            businessDayId = businessDayId,
+            shiftId = shiftId,
+            terminalId = terminalId,
+            amount = amount,
+            reasonCode = reasonCode,
+            reasonDetail = reasonDetail,
+            requestedBy = requestedBy,
+            approvedBy = approvedBy,
+            status = ApprovalStatus.valueOf(status),
+            requestedAtEpochMs = requestedAt,
+            decidedAtEpochMs = decidedAt,
+            decisionNote = decisionNote
+        )
+    }
+
+    private companion object {
+        val defaultReasonCodes = listOf(
+            ReasonCode("OPENING_NEEDS_CHANGE", ReasonCategory.OPENING_CASH_EXCEPTION, "Butuh pecahan pembukaan", true, true, 10),
+            ReasonCode("OPENING_EVENT_DAY", ReasonCategory.OPENING_CASH_EXCEPTION, "Prediksi hari ramai", true, true, 20),
+            ReasonCode("FLOAT_TOP_UP", ReasonCategory.CASH_IN, "Top up modal receh", false, true, 10),
+            ReasonCode("BANK_WITHDRAWAL", ReasonCategory.CASH_IN, "Ambil tunai dari bank", true, true, 20),
+            ReasonCode("PETTY_CASH", ReasonCategory.CASH_OUT, "Kas kecil operasional", false, true, 10),
+            ReasonCode("SUPPLIER_PAYMENT", ReasonCategory.CASH_OUT, "Bayar supplier tunai", true, true, 20),
+            ReasonCode("SAFE_DROP_ROUTINE", ReasonCategory.SAFE_DROP, "Safe drop rutin", false, true, 10),
+            ReasonCode("SAFE_DROP_OVERFLOW", ReasonCategory.SAFE_DROP, "Laci kas terlalu penuh", true, true, 20),
+            ReasonCode("COUNTING_ERROR", ReasonCategory.SHIFT_CLOSE_VARIANCE, "Selisih hitung kas", false, true, 10),
+            ReasonCode("UNRECORDED_DRAWER_ACTIVITY", ReasonCategory.SHIFT_CLOSE_VARIANCE, "Aktivitas laci kas belum tercatat", true, true, 20)
+        )
     }
 }

@@ -18,6 +18,9 @@ class CassyKmpSharedPlugin : Plugin<Project> {
 
             extensions.configure<KotlinMultiplatformExtension> {
                 jvmToolchain(17)
+                compilerOptions {
+                    freeCompilerArgs.add("-Xexpect-actual-classes")
+                }
 
                 (this as org.gradle.api.plugins.ExtensionAware).extensions.configure<KotlinMultiplatformAndroidLibraryExtension>("android") {
                     // Generate namespace based on project path

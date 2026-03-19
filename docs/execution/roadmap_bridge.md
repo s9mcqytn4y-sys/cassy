@@ -20,6 +20,7 @@ Dokumen ini adalah bridge antara roadmap PDF, context agent, dan repo reality. R
 | M9 | Sync Visibility | **PENDING** | outbox/infra parsial | Replay mechanism dan sync state visibility belum di-close. |
 | M10 | Release (Windows) | **FOUNDATION-OK** | `smokeRun`, hosted `Mainline Evidence`, manual evidence pack | Source/runtime smoke terbukti; install/uninstall installer masih manual-soft-blocker. |
 | R2-B1 | Operational Control Foundation | **DONE (FOUNDATION SLICE)** | `OperationalControlService`, `BusinessDayService`, `ShiftService`, `DesktopAppController` | Control tower, open day, shift gating, opening cash approval, dan legacy orphan cleanup sudah hidup di desktop-first lane. |
+| R2-B2 | Operational Control Hardening | **DONE (DESKTOP-FIRST SLICE)** | `CashControlService`, `ShiftClosingService`, `KernelRepository`, `DesktopAppController` | Cash control baseline, approval durability, close shift reconciliation, close day fail-closed review, dan kernel migration handling sudah hidup di desktop-first lane. |
 
 ## Bukti Verifikasi (Evidence Matrix)
 
@@ -39,7 +40,6 @@ Dokumen ini adalah bridge antara roadmap PDF, context agent, dan repo reality. R
 - Status hosted run tidak boleh diangkat dari verifikasi lokal saja.
 
 ## Next Truthful Focus
-- `cash in/out`
-- `close day` / one-shift close scenario
-- approval lane yang lebih eksplisit
-- void execution resolver lintas sales/cashflow/inventory/reporting bila memang sudah siap dibuka
+- void execution resolver lintas sales/cashflow/inventory/reporting
+- close report export baseline bila benar-benar dibutuhkan
+- release evidence installer manual agar gap Windows delivery makin kecil

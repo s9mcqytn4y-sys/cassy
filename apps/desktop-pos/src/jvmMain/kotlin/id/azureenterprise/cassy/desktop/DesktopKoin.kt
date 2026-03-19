@@ -4,8 +4,11 @@ import id.azureenterprise.cassy.inventory.di.inventoryDatabaseModule
 import id.azureenterprise.cassy.inventory.di.inventoryModule
 import id.azureenterprise.cassy.kernel.application.AccessService
 import id.azureenterprise.cassy.kernel.application.BusinessDayService
+import id.azureenterprise.cassy.kernel.application.CashControlService
 import id.azureenterprise.cassy.kernel.application.OperationalControlService
+import id.azureenterprise.cassy.kernel.application.OperationalSalesPort
 import id.azureenterprise.cassy.kernel.application.ShiftService
+import id.azureenterprise.cassy.kernel.application.ShiftClosingService
 import id.azureenterprise.cassy.kernel.di.databaseModule
 import id.azureenterprise.cassy.kernel.di.kernelModule
 import id.azureenterprise.cassy.masterdata.data.ProductRepository
@@ -32,12 +35,15 @@ fun startDesktopKoin() {
             inventoryModule,
             inventoryDatabaseModule,
             module {
+                single<OperationalSalesPort> { DesktopOperationalSalesPort(get()) }
                 single<CashierHardwarePort> { DesktopNoopCashierHardwarePort() }
                 single {
                     DesktopAppController(
                         accessService = get<AccessService>(),
                         businessDayService = get<BusinessDayService>(),
                         shiftService = get<ShiftService>(),
+                        cashControlService = get<CashControlService>(),
+                        shiftClosingService = get<ShiftClosingService>(),
                         operationalControlService = get<OperationalControlService>(),
                         productRepository = get<ProductRepository>(),
                         productLookupUseCase = get<ProductLookupUseCase>(),
@@ -48,4 +54,10 @@ fun startDesktopKoin() {
             }
         )
     }
+}
+
+private class DesktopOperationalSalesPort(
+    private val salesService: SalesService
+) : OperationalSalesPort {
+    override suspend fun getShiftSalesSummary(shiftId: String) = salesService.getShiftSalesSummary(shiftId)
 }

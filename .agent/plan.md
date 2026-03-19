@@ -1,13 +1,15 @@
-# Cassy Rolling Execution Plan (Updated: R2 Block 1 Operational Foundation)
+# Cassy Rolling Execution Plan (Updated: R2 Block 2 Operational Hardening)
 
-## Current Default Focus: R2 Block 1 Operational Foundation
+## Current Default Focus: R2 Block 2 Operational Hardening
 - **DONE:** R1 re-verification refresh.
 - **DONE:** owner boundary refresh untuk business day / shift / approval / readiness.
 - **DONE:** control tower snapshot di `shared:kernel`.
 - **DONE:** open business day hardening + audit/outbox event.
 - **DONE:** start shift hardening + opening cash policy + light approval gate.
 - **DONE:** cleanup orphan legacy UI/DI di `:shared`.
-- **NEXT:** cash in/out, close day one-shift flow, approval depth, dan void execution truth.
+- **DONE:** cash in/out/safe drop baseline + approval durability.
+- **DONE:** close shift reconciliation + close day fail-closed review.
+- **NEXT:** void execution truth, report export baseline, dan release evidence closure.
 
 ## Current Status Posture
 - M0 - M5: **DONE & STABLE**
@@ -16,6 +18,7 @@
 - R1 / M6 Finalization Flow Hardening: **DONE for desktop-first lane**
 - M6 (Checkout & Receipt Finality): **DONE for desktop-first lane**
 - R2 Block 1 Operational Foundation: **DONE for desktop-first lane**
+- R2 Block 2 Operational Hardening: **DONE for desktop-first lane**
 - Operational atomicity at persistence boundary: **PROVEN via durable bundle + replay tests**
 - Single ACID transaction across `sales` + `inventory` + `kernel`: **NOT CLAIMED**
 

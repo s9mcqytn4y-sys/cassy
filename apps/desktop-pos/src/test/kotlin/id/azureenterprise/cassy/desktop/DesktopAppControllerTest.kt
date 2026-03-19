@@ -6,8 +6,11 @@ import id.azureenterprise.cassy.inventory.data.InventoryRepository
 import id.azureenterprise.cassy.inventory.db.InventoryDatabase
 import id.azureenterprise.cassy.kernel.application.AccessService
 import id.azureenterprise.cassy.kernel.application.BusinessDayService
+import id.azureenterprise.cassy.kernel.application.CashControlService
 import id.azureenterprise.cassy.kernel.application.OperationalControlService
+import id.azureenterprise.cassy.kernel.application.OperationalSalesPort
 import id.azureenterprise.cassy.kernel.application.ShiftService
+import id.azureenterprise.cassy.kernel.application.ShiftClosingService
 import id.azureenterprise.cassy.kernel.data.KernelRepository
 import id.azureenterprise.cassy.kernel.db.KernelDatabase
 import id.azureenterprise.cassy.kernel.domain.PinHasher
@@ -106,7 +109,10 @@ class DesktopAppControllerTest {
 
             // Should remain in Catalog with error banner
             assertEquals(DesktopStage.Catalog, controller.state.value.stage)
-            assertEquals("Shift aktif harus ditutup sebelum close day", controller.state.value.banner?.message)
+            assertEquals(
+                "Masih ada shift aktif. Tutup semua shift dulu sebelum close day.",
+                controller.state.value.banner?.message
+            )
         }
     }
 
@@ -234,6 +240,90 @@ class DesktopAppControllerTest {
                     .first { it.type.name == "START_SHIFT" }
                     .message
             )
+        }
+    }
+
+    @Test
+    fun `cash movement approval can be requested by cashier and approved by supervisor`() {
+        runBlocking {
+            val fixture = desktopFixture()
+            val controller = fixture.newController()
+
+            controller.load()
+            controller.updateBootstrapField(BootstrapField.StoreName, "Store")
+            controller.updateBootstrapField(BootstrapField.TerminalName, "T1")
+            controller.updateBootstrapField(BootstrapField.CashierName, "C1")
+            controller.updateBootstrapField(BootstrapField.CashierPin, "111111")
+            controller.updateBootstrapField(BootstrapField.SupervisorName, "S1")
+            controller.updateBootstrapField(BootstrapField.SupervisorPin, "222222")
+            controller.bootstrapStore()
+            controller.selectOperator(controller.state.value.login.operators.first { it.roleLabel == "SUPERVISOR" }.id)
+            controller.updatePin("222222")
+            controller.login()
+            controller.openBusinessDay()
+            controller.updateOpeningCashInput("100000")
+            controller.startShift()
+            controller.logout()
+            controller.selectOperator(controller.state.value.login.operators.first { it.roleLabel == "CASHIER" }.id)
+            controller.updatePin("111111")
+            controller.login()
+
+            controller.updateCashMovementType(id.azureenterprise.cassy.kernel.domain.CashMovementType.SAFE_DROP)
+            controller.updateCashMovementAmountInput("1500000")
+            controller.updateCashMovementReasonCode("SAFE_DROP_OVERFLOW")
+            controller.updateCashMovementReasonDetail("Laci penuh")
+            controller.submitCashMovement()
+
+            assertTrue(controller.state.value.operations.pendingApprovals.isNotEmpty())
+
+            val approvalId = controller.state.value.operations.pendingApprovals.first().id
+            controller.logout()
+            controller.selectOperator(controller.state.value.login.operators.first { it.roleLabel == "SUPERVISOR" }.id)
+            controller.updatePin("222222")
+            controller.login()
+            controller.approveCashMovement(approvalId)
+
+            assertTrue(controller.state.value.operations.pendingApprovals.isEmpty())
+            assertEquals(
+                "SAFE_DROP",
+                fixture.kernelRepository
+                    .listCashMovementsByShift(controller.state.value.operations.shiftLabel!!)
+                    .last()
+                    .type
+                    .name
+            )
+        }
+    }
+
+    @Test
+    fun `close shift is blocked by pending transaction from sales lane`() {
+        runBlocking {
+            val fixture = desktopFixture(paymentGateway = FakePendingDesktopPaymentGatewayPort())
+            val controller = fixture.newController()
+
+            controller.load()
+            controller.updateBootstrapField(BootstrapField.StoreName, "Store")
+            controller.updateBootstrapField(BootstrapField.TerminalName, "T1")
+            controller.updateBootstrapField(BootstrapField.CashierName, "C1")
+            controller.updateBootstrapField(BootstrapField.CashierPin, "111111")
+            controller.updateBootstrapField(BootstrapField.SupervisorName, "S1")
+            controller.updateBootstrapField(BootstrapField.SupervisorPin, "222222")
+            controller.bootstrapStore()
+            controller.selectOperator(controller.state.value.login.operators.first { it.roleLabel == "SUPERVISOR" }.id)
+            controller.updatePin("222222")
+            controller.login()
+            controller.openBusinessDay()
+            controller.updateOpeningCashInput("100000")
+            controller.startShift()
+            controller.addProduct(controller.state.value.catalog.products.first())
+            controller.updateCashReceivedInput("10000")
+            controller.checkoutCash()
+
+            controller.updateClosingCashInput("100000")
+            controller.endShift()
+
+            assertTrue(controller.state.value.banner?.message?.contains("pending", ignoreCase = true) == true)
+            assertEquals(DesktopStage.Catalog, controller.state.value.stage)
         }
     }
 
@@ -379,8 +469,10 @@ class DesktopAppControllerTest {
         }
     }
 
+    @Suppress("LongMethod")
     private fun desktopFixture(
-        hardwarePort: CashierHardwarePort = FakeCashierHardwarePort()
+        hardwarePort: CashierHardwarePort = FakeCashierHardwarePort(),
+        paymentGateway: PaymentGatewayPort = FakeDesktopPaymentGatewayPort()
     ): DesktopFixture {
         val kernelDriver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
         val masterDataDriver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
@@ -395,7 +487,6 @@ class DesktopAppControllerTest {
         val accessService = AccessService(kernelRepository, PinHasher(), Clock.System)
         val businessDayService = BusinessDayService(kernelRepository, accessService)
         val shiftService = ShiftService(kernelRepository, accessService)
-        val operationalControlService = OperationalControlService(accessService, businessDayService, shiftService)
         val productRepository = ProductRepository(MasterDataDatabase(masterDataDriver), EmptyCoroutineContext)
         val productLookupUseCase = ProductLookupUseCase(
             ProductLookupRepositoryImpl(MasterDataDatabase(masterDataDriver), EmptyCoroutineContext),
@@ -406,7 +497,6 @@ class DesktopAppControllerTest {
             EmptyCoroutineContext,
             Clock.System
         )
-        val paymentGateway = FakeDesktopPaymentGatewayPort()
         val salesService = SalesService(
             salesRepository = SalesRepository(SalesDatabase(salesDriver), EmptyCoroutineContext, Clock.System),
             inventoryService = InventoryService(inventoryRepository, Clock.System),
@@ -416,11 +506,28 @@ class DesktopAppControllerTest {
             productLookupUseCase = productLookupUseCase,
             clock = Clock.System
         )
+        val operationalSalesPort: OperationalSalesPort = DesktopTestOperationalSalesPort(salesService)
+        val cashControlService = CashControlService(kernelRepository, accessService)
+        val shiftClosingService = ShiftClosingService(
+            kernelRepository = kernelRepository,
+            accessService = accessService,
+            salesPort = operationalSalesPort
+        )
+        val operationalControlService = OperationalControlService(
+            accessService,
+            businessDayService,
+            shiftService,
+            cashControlService,
+            shiftClosingService
+        )
 
         return DesktopFixture(
+            kernelRepository = kernelRepository,
             accessService = accessService,
             businessDayService = businessDayService,
             shiftService = shiftService,
+            cashControlService = cashControlService,
+            shiftClosingService = shiftClosingService,
             operationalControlService = operationalControlService,
             productRepository = productRepository,
             productLookupUseCase = productLookupUseCase,
@@ -431,9 +538,12 @@ class DesktopAppControllerTest {
 }
 
 private data class DesktopFixture(
+    val kernelRepository: KernelRepository,
     val accessService: AccessService,
     val businessDayService: BusinessDayService,
     val shiftService: ShiftService,
+    val cashControlService: CashControlService,
+    val shiftClosingService: ShiftClosingService,
     val operationalControlService: OperationalControlService,
     val productRepository: ProductRepository,
     val productLookupUseCase: ProductLookupUseCase,
@@ -444,12 +554,20 @@ private data class DesktopFixture(
         accessService = accessService,
         businessDayService = businessDayService,
         shiftService = shiftService,
+        cashControlService = cashControlService,
+        shiftClosingService = shiftClosingService,
         operationalControlService = operationalControlService,
         productRepository = productRepository,
         productLookupUseCase = productLookupUseCase,
         salesService = salesService,
         hardwarePort = hardwarePort
     )
+}
+
+private class DesktopTestOperationalSalesPort(
+    private val salesService: SalesService
+) : OperationalSalesPort {
+    override suspend fun getShiftSalesSummary(shiftId: String) = salesService.getShiftSalesSummary(shiftId)
 }
 
 private class KernelRepositorySalesKernelPort(
@@ -485,6 +603,18 @@ private class FakeDesktopPaymentGatewayPort : PaymentGatewayPort {
         return PaymentGatewayResult(
             paymentState = id.azureenterprise.cassy.sales.domain.PaymentState.success(),
             providerReference = "cash:${request.saleId}"
+        )
+    }
+}
+
+private class FakePendingDesktopPaymentGatewayPort : PaymentGatewayPort {
+    override suspend fun finalizePayment(request: PaymentGatewayRequest): PaymentGatewayResult {
+        return PaymentGatewayResult(
+            paymentState = id.azureenterprise.cassy.sales.domain.PaymentState.pending(
+                id.azureenterprise.cassy.sales.domain.PaymentStatusDetailCode.AWAITING_FINALIZATION,
+                "Payment masih pending"
+            ),
+            providerReference = "pending:${request.saleId}"
         )
     }
 }

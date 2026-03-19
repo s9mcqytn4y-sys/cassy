@@ -19,6 +19,12 @@ android {
     buildFeatures {
         compose = true
     }
+
+    packaging {
+        jniLibs {
+            keepDebugSymbols += setOf("**/libandroidx.graphics.path.so")
+        }
+    }
 }
 
 dependencies {

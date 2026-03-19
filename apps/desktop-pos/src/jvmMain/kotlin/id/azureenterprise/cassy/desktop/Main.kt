@@ -45,6 +45,7 @@ fun main(args: Array<String>) {
 
                 var showEndShiftDialog by remember { mutableStateOf(false) }
                 var showCloseDayDialog by remember { mutableStateOf(false) }
+                var showCashControlDialog by remember { mutableStateOf(false) }
 
                 LaunchedEffect(Unit) {
                     controller.load()
@@ -58,6 +59,7 @@ fun main(args: Array<String>) {
                                 Key.F1, Key.F5 -> { scope.launch { controller.load() }; true }
                                 Key.F12 -> { showCloseDayDialog = true; true }
                                 Key.F11 -> { showEndShiftDialog = true; true }
+                                Key.F10 -> { showCashControlDialog = true; true }
                                 else -> false
                             }
                         } else false
@@ -113,8 +115,6 @@ fun main(args: Array<String>) {
                                                 CassyCartPanel(
                                                     state = state.catalog,
                                                     operations = state.operations,
-                                                    closingCashInput = state.operations.closingCashInput,
-                                                    onClosingCashChanged = controller::updateClosingCashInput,
                                                     onCashReceivedChanged = controller::updateCashReceivedInput,
                                                     onIncrement = { p -> scope.launch { controller.incrementItem(p) } },
                                                     onDecrement = { p, q -> scope.launch { controller.decrementItem(p, q) } },
@@ -122,6 +122,7 @@ fun main(args: Array<String>) {
                                                     onPrintLastReceipt = { scope.launch { controller.printLastReceipt() } },
                                                     onReprintLastReceipt = { scope.launch { controller.reprintLastReceipt() } },
                                                     onCancelSale = { scope.launch { controller.cancelCurrentSale() } },
+                                                    onCashControl = { showCashControlDialog = true },
                                                     onEndShift = { showEndShiftDialog = true },
                                                     onClosingDay = { showCloseDayDialog = true }
                                                 )
@@ -149,25 +150,42 @@ fun main(args: Array<String>) {
                     }
 
                     // 3. SAFETY GATES: Human-friendly warnings
+                    if (showCashControlDialog) {
+                        CashControlDialog(
+                            state = state.operations,
+                            onDismiss = { showCashControlDialog = false },
+                            onTypeSelected = controller::updateCashMovementType,
+                            onAmountChanged = controller::updateCashMovementAmountInput,
+                            onReasonCodeChanged = controller::updateCashMovementReasonCode,
+                            onReasonDetailChanged = controller::updateCashMovementReasonDetail,
+                            onSubmit = {
+                                showCashControlDialog = false
+                                scope.launch { controller.submitCashMovement() }
+                            },
+                            onApprove = { id -> scope.launch { controller.approveCashMovement(id) } },
+                            onDeny = { id -> scope.launch { controller.denyCashMovement(id) } }
+                        )
+                    }
+
                     if (showEndShiftDialog) {
-                        CassySafetyDialog(
-                            title = "Tutup Shift (Selesai Kerja)",
-                            message = "Gunakan ini saat Anda akan pulang atau bergantian dengan kasir lain. Pastikan uang kas sudah dihitung.",
-                            confirmLabel = "Ya, Tutup Shift",
-                            onConfirm = {
+                        CloseShiftWizardDialog(
+                            state = state.operations,
+                            onDismiss = { showEndShiftDialog = false },
+                            onClosingCashChanged = controller::updateClosingCashInput,
+                            onReasonCodeChanged = controller::updateCloseShiftReasonCode,
+                            onReasonDetailChanged = controller::updateCloseShiftReasonDetail,
+                            onSubmit = {
                                 showEndShiftDialog = false
                                 scope.launch { controller.endShift() }
                             },
-                            onDismiss = { showEndShiftDialog = false }
+                            onApprove = { id -> scope.launch { controller.approveCloseShift(id) } },
+                            onDeny = { id -> scope.launch { controller.denyCloseShift(id) } }
                         )
                     }
 
                     if (showCloseDayDialog) {
-                        CassySafetyDialog(
-                            title = "Tutup Hari (Toko Tutup)",
-                            message = "PERINGATAN: Gunakan ini HANYA saat toko benar-benar tutup untuk hari ini. Semua data hari ini akan dikunci.",
-                            confirmLabel = "Ya, Tutup Hari",
-                            tone = UiTone.Danger,
+                        CloseDayReviewDialog(
+                            operations = state.operations,
                             onConfirm = {
                                 showCloseDayDialog = false
                                 scope.launch { controller.closeBusinessDay() }

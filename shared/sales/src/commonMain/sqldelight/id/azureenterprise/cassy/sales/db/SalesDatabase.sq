@@ -118,6 +118,22 @@ SELECT * FROM Sale
 WHERE status = 'COMPLETED'
 ORDER BY timestamp DESC;
 
+countPendingSalesByShift:
+SELECT COUNT(*) FROM Sale
+WHERE shiftId = ? AND status = 'PENDING';
+
+listPendingSalesByShift:
+SELECT id, localNumber, finalAmount FROM Sale
+WHERE shiftId = ? AND status = 'PENDING'
+ORDER BY timestamp DESC;
+
+getShiftPaymentMethodSummary:
+SELECT sp.method, COALESCE(SUM(sp.amount), 0.0) AS totalAmount, COUNT(*) AS paymentCount
+FROM SalePayment sp
+INNER JOIN Sale s ON s.id = sp.saleId
+WHERE s.shiftId = ? AND s.status = 'COMPLETED' AND sp.status = 'SUCCESS'
+GROUP BY sp.method;
+
 getSaleWithItems:
 SELECT s.*, si.* FROM Sale s
 LEFT JOIN SaleItem si ON s.id = si.saleId

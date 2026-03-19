@@ -13,7 +13,10 @@ enum class AccessCapability {
     CLOSE_DAY,
     START_SHIFT,
     END_SHIFT,
+    RECORD_CASH_MOVEMENT,
     APPROVE_OPENING_CASH_EXCEPTION,
+    APPROVE_CASH_MOVEMENT_EXCEPTION,
+    APPROVE_SHIFT_CLOSE_EXCEPTION,
     ACCESS_CATALOG
 }
 
@@ -89,6 +92,7 @@ fun OperatorRole.supports(capability: AccessCapability): Boolean = when (this) {
     OperatorRole.CASHIER -> capability in setOf(
         AccessCapability.START_SHIFT,
         AccessCapability.END_SHIFT,
+        AccessCapability.RECORD_CASH_MOVEMENT,
         AccessCapability.ACCESS_CATALOG
     )
     OperatorRole.SUPERVISOR,

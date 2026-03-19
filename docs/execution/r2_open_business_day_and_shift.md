@@ -46,3 +46,4 @@ Menutup slice dasar operasional: open business day, start shift, opening cash po
 
 ## RECOMMENDATION
 - Block berikutnya menambahkan `cash in/out`, approval replay, dan `close day` readiness dalam kontrak yang sama.
+- Block berikutnya setelah ini harus fokus ke void execution resolver atau release evidence, bukan mengulang boundary dasar yang sudah stabil.

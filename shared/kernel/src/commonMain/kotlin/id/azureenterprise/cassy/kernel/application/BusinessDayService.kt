@@ -93,15 +93,74 @@ class BusinessDayService(
         return Result.success(opened)
     }
 
+    suspend fun evaluateCloseDay(): OperationDecision {
+        val context = accessService.restoreContext()
+        val activeDay = kernelRepository.getActiveBusinessDay()
+            ?: return OperationDecision(
+                type = OperationType.CLOSE_BUSINESS_DAY,
+                status = OperationStatus.BLOCKED,
+                title = "Tutup Hari",
+                message = "Business day aktif belum ada.",
+                blockerCode = OperationBlockerCode.BUSINESS_DAY_NOT_ACTIVE
+            )
+        if (context.activeSession == null) {
+            return OperationDecision(
+                type = OperationType.CLOSE_BUSINESS_DAY,
+                status = OperationStatus.BLOCKED,
+                title = "Tutup Hari",
+                message = "Login supervisor atau owner diperlukan.",
+                blockerCode = OperationBlockerCode.ACCESS_NOT_ACTIVE
+            )
+        }
+        val operator = accessService.requireCapability(AccessCapability.CLOSE_DAY).getOrNull()
+            ?: return OperationDecision(
+                type = OperationType.CLOSE_BUSINESS_DAY,
+                status = OperationStatus.BLOCKED,
+                title = "Tutup Hari",
+                message = "Supervisor atau owner diperlukan untuk tutup hari.",
+                blockerCode = OperationBlockerCode.CAPABILITY_DENIED
+            )
+        val openShiftCount = kernelRepository.countOpenShiftsByBusinessDay(activeDay.id)
+        if (openShiftCount > 0) {
+            return OperationDecision(
+                type = OperationType.CLOSE_BUSINESS_DAY,
+                status = OperationStatus.BLOCKED,
+                title = "Tutup Hari",
+                message = "Masih ada shift aktif. Tutup semua shift dulu sebelum close day.",
+                blockerCode = OperationBlockerCode.OPEN_SHIFT_EXISTS,
+                actionLabel = "Tutup Shift Aktif"
+            )
+        }
+        val pendingApprovalCount = kernelRepository.countPendingApprovalRequestsByBusinessDay(activeDay.id)
+        if (pendingApprovalCount > 0) {
+            return OperationDecision(
+                type = OperationType.CLOSE_BUSINESS_DAY,
+                status = OperationStatus.BLOCKED,
+                title = "Tutup Hari",
+                message = "Masih ada approval operasional yang belum diputuskan.",
+                blockerCode = OperationBlockerCode.PENDING_APPROVAL_EXISTS,
+                actionLabel = "Review Approval"
+            )
+        }
+        return OperationDecision(
+            type = OperationType.CLOSE_BUSINESS_DAY,
+            status = OperationStatus.READY,
+            title = "Tutup Hari",
+            message = "Hari siap ditutup oleh ${operator.displayName}.",
+            actionLabel = "Review Close Day"
+        )
+    }
+
     suspend fun closeCurrentDay(): Result<BusinessDay> {
+        val review = evaluateCloseDay()
+        if (review.status != OperationStatus.READY) {
+            return Result.failure(IllegalStateException(review.message))
+        }
         val operator = accessService.requireCapability(AccessCapability.CLOSE_DAY).getOrElse { return Result.failure(it) }
         val activeDay = kernelRepository.getActiveBusinessDay()
             ?: return Result.failure(IllegalStateException("Tidak ada business day aktif"))
         val binding = kernelRepository.getTerminalBinding()
             ?: return Result.failure(IllegalStateException("Terminal belum terikat"))
-        if (kernelRepository.getActiveShift(binding.terminalId) != null) {
-            return Result.failure(IllegalStateException("Shift aktif harus ditutup sebelum close day"))
-        }
 
         val closed = kernelRepository.closeBusinessDay(activeDay.id)
         kernelRepository.insertAudit(

@@ -1,6 +1,7 @@
 package id.azureenterprise.cassy.kernel.di
 
 import id.azureenterprise.cassy.kernel.db.KernelDatabase
+import app.cash.sqldelight.db.QueryResult
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import org.koin.dsl.module
 import org.koin.core.module.Module
@@ -14,12 +15,57 @@ actual val databaseModule: Module = module {
             databasePath.parentFile.mkdirs()
         }
         val driver = JdbcSqliteDriver("jdbc:sqlite:${databasePath.absolutePath}")
-        driver.harden()
-        if (!databaseAlreadyExists) {
-            KernelDatabase.Schema.create(driver)
-        }
+        driver.openOrMigrateKernelDatabase(databaseAlreadyExists)
         KernelDatabase(driver)
     }
+}
+
+private fun JdbcSqliteDriver.openOrMigrateKernelDatabase(databaseAlreadyExists: Boolean) {
+    harden()
+    val persistedVersion = readUserVersion()
+    val currentVersion = when {
+        persistedVersion != 0L -> persistedVersion
+        databaseAlreadyExists && hasTable("BusinessDay") -> 1L
+        else -> 0L
+    }
+    when {
+        currentVersion == 0L -> {
+            KernelDatabase.Schema.create(this)
+            execute(null, "PRAGMA user_version = ${KernelDatabase.Schema.version}", 0)
+        }
+        currentVersion < KernelDatabase.Schema.version -> {
+            execute(null, "PRAGMA foreign_keys = OFF", 0)
+            try {
+                KernelDatabase.Schema.migrate(this, currentVersion, KernelDatabase.Schema.version)
+            } finally {
+                execute(null, "PRAGMA foreign_keys = ON", 0)
+            }
+        }
+    }
+    execute(null, "PRAGMA user_version = ${KernelDatabase.Schema.version}", 0)
+}
+
+private fun JdbcSqliteDriver.readUserVersion(): Long {
+    return executeQuery(
+        null,
+        "PRAGMA user_version",
+        { cursor ->
+            check(cursor.next().value)
+            QueryResult.Value(cursor.getLong(0) ?: 0L)
+        },
+        0
+    ).value
+}
+
+private fun JdbcSqliteDriver.hasTable(tableName: String): Boolean {
+    return executeQuery(
+        null,
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1",
+        { cursor -> QueryResult.Value(cursor.next().value) },
+        1
+    ) {
+        bindString(0, tableName)
+    }.value
 }
 
 private fun JdbcSqliteDriver.harden() {

@@ -90,7 +90,12 @@ fun CassyCurrencyInput(
             )
         )
         if (isError && errorMessage != null) {
-            CassyErrorFeedback(message = errorMessage)
+            Text(
+                text = errorMessage,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(top = 4.dp)
+            )
         } else if (helperText != null) {
             Text(
                 text = helperText,

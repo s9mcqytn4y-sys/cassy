@@ -27,6 +27,7 @@ import id.azureenterprise.cassy.sales.domain.ReceiptSnapshotDocument
 import id.azureenterprise.cassy.sales.domain.ReceiptTemplateSnapshot
 import id.azureenterprise.cassy.sales.domain.SaleCompletionResult
 import id.azureenterprise.cassy.sales.domain.SaleHistoryEntry
+import id.azureenterprise.cassy.kernel.domain.ShiftSalesSummary
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -281,6 +282,10 @@ class SalesService(
 
     suspend fun getSaleHistory(): Result<List<SaleHistoryEntry>> {
         return Result.success(salesRepository.getCompletedSales())
+    }
+
+    suspend fun getShiftSalesSummary(shiftId: String): ShiftSalesSummary {
+        return salesRepository.getShiftSalesSummary(shiftId)
     }
 
     suspend fun getReceiptForPrint(saleId: String, isReprint: Boolean = false): Result<ReceiptPrintPayload> {
