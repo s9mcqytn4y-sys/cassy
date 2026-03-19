@@ -19,6 +19,9 @@ Dokumen ini hanya mencatat jalur yang benar-benar relevan untuk pilot Windows da
 .\gradlew :apps:desktop-pos:run --args="--smoke-run"
 ```
 
+Expected smoke marker:
+- `CASSY_SMOKE_OK stage=Bootstrap` atau stage non-fatal lain yang setara
+
 Yang harus terlihat dari flow foundation:
 - bootstrap store/terminal bila context belum ada
 - login operator dengan PIN
@@ -42,17 +45,21 @@ Gunakan urutan ini:
 .\gradlew :apps:desktop-pos:createDistributable
 .\gradlew :apps:desktop-pos:packageDistributionForCurrentOS
 .\tooling\scripts\Invoke-DesktopDistributionSmoke.ps1
+.\tooling\scripts\Collect-WindowsReleaseDiagnostics.ps1
 ```
 
 Catatan operasional:
 - `packageDistributionForCurrentOS` dijalankan terakhir karena file lock Windows dapat membuat `clean` gagal jika artifact masih dipakai.
 - Jika `clean` gagal karena lock, jalankan `.\gradlew --stop` lalu ulangi `clean`.
+- Sebelum install/update candidate, backup state lokal dengan `.\tooling\scripts\Backup-CassyDesktopState.ps1`.
 
 ## Artifact packaging yang sudah terbukti lokal
 
 - Source smoke task: `:apps:desktop-pos:smokeRun`
 - Headless run-task smoke: `:apps:desktop-pos:run --args="--smoke-run"`
 - Distribution smoke path: `tooling/scripts/Invoke-DesktopDistributionSmoke.ps1`
+- Diagnostics collector: `tooling/scripts/Collect-WindowsReleaseDiagnostics.ps1`
+- State backup baseline: `tooling/scripts/Backup-CassyDesktopState.ps1`
 - Distribution app folder: `apps/desktop-pos/build/compose/binaries/main/app/Cassy/`
 - Task: `:apps:desktop-pos:packageDistributionForCurrentOS`
 - Format lokal terverifikasi: `EXE`
@@ -65,6 +72,7 @@ Catatan operasional:
 - Smoke installer install/uninstall Windows belum tervalidasi di repo ini; automation yang terbukti baru source smoke dan distribution runtime smoke.
 - Launcher GUI `Cassy.exe` dari app image belum memberi output smoke CLI yang stabil di environment lokal ini, sehingga smoke otomatis menggunakan classpath distribusi dari `app/Cassy.cfg` dan fallback ke `JAVA_HOME` JDK 17 saat app image tidak menyertakan `java.exe`.
 - Debian package pada Ubuntu hanya compatibility artifact; bukan release truth untuk pilot Windows.
+- Diagnostics baseline sekarang mengandalkan `build/release-diagnostics/` + Gradle/Compose reports, bukan klaim adanya app log file khusus yang belum diimplementasikan.
 
 ## Manual smoke checklist
 
@@ -78,6 +86,26 @@ Catatan operasional:
 8. Coba PIN salah berulang sampai lockout baseline muncul.
 
 Checklist installer detail dan log manual ada di `docs/execution/windows_installer_smoke_checklist.md`.
+
+## Recovery baseline
+
+```powershell
+.\tooling\scripts\Backup-CassyDesktopState.ps1
+```
+
+Recovery minimum yang jujur saat ini adalah restore folder `%USERPROFILE%\.cassy` dari arsip backup terakhir. Ini membantu rollback data lokal, tetapi bukan bukti rollback installer antar-versi.
+
+## Diagnostics baseline
+
+```powershell
+.\tooling\scripts\Collect-WindowsReleaseDiagnostics.ps1
+```
+
+Minimum evidence setelah smoke/package failure:
+- folder output `build/release-diagnostics/<timestamp>/`
+- `build/reports/problems/problems-report.html` bila ada
+- `apps/desktop-pos/build/compose/logs/` bila ada isi
+- file DB `%USERPROFILE%\.cassy\*.db*` bila failure terkait state lokal
 
 ## Troubleshooting
 

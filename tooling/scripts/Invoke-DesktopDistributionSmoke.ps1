@@ -8,6 +8,7 @@ $ErrorActionPreference = "Stop"
 $root = (Resolve-Path $DistributionRoot).Path
 $cfgPath = Join-Path $root "app/Cassy.cfg"
 $javaPath = Join-Path $root "runtime/bin/java.exe"
+$markerPath = Join-Path ([IO.Path]::GetTempPath()) "cassy-distribution-smoke-marker.txt"
 
 if (-not (Test-Path $cfgPath)) {
     throw "Missing distribution config: $cfgPath"
@@ -53,8 +54,34 @@ $arguments += $AppArgs
 
 Write-Output "Using Java launcher: $javaPath"
 
-& $javaPath @arguments
-$exitCode = $LASTEXITCODE
-if ($exitCode -ne 0) {
-    throw "Desktop distribution smoke failed with exit code $exitCode"
+if (Test-Path $markerPath) {
+    Remove-Item $markerPath -Force
+}
+
+$previousMarker = $env:CASSY_SMOKE_MARKER
+$env:CASSY_SMOKE_MARKER = $markerPath
+
+try {
+    & $javaPath @arguments
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -ne 0) {
+        throw "Desktop distribution smoke failed with exit code $exitCode"
+    }
+
+    if (-not (Test-Path $markerPath)) {
+        throw "Desktop distribution smoke did not create marker: $markerPath"
+    }
+
+    $marker = (Get-Content $markerPath -Raw).Trim()
+    if ($marker -notlike "CASSY_SMOKE_OK*") {
+        throw "Desktop distribution smoke marker is not OK: $marker"
+    }
+
+    Write-Output $marker
+} finally {
+    if ($null -eq $previousMarker) {
+        Remove-Item Env:CASSY_SMOKE_MARKER -ErrorAction SilentlyContinue
+    } else {
+        $env:CASSY_SMOKE_MARKER = $previousMarker
+    }
 }

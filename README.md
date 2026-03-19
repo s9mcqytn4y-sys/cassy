@@ -24,6 +24,7 @@ Dokumentasi detail mengenai status dan cara verifikasi:
 - `docs/execution/roadmap_bridge.md`: **Source of Truth** status milestone saat ini.
 - `docs/execution/windows_installer_smoke_checklist.md`: Panduan verifikasi manual installer Windows.
 - `docs/execution/windows_desktop_runbook.md`: Langkah operasional untuk environment Desktop.
+- `docs/execution/r4_windows_release_trust.md`: Status R4, baseline recovery, dan diagnostics Windows.
 
 ## Struktur Modul Utama
 
@@ -44,10 +45,18 @@ Jalankan perintah berikut untuk memverifikasi kesehatan repository secara lokal:
 # Jalankan build/test/lint repo
 .\gradlew build
 .\gradlew test
-.\gradlew detekt lint
+.\gradlew detekt
+.\gradlew :apps:android-pos:lintDebug
 
 # Build distribusi Windows lokal
 .\gradlew :apps:desktop-pos:createDistributable :apps:desktop-pos:packageDistributionForCurrentOS
+
+# Smoke distribution + kumpulkan diagnostics
+powershell -ExecutionPolicy Bypass -File tooling/scripts/Invoke-DesktopDistributionSmoke.ps1
+powershell -ExecutionPolicy Bypass -File tooling/scripts/Collect-WindowsReleaseDiagnostics.ps1
+
+# Backup state lokal sebelum install/update candidate
+powershell -ExecutionPolicy Bypass -File tooling/scripts/Backup-CassyDesktopState.ps1
 ```
 
 ## Catatan Penting

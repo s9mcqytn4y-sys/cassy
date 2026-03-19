@@ -32,6 +32,10 @@ jobs:
       - name: Smoke Run Windows Distribution
         shell: pwsh
         run: powershell -ExecutionPolicy Bypass -File tooling/scripts/Invoke-DesktopDistributionSmoke.ps1
+      - name: Collect Windows Release Diagnostics
+        if: always()
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File tooling/scripts/Collect-WindowsReleaseDiagnostics.ps1
       - name: Upload Windows Artifact
         uses: actions/upload-artifact@v6
         with:
@@ -43,6 +47,13 @@ jobs:
         with:
           name: cassy-desktop-app
           path: apps/desktop-pos/build/compose/binaries/main/app/Cassy/**
+          retention-days: 14
+      - name: Upload Windows Diagnostics
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: cassy-release-diagnostics
+          path: build/release-diagnostics/**
           retention-days: 14
       - name: Upload Windows Failure Reports
         if: failure()
@@ -70,6 +81,7 @@ jobs:
             echo "desktop-jdk-policy=17"
             echo "local-config-cache=off"
             echo "ci-config-cache=selective"
+            echo "windows-diagnostics-artifact=cassy-release-diagnostics"
           } > build/mainline-evidence/release-manifest.txt
       - uses: actions/upload-artifact@v6
         with:

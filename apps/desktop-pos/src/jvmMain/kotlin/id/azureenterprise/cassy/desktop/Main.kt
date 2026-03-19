@@ -239,17 +239,29 @@ fun main(args: Array<String>) {
 
 private fun runHeadlessSmoke() {
     val smokeMarkerPath = System.getenv("CASSY_SMOKE_MARKER")
-    startDesktopKoin()
-    runBlocking {
-        val controller = GlobalContext.get().get<DesktopAppController>()
-        controller.load()
-        delay(300)
-        val stage = controller.state.value.stage
-        if (stage is DesktopStage.FatalError) {
-            smokeMarkerPath?.let { File(it).writeText("FAILED stage=${stage.message}") }
-            exitProcess(1)
-        } else {
-            smokeMarkerPath?.let { File(it).writeText("OK stage=${stage::class.simpleName}") }
+    try {
+        startDesktopKoin()
+        runBlocking {
+            val controller = GlobalContext.get().get<DesktopAppController>()
+            controller.load()
+            delay(300)
+            val stage = controller.state.value.stage
+            if (stage is DesktopStage.FatalError) {
+                val message = "CASSY_SMOKE_FAILED stage=${stage.message.replace('\n', ' ')}"
+                smokeMarkerPath?.let { File(it).writeText(message) }
+                System.err.println(message)
+                exitProcess(1)
+            } else {
+                val message = "CASSY_SMOKE_OK stage=${stage::class.simpleName}"
+                smokeMarkerPath?.let { File(it).writeText(message) }
+                println(message)
+            }
         }
+    } catch (error: Throwable) {
+        val detail = error.message?.replace('\n', ' ')?.takeIf { it.isNotBlank() } ?: error::class.simpleName.orEmpty()
+        val message = "CASSY_SMOKE_FAILED error=$detail"
+        smokeMarkerPath?.let { File(it).writeText(message) }
+        System.err.println(message)
+        exitProcess(1)
     }
 }
