@@ -134,6 +134,18 @@ INNER JOIN Sale s ON s.id = sp.saleId
 WHERE s.shiftId = ? AND s.status = 'COMPLETED' AND sp.status = 'SUCCESS'
 GROUP BY sp.method;
 
+getMultiShiftPaymentMethodSummary:
+SELECT sp.method, COALESCE(SUM(sp.amount), 0.0) AS totalAmount, COUNT(*) AS paymentCount
+FROM SalePayment sp
+INNER JOIN Sale s ON s.id = sp.saleId
+WHERE s.shiftId IN ? AND s.status = 'COMPLETED' AND sp.status = 'SUCCESS'
+GROUP BY sp.method;
+
+listPendingSalesByMultiShift:
+SELECT id, localNumber, finalAmount FROM Sale
+WHERE shiftId IN ? AND status = 'PENDING'
+ORDER BY timestamp DESC;
+
 getSaleWithItems:
 SELECT s.*, si.* FROM Sale s
 LEFT JOIN SaleItem si ON s.id = si.saleId

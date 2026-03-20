@@ -356,6 +356,26 @@ class SalesRepository(
         )
     }
 
+    suspend fun getMultiShiftSalesSummary(shiftIds: List<String>): ShiftSalesSummary = withContext(ioDispatcher) {
+        val pendingTransactions = queries.listPendingSalesByMultiShift(shiftIds).executeAsList().map {
+            PendingTransactionSummary(
+                saleId = it.id,
+                localNumber = it.localNumber,
+                amount = it.finalAmount
+            )
+        }
+        val paymentRows = queries.getMultiShiftPaymentMethodSummary(shiftIds).executeAsList()
+        val cashTotal = paymentRows.firstOrNull { it.method == "CASH" }?.totalAmount ?: 0.0
+        val nonCashTotal = paymentRows.filterNot { it.method == "CASH" }.sumOf { it.totalAmount }
+        val completedSaleCount = paymentRows.sumOf { it.paymentCount.toInt() }
+        ShiftSalesSummary(
+            completedCashSalesTotal = cashTotal,
+            completedNonCashSalesTotal = nonCashTotal,
+            completedSaleCount = completedSaleCount,
+            pendingTransactions = pendingTransactions
+        )
+    }
+
     private inline fun <reified T : Enum<T>> enumValueOfOrNull(value: String): T? =
         runCatching { enumValueOf<T>(value) }.getOrNull()
 

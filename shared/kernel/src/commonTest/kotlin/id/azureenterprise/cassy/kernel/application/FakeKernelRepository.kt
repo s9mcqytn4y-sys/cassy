@@ -19,6 +19,7 @@ class FakeKernelRepository : id.azureenterprise.cassy.kernel.data.KernelReposito
     private val approvals = mutableMapOf<String, ApprovalRequest>()
     private val cashMovements = mutableListOf<CashMovement>()
     private val shiftReports = mutableMapOf<String, ShiftCloseReport>()
+    private val metadata = mutableMapOf<String, String>()
     val audits = mutableListOf<String>()
     val events = mutableListOf<String>()
 
@@ -37,6 +38,7 @@ class FakeKernelRepository : id.azureenterprise.cassy.kernel.data.KernelReposito
     override suspend fun createAccessSession(session: AccessSession) { activeSession = session }
     override suspend fun clearActiveAccessSessions() { activeSession = null }
     override suspend fun getActiveBusinessDay(): BusinessDay? = activeBusinessDay
+    override suspend fun getBusinessDayById(id: String): BusinessDay? = if (activeBusinessDay?.id == id) activeBusinessDay else null
     override suspend fun openBusinessDay(id: String): BusinessDay {
         val day = BusinessDay(id, Clock.System.now(), null, "OPEN")
         activeBusinessDay = day
@@ -44,7 +46,7 @@ class FakeKernelRepository : id.azureenterprise.cassy.kernel.data.KernelReposito
     }
     override suspend fun closeBusinessDay(id: String): BusinessDay {
         val day = activeBusinessDay?.copy(closedAt = Clock.System.now(), status = "CLOSED") ?: error("No active day")
-        activeBusinessDay = null
+        activeBusinessDay = day
         return day
     }
     override suspend fun getActiveShift(terminalId: String): Shift? = shifts.values.find { it.terminalId == terminalId && it.status == "OPEN" }
@@ -61,6 +63,9 @@ class FakeKernelRepository : id.azureenterprise.cassy.kernel.data.KernelReposito
     }
     override suspend fun countOpenShiftsByBusinessDay(businessDayId: String): Long {
         return shifts.values.count { it.businessDayId == businessDayId && it.status == "OPEN" }.toLong()
+    }
+    override suspend fun listShiftsByBusinessDay(businessDayId: String): List<Shift> {
+        return shifts.values.filter { it.businessDayId == businessDayId }
     }
     override suspend fun ensureDefaultReasonCodes() {
         if (reasonCodes.isEmpty()) {
@@ -177,6 +182,14 @@ class FakeKernelRepository : id.azureenterprise.cassy.kernel.data.KernelReposito
             safeDropTotal = entries.filter { it.type == CashMovementType.SAFE_DROP }.sumOf { it.amount }
         )
     }
+    override suspend fun getCashMovementTotalsByMultiShift(shiftIds: List<String>): CashMovementTotals {
+        val entries = cashMovements.filter { it.shiftId in shiftIds }
+        return CashMovementTotals(
+            cashInTotal = entries.filter { it.type == CashMovementType.CASH_IN }.sumOf { it.amount },
+            cashOutTotal = entries.filter { it.type == CashMovementType.CASH_OUT }.sumOf { it.amount },
+            safeDropTotal = entries.filter { it.type == CashMovementType.SAFE_DROP }.sumOf { it.amount }
+        )
+    }
     override suspend fun insertShiftCloseReport(
         id: String,
         shiftId: String,
@@ -220,4 +233,6 @@ class FakeKernelRepository : id.azureenterprise.cassy.kernel.data.KernelReposito
     override suspend fun insertEvent(id: String, type: String, payload: String) {
         events.add("$type|$payload")
     }
+    override suspend fun getMetadata(key: String): String? = metadata[key]
+    override suspend fun upsertMetadata(key: String, value: String) { metadata[key] = value }
 }

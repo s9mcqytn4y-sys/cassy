@@ -5,23 +5,23 @@ import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
 import kotlinx.datetime.Clock
 
-class OutboxRepository(
-    private val database: KernelDatabase,
+open class OutboxRepository(
+    private val database: KernelDatabase?,
     private val ioDispatcher: CoroutineContext,
     private val clock: Clock
 ) {
-    private val queries = database.kernelDatabaseQueries
+    private val queries = database?.kernelDatabaseQueries
 
-    suspend fun recordSale(saleId: String, amount: Double) = withContext(ioDispatcher) {
-        database.transaction {
-            queries.insertAudit(
+    open suspend fun recordSale(saleId: String, amount: Double) = withContext(ioDispatcher) {
+        database?.transaction {
+            queries?.insertAudit(
                 id = "audit_$saleId",
                 timestamp = clock.now().toEpochMilliseconds(),
                 message = "Sale recorded: $saleId, amount: $amount",
                 level = "INFO"
             )
 
-            queries.insertEvent(
+            queries?.insertEvent(
                 id = "event_$saleId",
                 timestamp = clock.now().toEpochMilliseconds(),
                 type = "SALE_CREATED",
@@ -31,11 +31,11 @@ class OutboxRepository(
         }
     }
 
-    suspend fun getPendingEvents() = withContext(ioDispatcher) {
-        queries.selectAllEvents().executeAsList()
+    open suspend fun getPendingEvents() = withContext(ioDispatcher) {
+        queries?.selectAllEvents()?.executeAsList() ?: emptyList()
     }
 
-    suspend fun markEventProcessed(id: String) = withContext(ioDispatcher) {
-        queries.deleteEvent(id)
+    open suspend fun markEventProcessed(id: String) = withContext(ioDispatcher) {
+        queries?.deleteEvent(id)
     }
 }

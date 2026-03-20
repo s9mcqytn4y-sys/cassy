@@ -248,6 +248,23 @@ open class KernelRepository(
         queries?.countOpenShiftsByBusinessDay(businessDayId)?.executeAsOneOrNull() ?: 0L
     }
 
+    open suspend fun listShiftsByBusinessDay(businessDayId: String): List<Shift> = withContext(ioDispatcher) {
+        queries?.listShiftsByBusinessDay(businessDayId)?.executeAsList()?.map { record ->
+            Shift(
+                id = record.id,
+                businessDayId = record.businessDayId,
+                terminalId = record.terminalId,
+                openedAt = Instant.fromEpochMilliseconds(record.openedAt),
+                openingCash = record.openingCash,
+                closedAt = record.closedAt?.let(Instant::fromEpochMilliseconds),
+                closingCash = record.closingCash,
+                openedBy = record.openedBy,
+                closedBy = record.closedBy,
+                status = record.status
+            )
+        } ?: emptyList()
+    }
+
     open suspend fun ensureDefaultReasonCodes() {
         withContext(ioDispatcher) {
             defaultReasonCodes.forEach { reason ->
@@ -406,6 +423,15 @@ open class KernelRepository(
         )
     }
 
+    open suspend fun getCashMovementTotalsByMultiShift(shiftIds: List<String>): CashMovementTotals = withContext(ioDispatcher) {
+        if (shiftIds.isEmpty()) return@withContext CashMovementTotals(0.0, 0.0, 0.0)
+        CashMovementTotals(
+            cashInTotal = queries?.sumCashMovementAmountByMultiShiftAndType(shiftIds, CashMovementType.CASH_IN.name)?.executeAsOneOrNull() ?: 0.0,
+            cashOutTotal = queries?.sumCashMovementAmountByMultiShiftAndType(shiftIds, CashMovementType.CASH_OUT.name)?.executeAsOneOrNull() ?: 0.0,
+            safeDropTotal = queries?.sumCashMovementAmountByMultiShiftAndType(shiftIds, CashMovementType.SAFE_DROP.name)?.executeAsOneOrNull() ?: 0.0
+        )
+    }
+
     open suspend fun insertShiftCloseReport(
         id: String,
         shiftId: String,
@@ -484,7 +510,7 @@ open class KernelRepository(
         queries?.getMetadata(key)?.executeAsOneOrNull()
     }
 
-    open suspend fun upsertMetadata(key: String, value: String) = withContext(ioDispatcher) {
+    open suspend fun upsertMetadata(key: String, value: String): Unit = withContext(ioDispatcher) {
         queries?.upsertMetadata(key, value)
     }
 

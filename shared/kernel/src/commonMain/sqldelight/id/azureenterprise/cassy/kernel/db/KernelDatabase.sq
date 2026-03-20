@@ -257,6 +257,9 @@ UPDATE Shift SET status = 'CLOSED', closedAt = ?, closingCash = ?, closedBy = ? 
 getShiftById:
 SELECT * FROM Shift WHERE id = ? LIMIT 1;
 
+listShiftsByBusinessDay:
+SELECT * FROM Shift WHERE businessDayId = ?;
+
 countOpenShiftsByBusinessDay:
 SELECT COUNT(*) FROM Shift WHERE businessDayId = ? AND status = 'OPEN';
 
@@ -331,6 +334,11 @@ sumCashMovementAmountByShiftAndType:
 SELECT COALESCE(SUM(amount), 0.0)
 FROM CashMovement
 WHERE shiftId = ? AND type = ?;
+
+sumCashMovementAmountByMultiShiftAndType:
+SELECT COALESCE(SUM(amount), 0.0)
+FROM CashMovement
+WHERE shiftId IN ? AND type = ?;
 
 insertShiftCloseReport:
 INSERT INTO ShiftCloseReport(
