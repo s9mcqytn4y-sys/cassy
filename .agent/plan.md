@@ -1,25 +1,30 @@
-# Cassy Rolling Execution Plan (Updated: R3 Block 3 Final Gate)
+# Cassy Rolling Execution Plan (Updated: R5 Block 1 Lock)
 
-## Current Default Focus: R3 Truth Closure
-- **DONE:** R1 desktop cashier finality refresh.
-- **DONE:** R2 operational foundation + hardening + final gate refresh.
-- **DONE:** R3 inventory boundary, balance/ledger baseline, void-impact contract, discrepancy-first count.
-- **DONE:** R3 approval-aware inventory adjustment + discrepancy review + migration/FK proof.
-- **IN PROGRESS:** final gate docs sync, KMP layering audit sync, repo/config truth refresh.
-- **NEXT:** solver follow-up di luar gate R3: full void execution, richer approval maturity, PDF report export, release evidence depth.
+## R1-R4 Retrospective (Hardened)
+- **DONE**: R1 Desktop Cashier Finality (Atomic Bundles).
+- **DONE**: R2 Operational Control (Shift/Day/Approval Taxonomy).
+- **DONE**: R3 Inventory Truth Lite (Ledger/Discrepancy/Balance).
+- **DONE**: R4 Desktop Foundation (Maximized UI/Shortcuts/Safety).
 
-## Current Status Posture
-- M0 - M5: **DONE & STABLE**
-- R1 / M6 Finality Contracts: **DONE**
-- R1 / M6 Persistence Hardening: **DONE**
-- R1 / M6 Finalization Flow Hardening: **DONE for desktop-first lane**
-- M6 (Checkout & Receipt Finality): **DONE for desktop-first lane**
-- R2 Block 1 Operational Foundation: **DONE for desktop-first lane**
-- R2 Block 2 Operational Hardening: **DONE for desktop-first lane**
-- R2 Block 3 Final Gate Verdict: **PARTIAL by design honesty**
-- R3 Block 1-2: **DONE for desktop-first lane**
-- Operational atomicity at persistence boundary: **PROVEN via durable bundle + replay tests**
-- Single ACID transaction across `sales` + `inventory` + `kernel`: **NOT CLAIMED**
+## Current Mission: R5 Visibility & Reporting Lite
+- **Block 1: Preflight Audit & Risk Lock** (**DONE**)
+  - [x] R1-R4 Re-verification.
+  - [x] Reporting Query Facade Surface Identification.
+  - [x] Safe vs Unsafe Metrics Lock.
+  - [x] Risk Register establishment.
+- **Block 2: Core Reporting Facade (Next)**
+  - [ ] Implement `ReportingQueryFacade` in `shared:kernel`.
+  - [ ] Implement `OperationalSalesPort` in `shared:sales`.
+  - [ ] Implement `DailySummaryService` with timezone safety.
+  - [ ] Add `ShiftSummary` to `ReportingQueryFacade`.
+- **Block 3: Visibility UI & Issue Readback**
+  - [ ] Implement dense `ReportingPanel` in desktop UI.
+  - [ ] Add "Blocked/Pending" issue visibility to summaries.
+  - [ ] Add Sync Visibility (Last Sync Age).
+  - [ ] Finalize R5 Smoke tests.
 
-## Strategic Bridge
-Refer to `docs/execution/roadmap_bridge.md` for synchronization with repo truth.
+## Strategic Lock
+- Cassy is desktop-first single-outlet retail core.
+- No ERP breadth.
+- Local-first truth.
+- Truthful reporting queries (Accuracy > Visuals).
