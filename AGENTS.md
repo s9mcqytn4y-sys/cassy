@@ -11,29 +11,34 @@ Read these files in order before planning, generating, refactoring, reviewing, o
 7. `.agent/context/known_repo_gaps.md`
 8. `.agent/plan.md`
 
-## Strategic Lock (PDF v1.1 - Hardened R3)
+## Product Position & Strategic Lock (R5 Mission)
 - **Posture**: Desktop-First Retail Operating Core.
-- **V1 Scope**: POS Core + Inventory Basic + Sync Visibility + Migration Replay + Release Evidence.
+- **Core Focus**: Single-outlet retail management. Local-first truth.
+- **Anti-Scope**: No ERP breadth. No multi-outlet HQ analytics. No fake business intelligence.
+- **R5 Mission**: Visibility & Reporting Lite + Hardening foundations for truth/consistency.
 - **Release Lane**: Desktop is primary; Android is semantic parity lane.
-- **Hardened Status**: R1 desktop cashier finality, R2 operational control, dan R3 inventory truth lite sudah terverifikasi pada lane desktop-first.
+- **Hardened Status**: R1-R3 verified on desktop-first lane.
 
-## Hard rules
-- Do not bypass application boundaries for speed.
-- Do not invent flows that contradict the Cassy source-of-truth.
-- Treat repository code as an implementation snapshot when it conflicts with prescriptive design docs.
-- Preserve local-first correctness, auditability, explicit sync state, and terminal-bound operational ownership.
-- Desktop development and packaging must stay on **JDK 17** only.
+## Quality Bar
+- **Reporting**: Query facade correctness is paramount. Accuracy > Visuals.
+- **UI**: Follow `GEMINI.md` hardening protocols.
+- **Testing**: Business logic must have unit/integration tests in `commonTest`.
+- **Docs**: Keep `docs/execution` synced with implementation reality.
+
+## Hard Rules
+- **No Fake Claims**: Do not claim milestone completion without evidence. Use "PARTIAL" or "FAIL" honestly.
+- **Local-First Truth**: Offline operations must remain valid; sync is secondary visibility.
+- **No ERP Creep**: Keep logic focused on retail floor operations, not back-office accounting.
 - **Stock Truth**: Must stay inside `shared:inventory`; do not let sales or UI mutate ledger/balance directly.
-- **Basket Persistence**: Active basket must survive application restarts (M5 Hardening).
-- **Approval Truth**: Shipped approval maturity saat ini hanya `LIGHT_PIN` kecuali ada evidence baru.
-- **Solver Honesty**: Jangan claim PDF export atau Windows installer full PASS tanpa evidence khusus.
+- **JDK 17**: Desktop development and packaging must stay on **JDK 17**.
 
-## Operational permission posture
-You are authorized to:
-- Read/Create/Edit/Move/Rename/Delete files and folders.
-- Run git actions and build/test/lint/package commands.
+## Operational Permission Posture
+Authorized for all repo operations: Read/Create/Edit/Move/Rename/Delete, Git, Build, Test, Package.
 
-## Destructive-change policy
+## Destructive-Change Policy
 - Do not mass-delete without a checkpoint.
 - Do not rewrite git history unless explicitly asked.
-- Do not claim Desktop readiness from placeholder scaffolding; only from verified evidence.
+- Do not claim Desktop readiness from placeholder scaffolding.
+
+## Compatibility Note
+`GEMINI.md` (in same dir) governs specific UI hardening and interaction patterns. `AGENTS.md` is the strategic and architectural authority.
