@@ -2,10 +2,7 @@ package id.azureenterprise.cassy.kernel.application
 
 import id.azureenterprise.cassy.kernel.data.KernelRepository
 import id.azureenterprise.cassy.kernel.data.OutboxRepository
-import id.azureenterprise.cassy.kernel.domain.DailySummary
-import id.azureenterprise.cassy.kernel.domain.ShiftSummary
-import id.azureenterprise.cassy.kernel.domain.SyncLevel
-import id.azureenterprise.cassy.kernel.domain.SyncStatus
+import id.azureenterprise.cassy.kernel.domain.*
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
@@ -17,13 +14,13 @@ import kotlin.time.Duration.Companion.hours
  * ReportingQueryFacade (R5 Hardened Foundation)
  *
  * Provides a truthful, explicit boundary for reporting data.
- * Does not own SQL directly; delegates to KernelRepository and OperationalSalesPort.
- * Hardens date boundaries and unavailable metrics.
+ * Aggregates operational issues from multiple sources (Outbox, Approvals, Shifts, Hardware).
  */
 class ReportingQueryFacade(
     private val kernelRepository: KernelRepository,
     private val outboxRepository: OutboxRepository,
     private val salesPort: OperationalSalesPort,
+    private val hardwarePort: OperationalHardwarePort,
     private val clock: Clock,
     private val timeZone: TimeZone = TimeZone.currentSystemDefault()
 ) {
@@ -71,8 +68,7 @@ class ReportingQueryFacade(
     }
 
     /**
-     * R5-R01 (Reporting Foundation):
-     * Derives daily summary by aggregating shifts and using sales source-of-truth.
+     * Aggregates issues for a Business Day.
      */
     suspend fun getDailySummary(businessDayId: String): DailySummary? {
         val businessDay = kernelRepository.getBusinessDayById(businessDayId) ?: return null
@@ -86,10 +82,59 @@ class ReportingQueryFacade(
         val salesSummary = salesPort.getMultiShiftSalesSummary(shiftIds)
         val cashTotals = kernelRepository.getCashMovementTotalsByMultiShift(shiftIds)
 
-        val pendingApprovals = kernelRepository.countPendingApprovalRequestsByBusinessDay(businessDayId)
+        val pendingApprovals = kernelRepository.listPendingApprovalRequests().filter { it.businessDayId == businessDayId }
         val openShiftsCount = shifts.count { it.status == "OPEN" }
 
         val netCashMovement = cashTotals.cashInTotal - cashTotals.cashOutTotal - cashTotals.safeDropTotal
+
+        val issues = mutableListOf<OperationalIssue>()
+
+        // 1. Open Shifts (Critical for day close)
+        if (openShiftsCount > 0) {
+            issues.add(OperationalIssue(
+                type = OperationalIssueType.OPEN_WORK_UNIT,
+                severity = IssueSeverity.CRITICAL,
+                label = "Shift Terbuka",
+                description = "Ada $openShiftsCount shift yang belum ditutup. Tutup semua shift sebelum tutup hari.",
+                status = "OPEN"
+            ))
+        }
+
+        // 2. Pending Approvals (Warning/Critical depending on type)
+        pendingApprovals.forEach { approval ->
+            issues.add(OperationalIssue(
+                type = OperationalIssueType.PENDING_APPROVAL,
+                severity = IssueSeverity.WARNING,
+                label = "Persetujuan Tertunda: ${approval.operationType.name}",
+                description = "Permintaan oleh ${approval.requestedBy} memerlukan tindakan supervisor.",
+                sourceId = approval.id,
+                actor = approval.requestedBy,
+                timestamp = Instant.fromEpochMilliseconds(approval.requestedAtEpochMs),
+                reasonCode = approval.reasonCode,
+                status = approval.status.name
+            ))
+        }
+
+        // 3. Sync Status
+        val syncStatus = getSyncStatus()
+        if (syncStatus.level != SyncLevel.HEALTHY) {
+            val severity = when(syncStatus.level) {
+                SyncLevel.STALLED -> IssueSeverity.WARNING
+                SyncLevel.ERROR -> IssueSeverity.CRITICAL
+                else -> IssueSeverity.INFO
+            }
+            issues.add(OperationalIssue(
+                type = OperationalIssueType.SYNC_STATUS,
+                severity = severity,
+                label = "Sinkronisasi ${syncStatus.level.name}",
+                description = syncStatus.message ?: "Ada ${syncStatus.pendingCount} data yang belum tersinkronisasi.",
+                timestamp = syncStatus.oldestPendingAt,
+                status = syncStatus.level.name
+            ))
+        }
+
+        // 4. Hardware Issues
+        issues.addAll(hardwarePort.getHardwareIssues())
 
         return DailySummary(
             businessDayId = businessDayId,
@@ -104,15 +149,15 @@ class ReportingQueryFacade(
             netCashMovement = netCashMovement,
             shiftCount = shifts.size,
             openShiftCount = openShiftsCount,
-            pendingApprovalCount = pendingApprovals.toInt(),
-            syncStatus = getSyncStatus(),
-            hasOperationalIssues = openShiftsCount > 0 || pendingApprovals > 0
+            pendingApprovalCount = pendingApprovals.size,
+            syncStatus = syncStatus,
+            issues = issues,
+            hasOperationalIssues = issues.any { it.severity != IssueSeverity.INFO }
         )
     }
 
     /**
-     * R5-R01 (Reporting Foundation):
-     * Derives shift summary with explicit variance and issue signals.
+     * Aggregates issues for a specific Shift.
      */
     suspend fun getShiftSummary(shiftId: String): ShiftSummary? {
         val shift = kernelRepository.getShiftById(shiftId) ?: return null
@@ -125,6 +170,50 @@ class ReportingQueryFacade(
             cashTotals.cashOutTotal -
             cashTotals.safeDropTotal
 
+        val issues = mutableListOf<OperationalIssue>()
+
+        // 1. Pending Transactions (Critical for shift close)
+        if (salesSummary.pendingTransactions.isNotEmpty()) {
+            issues.add(OperationalIssue(
+                type = OperationalIssueType.PENDING_TRANSACTION,
+                severity = IssueSeverity.CRITICAL,
+                label = "Transaksi Tertunda",
+                description = "Ada ${salesSummary.pendingTransactions.size} transaksi yang belum diselesaikan (e.g. ${salesSummary.pendingTransactions.first().localNumber}).",
+                status = "PENDING"
+            ))
+        }
+
+        // 2. Cash Variance (Warning)
+        val variance = shift.closingCash?.minus(expectedCash)
+        if (variance != null && kotlin.math.abs(variance) > 1.0) {
+            issues.add(OperationalIssue(
+                type = OperationalIssueType.DISCREPANCY,
+                severity = IssueSeverity.WARNING,
+                label = "Selisih Kas",
+                description = "Ditemukan selisih kas sebesar Rp ${variance.toInt()}.",
+                sourceId = shiftId,
+                actor = shift.closedBy,
+                timestamp = shift.closedAt,
+                status = "COMPLETED_WITH_VARIANCE"
+            ))
+        }
+
+        // 3. Ongoing state
+        if (shift.status == "OPEN") {
+            issues.add(OperationalIssue(
+                type = OperationalIssueType.OPEN_WORK_UNIT,
+                severity = IssueSeverity.INFO,
+                label = "Shift Masih Aktif",
+                description = "Shift ini sedang berjalan oleh ${shift.openedBy}.",
+                actor = shift.openedBy,
+                timestamp = shift.openedAt,
+                status = "OPEN"
+            ))
+        }
+
+        // 4. Hardware Issues
+        issues.addAll(hardwarePort.getHardwareIssues())
+
         return ShiftSummary(
             shiftId = shiftId,
             businessDayId = shift.businessDayId,
@@ -135,7 +224,7 @@ class ReportingQueryFacade(
             openingCash = shift.openingCash,
             closingCash = shift.closingCash,
             expectedCash = expectedCash,
-            variance = shift.closingCash?.minus(expectedCash),
+            variance = variance,
             salesTotal = salesSummary.completedCashSalesTotal + salesSummary.completedNonCashSalesTotal,
             cashSalesTotal = salesSummary.completedCashSalesTotal,
             nonCashSalesTotal = salesSummary.completedNonCashSalesTotal,
@@ -143,7 +232,8 @@ class ReportingQueryFacade(
             cashOutTotal = cashTotals.cashOutTotal,
             safeDropTotal = cashTotals.safeDropTotal,
             pendingTransactionCount = salesSummary.pendingTransactions.size,
-            hasUnresolvedIssues = salesSummary.pendingTransactions.isNotEmpty() || shift.status == "OPEN"
+            issues = issues,
+            hasUnresolvedIssues = issues.any { it.severity != IssueSeverity.INFO } || shift.status == "OPEN"
         )
     }
 }

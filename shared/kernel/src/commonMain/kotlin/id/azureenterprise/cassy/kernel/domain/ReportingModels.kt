@@ -18,6 +18,38 @@ data class SyncStatus(
     val message: String? = null
 )
 
+enum class IssueSeverity {
+    INFO,       // Normal pending state
+    WARNING,    // Discrepancy or delay that needs attention
+    CRITICAL    // Blocked operation (e.g. cannot close day/shift)
+}
+
+/**
+ * R5 Hardened Taxonomy for Operational Issues.
+ */
+enum class OperationalIssueType {
+    SYNC_STATUS,
+    PENDING_APPROVAL,
+    OPERATIONAL_BLOCKER,
+    DISCREPANCY,
+    HARDWARE_UNAVAILABLE,
+    STATE_UNAVAILABLE,
+    PENDING_TRANSACTION,
+    OPEN_WORK_UNIT // e.g. Open shift when closing day
+}
+
+data class OperationalIssue(
+    val type: OperationalIssueType,
+    val severity: IssueSeverity,
+    val label: String,
+    val description: String,
+    val sourceId: String? = null,
+    val actor: String? = null,
+    val timestamp: Instant? = null,
+    val reasonCode: String? = null,
+    val status: String? = null
+)
+
 data class DailySummary(
     val businessDayId: String,
     val dateLabel: String, // e.g. "2026-03-19"
@@ -33,6 +65,7 @@ data class DailySummary(
     val openShiftCount: Int,
     val pendingApprovalCount: Int,
     val syncStatus: SyncStatus,
+    val issues: List<OperationalIssue>,
     val hasOperationalIssues: Boolean
 )
 
@@ -54,5 +87,6 @@ data class ShiftSummary(
     val cashOutTotal: Double,
     val safeDropTotal: Double,
     val pendingTransactionCount: Int,
+    val issues: List<OperationalIssue>,
     val hasUnresolvedIssues: Boolean
 )

@@ -8,10 +8,15 @@ import id.azureenterprise.cassy.kernel.application.BusinessDayService
 import id.azureenterprise.cassy.kernel.application.CashControlService
 import id.azureenterprise.cassy.kernel.application.OperationalControlService
 import id.azureenterprise.cassy.kernel.application.OperationalSalesPort
+import id.azureenterprise.cassy.kernel.application.OperationalHardwarePort
 import id.azureenterprise.cassy.kernel.application.ShiftService
 import id.azureenterprise.cassy.kernel.application.ShiftClosingService
+import id.azureenterprise.cassy.kernel.application.ReportingQueryFacade
 import id.azureenterprise.cassy.kernel.di.databaseModule
 import id.azureenterprise.cassy.kernel.di.kernelModule
+import id.azureenterprise.cassy.kernel.domain.OperationalIssue
+import id.azureenterprise.cassy.kernel.domain.OperationalIssueType
+import id.azureenterprise.cassy.kernel.domain.IssueSeverity
 import id.azureenterprise.cassy.masterdata.data.ProductRepository
 import id.azureenterprise.cassy.masterdata.di.masterDataDatabaseModule
 import id.azureenterprise.cassy.masterdata.di.masterDataModule
@@ -38,6 +43,7 @@ fun startDesktopKoin() {
             module {
                 single<OperationalSalesPort> { DesktopOperationalSalesPort(get()) }
                 single<CashierHardwarePort> { DesktopNoopCashierHardwarePort() }
+                single<OperationalHardwarePort> { DesktopOperationalHardwarePort(get()) }
                 single {
                     DesktopAppController(
                         accessService = get<AccessService>(),
@@ -50,7 +56,8 @@ fun startDesktopKoin() {
                         productLookupUseCase = get<ProductLookupUseCase>(),
                         inventoryService = get<InventoryService>(),
                         salesService = get<SalesService>(),
-                        hardwarePort = get<CashierHardwarePort>()
+                        hardwarePort = get<CashierHardwarePort>(),
+                        reportingQueryFacade = get<ReportingQueryFacade>()
                     )
                 }
             }
@@ -62,4 +69,26 @@ private class DesktopOperationalSalesPort(
     private val salesService: SalesService
 ) : OperationalSalesPort {
     override suspend fun getShiftSalesSummary(shiftId: String) = salesService.getShiftSalesSummary(shiftId)
+    override suspend fun getMultiShiftSalesSummary(shiftIds: List<String>) = salesService.getMultiShiftSalesSummary(shiftIds)
+}
+
+private class DesktopOperationalHardwarePort(
+    private val hardwarePort: CashierHardwarePort
+) : OperationalHardwarePort {
+    override suspend fun getHardwareIssues(): List<OperationalIssue> {
+        val snapshot = hardwarePort.getSnapshot()
+        val issues = mutableListOf<OperationalIssue>()
+
+        if (snapshot.printer.status == HardwareDeviceStatus.UNAVAILABLE) {
+            issues.add(OperationalIssue(
+                type = OperationalIssueType.HARDWARE_UNAVAILABLE,
+                severity = IssueSeverity.WARNING,
+                label = "Printer Tidak Tersedia",
+                description = snapshot.printer.detailMessage ?: "Kabel atau koneksi printer terputus.",
+                status = "OFFLINE"
+            ))
+        }
+
+        return issues
+    }
 }

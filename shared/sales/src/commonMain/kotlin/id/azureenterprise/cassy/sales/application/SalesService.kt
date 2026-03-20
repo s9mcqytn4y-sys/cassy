@@ -288,6 +288,16 @@ class SalesService(
         return salesRepository.getShiftSalesSummary(shiftId)
     }
 
+    suspend fun getMultiShiftSalesSummary(shiftIds: List<String>): ShiftSalesSummary {
+        val summaries = shiftIds.map { salesRepository.getShiftSalesSummary(it) }
+        return ShiftSalesSummary(
+            completedCashSalesTotal = summaries.sumOf { it.completedCashSalesTotal },
+            completedNonCashSalesTotal = summaries.sumOf { it.completedNonCashSalesTotal },
+            completedSaleCount = summaries.sumOf { it.completedSaleCount },
+            pendingTransactions = summaries.flatMap { it.pendingTransactions }
+        )
+    }
+
     suspend fun getReceiptForPrint(saleId: String, isReprint: Boolean = false): Result<ReceiptPrintPayload> {
         val finalizedSale = salesRepository.getCompletedSaleReadback(saleId)
             ?: return Result.failure(IllegalStateException("Struk final tidak ditemukan"))
@@ -614,7 +624,7 @@ class SalesService(
             readback = readback,
             printState = ReceiptPrintState(
                 status = ReceiptPrintStatus.READY_FOR_PRINT,
-                detailMessage = "Final snapshot siap dipakai untuk print atau reprint"
+                detailMessage = "Final snapshot siap dipakai untuk print or reprint"
             )
         )
     }

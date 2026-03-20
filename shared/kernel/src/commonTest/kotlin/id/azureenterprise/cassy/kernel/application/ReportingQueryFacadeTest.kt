@@ -8,6 +8,7 @@ import kotlinx.datetime.TimeZone
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 
 class ReportingQueryFacadeTest {
 
@@ -16,7 +17,7 @@ class ReportingQueryFacadeTest {
 
     // Mock OutboxRepository to avoid DB driver issues in commonTest
     private val outboxRepo = object : id.azureenterprise.cassy.kernel.data.OutboxRepository(
-        database = id.azureenterprise.cassy.kernel.db.KernelDatabase(NoopSqlDriver()),
+        database = null,
         ioDispatcher = kotlin.coroutines.EmptyCoroutineContext,
         clock = clock
     ) {
@@ -43,16 +44,19 @@ class ReportingQueryFacadeTest {
         }
     }
 
+    private val hardwarePort = NoopOperationalHardwarePort
+
     private val facade = ReportingQueryFacade(
         kernelRepo,
         outboxRepo,
         salesPort,
+        hardwarePort,
         clock,
         TimeZone.UTC
     )
 
     @Test
-    fun `getDailySummary should aggregate data truthfully`() = runTest {
+    fun `getDailySummary should aggregate data and detect issues truthfully`() = runTest {
         val dayId = "DAY-001"
         kernelRepo.openBusinessDay(dayId)
         kernelRepo.openShift("SHIFT-001", dayId, "TERM-1", 50_000.0, "Op 1")
@@ -70,11 +74,14 @@ class ReportingQueryFacadeTest {
         assertEquals(300_000.0, summary.totalSales) // (100k + 50k) * 2 shifts
         assertEquals(10, summary.transactionCount)
         assertEquals(10_000.0, summary.netCashMovement) // 20k - 10k
-        assertEquals(SyncLevel.HEALTHY, summary.syncStatus.level)
+
+        // Check issues
+        assertTrue(summary.hasOperationalIssues)
+        assertTrue(summary.issues.any { it.type == OperationalIssueType.OPEN_WORK_UNIT && it.severity == IssueSeverity.CRITICAL })
     }
 
     @Test
-    fun `getShiftSummary should calculate expected cash correctly`() = runTest {
+    fun `getShiftSummary should calculate expected cash and detect issues correctly`() = runTest {
         val dayId = "DAY-001"
         val shiftId = "SHIFT-001"
         kernelRepo.openBusinessDay(dayId)
@@ -93,17 +100,6 @@ class ReportingQueryFacadeTest {
         // expected = 50k (open) + 100k (cash sales) + 20k (cash in) = 170k
         assertEquals(170_000.0, summary.expectedCash)
         assertEquals(true, summary.hasUnresolvedIssues) // because status is OPEN
+        assertTrue(summary.issues.any { it.type == OperationalIssueType.OPEN_WORK_UNIT && it.severity == IssueSeverity.INFO })
     }
-}
-
-// A stub driver for OutboxRepository instantiation in commonTest
-private class NoopSqlDriver : app.cash.sqldelight.db.SqlDriver {
-    override fun execute(identifier: Int?, sql: String, parameters: Int, binders: (app.cash.sqldelight.db.SqlPreparedStatement.() -> Unit)?): app.cash.sqldelight.db.QueryResult<Unit> = app.cash.sqldelight.db.QueryResult.Unit
-    override fun <R> executeQuery(identifier: Int?, sql: String, mapper: (app.cash.sqldelight.db.SqlCursor) -> app.cash.sqldelight.db.QueryResult<R>, parameters: Int, binders: (app.cash.sqldelight.db.SqlPreparedStatement.() -> Unit)?): app.cash.sqldelight.db.QueryResult<R> = error("Not implemented")
-    override fun newTransaction(): app.cash.sqldelight.db.QueryResult<app.cash.sqldelight.db.SqlTransaction> = error("Not implemented")
-    override fun currentTransaction(): app.cash.sqldelight.db.SqlTransaction? = null
-    override fun close() {}
-    override fun addListener(vararg queryKeys: String, listener: app.cash.sqldelight.db.SqlDriver.Listener) {}
-    override fun removeListener(vararg queryKeys: String, listener: app.cash.sqldelight.db.SqlDriver.Listener) {}
-    override fun notifyListeners(vararg queryKeys: String) {}
 }

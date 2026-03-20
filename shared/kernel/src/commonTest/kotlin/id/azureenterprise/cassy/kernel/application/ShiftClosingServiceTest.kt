@@ -41,6 +41,7 @@ class ShiftClosingServiceTest {
                         pendingTransactions = listOf(PendingTransactionSummary("sale-1", "INV-1", 25_000.0))
                     )
                 }
+                override suspend fun getMultiShiftSalesSummary(shiftIds: List<String>): ShiftSalesSummary = ShiftSalesSummary()
             }
         )
 
@@ -69,6 +70,7 @@ class ShiftClosingServiceTest {
                 override suspend fun getShiftSalesSummary(shiftId: String): ShiftSalesSummary {
                     return ShiftSalesSummary(completedCashSalesTotal = 200_000.0)
                 }
+                override suspend fun getMultiShiftSalesSummary(shiftIds: List<String>): ShiftSalesSummary = ShiftSalesSummary()
             }
         )
 

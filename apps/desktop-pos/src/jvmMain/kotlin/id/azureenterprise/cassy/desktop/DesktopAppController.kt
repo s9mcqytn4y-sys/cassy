@@ -8,25 +8,8 @@ import id.azureenterprise.cassy.inventory.domain.InventoryDiscrepancyStatus
 import id.azureenterprise.cassy.inventory.domain.InventoryReadback
 import id.azureenterprise.cassy.inventory.domain.StockAdjustmentDraft
 import id.azureenterprise.cassy.inventory.domain.StockCountDraft
-import id.azureenterprise.cassy.kernel.application.AccessService
-import id.azureenterprise.cassy.kernel.application.BusinessDayService
-import id.azureenterprise.cassy.kernel.application.CashControlService
-import id.azureenterprise.cassy.kernel.application.OperationalControlService
-import id.azureenterprise.cassy.kernel.application.ShiftService
-import id.azureenterprise.cassy.kernel.application.ShiftClosingService
-import id.azureenterprise.cassy.kernel.domain.AccessCapability
-import id.azureenterprise.cassy.kernel.domain.BootstrapStoreRequest
-import id.azureenterprise.cassy.kernel.domain.CashMovementExecutionResult
-import id.azureenterprise.cassy.kernel.domain.CashMovementType
-import id.azureenterprise.cassy.kernel.domain.LoginResult
-import id.azureenterprise.cassy.kernel.domain.OperationType
-import id.azureenterprise.cassy.kernel.domain.OperationalControlSnapshot
-import id.azureenterprise.cassy.kernel.domain.PendingApprovalSummary
-import id.azureenterprise.cassy.kernel.domain.ReasonCategory
-import id.azureenterprise.cassy.kernel.domain.ShiftCloseExecutionResult
-import id.azureenterprise.cassy.kernel.domain.ShiftCloseReview
-import id.azureenterprise.cassy.kernel.domain.StartShiftExecutionResult
-import id.azureenterprise.cassy.kernel.domain.supports
+import id.azureenterprise.cassy.kernel.application.*
+import id.azureenterprise.cassy.kernel.domain.*
 import id.azureenterprise.cassy.masterdata.data.ProductRepository
 import id.azureenterprise.cassy.masterdata.domain.Product
 import id.azureenterprise.cassy.masterdata.domain.ProductLookupResult
@@ -55,7 +38,8 @@ class DesktopAppController(
     private val productLookupUseCase: ProductLookupUseCase,
     private val inventoryService: InventoryService,
     private val salesService: SalesService,
-    private val hardwarePort: CashierHardwarePort
+    private val hardwarePort: CashierHardwarePort,
+    private val reportingQueryFacade: ReportingQueryFacade
 ) {
     private val _state = MutableStateFlow(DesktopAppState())
     val state: StateFlow<DesktopAppState> = _state.asStateFlow()
@@ -809,7 +793,7 @@ class DesktopAppController(
                     if (result.approvalApplied) {
                         "Discrepancy diselesaikan setelah LIGHT_PIN approval."
                     } else {
-                        "Discrepancy diselesaikan dengan adjustment eksplisit."
+                        "Discrepancy diselesaikan with adjustment eksplisit."
                     }
                 )
             )
@@ -921,6 +905,12 @@ class DesktopAppController(
             !operationalSnapshot.canAccessSalesHome -> DesktopStage.StartShift
             else -> DesktopStage.Catalog
         }
+
+        // R5 Reporting Aggregation
+        val reportingState = if (businessDay != null) {
+            reportingQueryFacade.getDailySummary(businessDay.id)
+        } else null
+
         var resolvedBanner = banner
         if (stage == DesktopStage.Catalog) {
             val recoveredCount = salesService.recoverIncompleteFinalizations().getOrDefault(0)
@@ -986,7 +976,8 @@ class DesktopAppController(
                     closeShiftReasonOptions = closeShiftReasonOptions,
                     closeShiftReview = closeShiftReview,
                     pendingApprovals = pendingApprovals,
-                    dashboard = operationalSnapshot
+                    dashboard = operationalSnapshot,
+                    reportingSummary = reportingState
                 ),
                 catalog = it.catalog.copy(
                     products = catalogProducts,
@@ -1063,12 +1054,12 @@ class DesktopAppController(
         return if (matched != null) {
             ProductImageResolution(
                 ref = matched.relativeTo(File(".")).path,
-                status = "input_images dipakai sebagai source I/O image lokal untuk ${product.sku}."
+                status = "input_images dipakai as source I/O image lokal for ${product.sku}."
             )
         } else {
             ProductImageResolution(
                 ref = null,
-                status = "input_images aktif tetapi belum ada file yang cocok untuk ${product.sku}."
+                status = "input_images aktif tetapi belum ada file yang cocok for ${product.sku}."
             )
         }
     }
@@ -1194,7 +1185,8 @@ data class OperationsState(
         shiftId = null,
         pendingApprovalCount = 0,
         decisions = emptyList()
-    )
+    ),
+    val reportingSummary: DailySummary? = null
 )
 
 data class ReasonOption(

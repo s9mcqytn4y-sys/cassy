@@ -419,6 +419,51 @@ fun CloseDayReviewDialog(
 }
 
 @Composable
+fun ReportingSummaryDialog(
+    state: OperationsState,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Ringkasan Operasional", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                state.reportingSummary?.let { summary ->
+                    Surface(
+                        tonalElevation = 1.dp,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Penjualan Tunai", style = MaterialTheme.typography.bodyMedium)
+                                Text("Rp ${summary.cashSalesTotal.toInt()}", fontWeight = FontWeight.ExtraBold)
+                            }
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Kontrol Kas (Net)", style = MaterialTheme.typography.bodyMedium)
+                                Text("Rp ${summary.netCashMovement.toInt()}", fontWeight = FontWeight.ExtraBold)
+                            }
+                            HorizontalDivider()
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Total Transaksi", style = MaterialTheme.typography.bodyMedium)
+                                Text("${summary.transactionCount}", fontWeight = FontWeight.ExtraBold)
+                            }
+                        }
+                    }
+                    Text("Masalah & Tindakan", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                    Box(modifier = Modifier.heightIn(max = 400.dp)) {
+                        OperationalIssueList(issues = summary.issues)
+                    }
+                } ?: Text("Data ringkasan tidak tersedia.")
+            }
+        },
+        confirmButton = {
+            Button(onClick = onDismiss) { Text("Tutup") }
+        }
+    )
+}
+
+@Composable
 private fun ReasonOptionGroup(
     title: String,
     options: List<ReasonOption>,
