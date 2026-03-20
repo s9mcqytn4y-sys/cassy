@@ -170,30 +170,26 @@ open class KernelRepository(
         }
     }
 
-    open suspend fun openBusinessDay(id: String): BusinessDay = withContext(ioDispatcher) {
-        queries?.insertBusinessDay(id, clock.now().toEpochMilliseconds(), "OPEN")
-        queries?.getBusinessDayById(id)?.executeAsOne()
-            ?.let { record ->
-                BusinessDay(
-                    id = record.id,
-                    openedAt = Instant.fromEpochMilliseconds(record.openedAt),
-                    closedAt = record.closedAt?.let(Instant::fromEpochMilliseconds),
-                    status = record.status
-                )
-            } ?: error("Failed to open day")
-    }
-
-    open suspend fun closeBusinessDay(id: String): BusinessDay = withContext(ioDispatcher) {
-        val closedAt = clock.now().toEpochMilliseconds()
-        queries?.closeBusinessDay(closedAt, id)
-        queries?.getBusinessDayById(id)?.executeAsOne()?.let { record ->
+    open suspend fun getBusinessDayById(id: String): BusinessDay? = withContext(ioDispatcher) {
+        queries?.getBusinessDayById(id)?.executeAsOneOrNull()?.let { record ->
             BusinessDay(
                 id = record.id,
                 openedAt = Instant.fromEpochMilliseconds(record.openedAt),
                 closedAt = record.closedAt?.let(Instant::fromEpochMilliseconds),
                 status = record.status
             )
-        } ?: error("Failed to close day")
+        }
+    }
+
+    open suspend fun openBusinessDay(id: String): BusinessDay = withContext(ioDispatcher) {
+        queries?.insertBusinessDay(id, clock.now().toEpochMilliseconds(), "OPEN")
+        getBusinessDayById(id) ?: error("Failed to open day")
+    }
+
+    open suspend fun closeBusinessDay(id: String): BusinessDay = withContext(ioDispatcher) {
+        val closedAt = clock.now().toEpochMilliseconds()
+        queries?.closeBusinessDay(closedAt, id)
+        getBusinessDayById(id) ?: error("Failed to close day")
     }
 
     open suspend fun getActiveShift(terminalId: String): Shift? = withContext(ioDispatcher) {
@@ -239,39 +235,13 @@ open class KernelRepository(
     ): Shift = withContext(ioDispatcher) {
         val openedAt = clock.now().toEpochMilliseconds()
         queries?.insertShift(id, businessDayId, terminalId, openedAt, openingCash, openedBy, "OPEN")
-        queries?.getShiftById(id)?.executeAsOne()?.let { record ->
-            Shift(
-                id = record.id,
-                businessDayId = record.businessDayId,
-                terminalId = record.terminalId,
-                openedAt = Instant.fromEpochMilliseconds(record.openedAt),
-                openingCash = record.openingCash,
-                closedAt = record.closedAt?.let(Instant::fromEpochMilliseconds),
-                closingCash = record.closingCash,
-                openedBy = record.openedBy,
-                closedBy = record.closedBy,
-                status = record.status
-            )
-        } ?: error("Failed to open shift")
+        getShiftById(id) ?: error("Failed to open shift")
     }
 
     open suspend fun closeShift(id: String, closingCash: Double, closedBy: String): Shift = withContext(ioDispatcher) {
         val closedAt = clock.now().toEpochMilliseconds()
         queries?.closeShift(closedAt, closingCash, closedBy, id)
-        queries?.getShiftById(id)?.executeAsOne()?.let { record ->
-            Shift(
-                id = record.id,
-                businessDayId = record.businessDayId,
-                terminalId = record.terminalId,
-                openedAt = Instant.fromEpochMilliseconds(record.openedAt),
-                openingCash = record.openingCash,
-                closedAt = record.closedAt?.let(Instant::fromEpochMilliseconds),
-                closingCash = record.closingCash,
-                openedBy = record.openedBy,
-                closedBy = record.closedBy,
-                status = record.status
-            )
-        } ?: error("Failed to close shift")
+        getShiftById(id) ?: error("Failed to close shift")
     }
 
     open suspend fun countOpenShiftsByBusinessDay(businessDayId: String): Long = withContext(ioDispatcher) {
@@ -508,6 +478,14 @@ open class KernelRepository(
         withContext(ioDispatcher) {
             queries?.insertEvent(id, clock.now().toEpochMilliseconds(), type, payload, "PENDING")
         }
+    }
+
+    open suspend fun getMetadata(key: String): String? = withContext(ioDispatcher) {
+        queries?.getMetadata(key)?.executeAsOneOrNull()
+    }
+
+    open suspend fun upsertMetadata(key: String, value: String) = withContext(ioDispatcher) {
+        queries?.upsertMetadata(key, value)
     }
 
     private fun id.azureenterprise.cassy.kernel.db.ApprovalRequest.toApprovalRequest(): ApprovalRequest {

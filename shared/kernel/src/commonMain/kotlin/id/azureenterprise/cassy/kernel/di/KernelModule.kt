@@ -10,6 +10,8 @@ import id.azureenterprise.cassy.kernel.application.CashControlService
 import id.azureenterprise.cassy.kernel.application.OperationalControlService
 import id.azureenterprise.cassy.kernel.application.ShiftService
 import id.azureenterprise.cassy.kernel.application.ShiftClosingService
+import id.azureenterprise.cassy.kernel.application.ReportingQueryFacade
+import id.azureenterprise.cassy.kernel.application.SyncVisibilityService
 import id.azureenterprise.cassy.kernel.domain.CashMovementPolicy
 import id.azureenterprise.cassy.kernel.domain.OpeningCashPolicy
 import id.azureenterprise.cassy.kernel.domain.PinHasher
@@ -33,6 +35,8 @@ val kernelModule = module {
     single { CashControlService(get(), get(), get()) }
     single { ShiftClosingService(get(), get(), get(), get()) }
     single { OperationalControlService(get(), get(), get(), get(), get()) }
+    single { ReportingQueryFacade(get(), get(), get(), get()) }
+    single { SyncVisibilityService(get(), get(), get()) }
 }
 
 expect val databaseModule: Module
