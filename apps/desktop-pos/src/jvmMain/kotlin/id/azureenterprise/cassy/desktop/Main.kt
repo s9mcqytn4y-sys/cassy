@@ -47,6 +47,7 @@ fun main(args: Array<String>) {
                 var showCloseDayDialog by remember { mutableStateOf(false) }
                 var showCashControlDialog by remember { mutableStateOf(false) }
                 var showInventoryDialog by remember { mutableStateOf(false) }
+                var showReportingDialog by remember { mutableStateOf(false) }
 
                 LaunchedEffect(Unit) {
                     controller.load()
@@ -62,6 +63,7 @@ fun main(args: Array<String>) {
                                 Key.F11 -> { showEndShiftDialog = true; true }
                                 Key.F10 -> { showCashControlDialog = true; true }
                                 Key.F9 -> { showInventoryDialog = true; true }
+                                Key.F8 -> { showReportingDialog = true; true }
                                 else -> false
                             }
                         } else false
@@ -76,7 +78,11 @@ fun main(args: Array<String>) {
                             )
 
                             Column(modifier = Modifier.fillMaxSize()) {
-                                CassyTopBar(state = state.shell, hardware = state.hardware)
+                                CassyTopBar(
+                                    state = state.shell,
+                                    hardware = state.hardware,
+                                    onShowReporting = { showReportingDialog = true }
+                                )
 
                                 Box(modifier = Modifier.fillMaxSize()) {
                                     when (val stage = state.stage) {
@@ -229,6 +235,13 @@ fun main(args: Array<String>) {
                                 scope.launch { controller.closeBusinessDay() }
                             },
                             onDismiss = { showCloseDayDialog = false }
+                        )
+                    }
+
+                    if (showReportingDialog) {
+                        ReportingSummaryDialog(
+                            state = state.operations,
+                            onDismiss = { showReportingDialog = false }
                         )
                     }
                 }

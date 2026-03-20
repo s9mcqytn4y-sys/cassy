@@ -16,6 +16,17 @@ android {
         versionName = "1.0"
     }
 
+    buildTypes {
+        release {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+        }
+    }
+
     buildFeatures {
         compose = true
     }
@@ -23,6 +34,9 @@ android {
     packaging {
         jniLibs {
             keepDebugSymbols += setOf("**/libandroidx.graphics.path.so")
+        }
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
 }

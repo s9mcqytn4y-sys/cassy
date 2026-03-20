@@ -250,7 +250,8 @@ fun CassyDenseProductRow(
 fun CassyTopBar(
     state: DesktopShellState,
     hardware: CashierHardwareSnapshot,
-    syncStatus: String = "Online"
+    syncStatus: String = "Online",
+    onShowReporting: () -> Unit = {}
 ) {
     val runtimeChannel = remember { System.getProperty("cassy.runtime.channel", "unknown") }
     val releaseVersion = remember { System.getProperty("cassy.release.version", "dev") }
@@ -269,7 +270,7 @@ fun CassyTopBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { onShowReporting() }) {
                 Text(
                     text = state.storeName ?: "Cassy Store",
                     style = MaterialTheme.typography.labelLarge,
@@ -279,6 +280,12 @@ fun CassyTopBar(
                     text = " | ${state.terminalName ?: "T01"}",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+                Icon(
+                    imageVector = Icons.Default.Info,
+                    contentDescription = "Show Reporting",
+                    modifier = Modifier.padding(start = 8.dp).size(16.dp),
+                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
                 )
             }
 

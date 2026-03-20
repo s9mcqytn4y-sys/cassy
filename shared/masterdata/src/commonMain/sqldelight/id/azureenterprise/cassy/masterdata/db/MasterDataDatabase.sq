@@ -47,6 +47,14 @@ INSERT OR IGNORE INTO ProductBarcode(barcode, productId, type) VALUES ('89960016
 INSERT OR IGNORE INTO ProductBarcode(barcode, productId, type) VALUES ('8996001600064', 'p_6', 'GLOBAL');
 
 -- Queries
+insertProduct:
+INSERT OR REPLACE INTO Product(id, categoryId, name, price, sku, imageUrl, isActive)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+insertBarcode:
+INSERT OR REPLACE INTO ProductBarcode(barcode, productId, type)
+VALUES (?, ?, ?);
+
 selectAllProducts:
 SELECT * FROM Product;
 

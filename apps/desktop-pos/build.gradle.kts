@@ -24,7 +24,9 @@ dependencies {
     implementation(project(":shared:inventory"))
     implementation(compose.desktop.currentOs)
     implementation(compose.foundation)
+    implementation(compose.material) // Required for some Icons.Default and ambiguity resolution
     implementation(compose.material3)
+    implementation(compose.materialIconsExtended) // Full icon set
     implementation(compose.ui)
     implementation(libs.koin.core)
     implementation("io.insert-koin:koin-compose:${libs.versions.koin.get()}") {

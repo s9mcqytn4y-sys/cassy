@@ -8,6 +8,7 @@ import id.azureenterprise.cassy.sales.domain.FinalizationInventoryLine
 import id.azureenterprise.cassy.sales.domain.Payment
 import id.azureenterprise.cassy.sales.domain.PaymentState
 import id.azureenterprise.cassy.sales.domain.PaymentStatus
+import id.azureenterprise.cassy.sales.domain.PaymentStatusDetailCode
 import id.azureenterprise.cassy.sales.domain.PendingSaleReadback
 import id.azureenterprise.cassy.sales.domain.PreparedSaleFinalizationBundle
 import id.azureenterprise.cassy.sales.domain.PersistedSaleItem
@@ -307,8 +308,8 @@ class SalesRepository(
                 method = it.method,
                 amount = it.amount,
                 state = PaymentState(
-                    status = enumValueOf(it.status),
-                    detailCode = it.statusReasonCode?.let(::enumValueOfOrNull),
+                    status = enumValueOf<PaymentStatus>(it.status),
+                    detailCode = it.statusReasonCode?.let { code -> enumValueOfOrNull<PaymentStatusDetailCode>(code) },
                     detailMessage = it.statusDetailMessage
                 ),
                 providerReference = it.providerReference,
@@ -386,8 +387,8 @@ class SalesRepository(
             state = FinalizationBundleState.valueOf(state),
             receiptSnapshot = json.decodeFromString(receiptContent),
             paymentState = PaymentState(
-                status = enumValueOf(paymentStatus),
-                detailCode = paymentDetailCode?.let(::enumValueOfOrNull),
+                status = enumValueOf<PaymentStatus>(paymentStatus),
+                detailCode = paymentDetailCode?.let { code -> enumValueOfOrNull<PaymentStatusDetailCode>(code) },
                 detailMessage = paymentDetailMessage
             ),
             providerReference = providerReference,

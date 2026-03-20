@@ -22,10 +22,9 @@ class CassyKmpSharedPlugin : Plugin<Project> {
                     freeCompilerArgs.add("-Xexpect-actual-classes")
                 }
 
-                (this as org.gradle.api.plugins.ExtensionAware).extensions.configure<KotlinMultiplatformAndroidLibraryExtension>("android") {
-                    // Generate namespace based on project path
-                    // e.g., :shared:kernel -> id.azureenterprise.cassy.kernel
-                    // e.g., :shared -> id.azureenterprise.cassy.shared
+                // In AGP 8.11+, KotlinMultiplatformAndroidLibraryExtension is the correct type.
+                // We use "androidLibrary" as the extension name as it is the one currently registered.
+                (this as org.gradle.api.plugins.ExtensionAware).extensions.configure<KotlinMultiplatformAndroidLibraryExtension>("androidLibrary") {
                     val projectPath = path.replace(":", ".").removePrefix(".")
                     namespace = if (projectPath == "shared") {
                         "id.azureenterprise.cassy.shared"
