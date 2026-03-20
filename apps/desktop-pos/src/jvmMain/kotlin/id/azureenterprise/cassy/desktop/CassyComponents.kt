@@ -252,6 +252,13 @@ fun CassyTopBar(
     hardware: CashierHardwareSnapshot,
     syncStatus: String = "Online"
 ) {
+    val runtimeChannel = remember { System.getProperty("cassy.runtime.channel", "unknown") }
+    val releaseVersion = remember { System.getProperty("cassy.release.version", "dev") }
+    val buildLabel = remember(runtimeChannel, releaseVersion) {
+        if (runtimeChannel == "packaged-release-candidate") "RC $releaseVersion" else "DEV $releaseVersion"
+    }
+    val buildTone = if (runtimeChannel == "packaged-release-candidate") UiTone.Info else UiTone.Warning
+
     Surface(
         tonalElevation = 1.dp,
         modifier = Modifier.fillMaxWidth().height(48.dp),
@@ -276,6 +283,7 @@ fun CassyTopBar(
             }
 
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                StatusIndicator(label = "Build", status = buildLabel, tone = buildTone)
                 state.nextActionLabel?.let {
                     StatusIndicator(label = "Next", status = it, tone = UiTone.Info)
                 }

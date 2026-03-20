@@ -17,11 +17,14 @@ $uninstallPath = Join-Path $targetRoot "uninstall-registry.txt"
 
 $artifactCandidates = @(
     "apps/desktop-pos/build/compose/binaries/main/exe/Cassy-0.1.0.exe",
+    "apps/desktop-pos/build/compose/binaries/main/msi/Cassy-0.1.0.msi",
     "apps/desktop-pos/build/compose/binaries/main/app/Cassy/Cassy.exe",
     "apps/desktop-pos/build/compose/binaries/main/app/Cassy/app/Cassy.cfg",
     "apps/desktop-pos/build/compose/binaries/main/app/Cassy/runtime/release",
     "apps/desktop-pos/build/reports",
     "apps/desktop-pos/build/compose/logs",
+    "build/installer-evidence",
+    "build/release-artifact-evidence",
     "build/reports/problems/problems-report.html"
 )
 
@@ -32,6 +35,7 @@ $summary.Add("user=$env:USERNAME")
 $summary.Add("os=$([System.Environment]::OSVersion.VersionString)")
 $summary.Add("java_home=$env:JAVA_HOME")
 $summary.Add("data_root=$DataRoot")
+$summary.Add("runtime_log_locations=dedicated app log file not implemented; use installer logs, build/reports/problems/problems-report.html, apps/desktop-pos/build/compose/logs, and release-diagnostics outputs")
 $summary.Add("artifacts=")
 
 foreach ($candidate in $artifactCandidates) {

@@ -1,5 +1,6 @@
 import org.gradle.api.tasks.JavaExec
 import org.gradle.jvm.toolchain.JavaLanguageVersion
+import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile
 
 plugins {
@@ -45,8 +46,15 @@ val desktopJavaLauncher = javaToolchains.launcherFor {
     languageVersion.set(JavaLanguageVersion.of(17))
 }
 
+val desktopPackageVersion = "0.1.0"
+val desktopUpgradeUuid = "3d66aafe-2e8f-4f6e-a9cb-48d5564752d4"
+
 tasks.withType<JavaExec>().configureEach {
     javaLauncher.set(desktopJavaLauncher)
+    jvmArgs(
+        "-Dcassy.release.version=$desktopPackageVersion",
+        "-Dcassy.runtime.channel=gradle-task"
+    )
 }
 
 tasks.withType<KotlinJvmCompile>().configureEach {
@@ -66,12 +74,20 @@ tasks.register<JavaExec>("smokeRun") {
 compose.desktop {
     application {
         mainClass = "id.azureenterprise.cassy.desktop.MainKt"
+        jvmArgs += listOf(
+            "-Dcassy.release.version=$desktopPackageVersion",
+            "-Dcassy.runtime.channel=packaged-release-candidate"
+        )
         nativeDistributions {
             packageName = "Cassy"
-            packageVersion = "0.1.0"
-            targetFormats(org.jetbrains.compose.desktop.application.dsl.TargetFormat.Exe)
+            packageVersion = desktopPackageVersion
+            targetFormats(TargetFormat.Exe, TargetFormat.Msi)
             windows {
                 iconFile.set(project.file("../../assets/icon/cassy-app-icon.ico"))
+                perUserInstall = true
+                dirChooser = true
+                menuGroup = "Cassy"
+                upgradeUuid = desktopUpgradeUuid
             }
         }
     }
