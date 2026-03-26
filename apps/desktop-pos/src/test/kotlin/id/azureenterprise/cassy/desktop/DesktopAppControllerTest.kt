@@ -1,3 +1,5 @@
+@file:Suppress("WildcardImport")
+
 package id.azureenterprise.cassy.desktop
 
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
@@ -84,7 +86,12 @@ class DesktopAppControllerTest {
         controller.login()
 
         val stage = controller.state.value.stage
-        assertTrue(stage is DesktopStage.OpenDay || stage is DesktopStage.Catalog || stage is DesktopStage.StartShift, "Stage was $stage")
+        assertTrue(
+            stage is DesktopStage.OpenDay ||
+                stage is DesktopStage.Catalog ||
+                stage is DesktopStage.StartShift,
+            "Stage was $stage"
+        )
         assertNotNull(controller.state.value.shell.operatorName)
     }
 
@@ -98,7 +105,12 @@ class DesktopAppControllerTest {
         controller.openBusinessDay()
 
         val dashboard = controller.state.value.operations.dashboard
-        assertTrue(dashboard.decisions.any { it.type == OperationType.OPEN_BUSINESS_DAY && it.status == OperationStatus.COMPLETED })
+        assertTrue(
+            dashboard.decisions.any {
+                it.type == OperationType.OPEN_BUSINESS_DAY &&
+                    it.status == OperationStatus.COMPLETED
+            }
+        )
     }
 
     @Test
@@ -113,7 +125,12 @@ class DesktopAppControllerTest {
         controller.startShift()
 
         val dashboard = controller.state.value.operations.dashboard
-        assertTrue(dashboard.decisions.any { it.type == OperationType.START_SHIFT && it.status == OperationStatus.COMPLETED })
+        assertTrue(
+            dashboard.decisions.any {
+                it.type == OperationType.START_SHIFT &&
+                    it.status == OperationStatus.COMPLETED
+            }
+        )
         assertEquals(DesktopStage.Catalog, controller.state.value.stage)
     }
 
@@ -174,6 +191,7 @@ class DesktopAppControllerTest {
         assertNotNull(controller.state.value.catalog.lastFinalizedSaleId)
     }
 
+    @Suppress("LongMethod")
     private fun desktopFixture(): DesktopFixture {
         val kernelDriver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
         val salesDriver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
@@ -185,15 +203,32 @@ class DesktopAppControllerTest {
         InventoryDatabase.Schema.create(inventoryDriver)
         MasterDataDatabase.Schema.create(masterDataDriver)
 
-        val kernelRepo = KernelRepository(KernelDatabase(kernelDriver), EmptyCoroutineContext, Clock.System)
-        val outboxRepo = OutboxRepository(KernelDatabase(kernelDriver), EmptyCoroutineContext, Clock.System)
+        val kernelRepo = KernelRepository(
+            KernelDatabase(kernelDriver),
+            EmptyCoroutineContext,
+            Clock.System
+        )
+        val outboxRepo = OutboxRepository(
+            KernelDatabase(kernelDriver),
+            EmptyCoroutineContext,
+            Clock.System
+        )
         val accessService = AccessService(kernelRepo, PinHasher(), Clock.System)
         val businessDayService = BusinessDayService(kernelRepo, accessService)
         val shiftService = ShiftService(kernelRepo, accessService, OpeningCashPolicy())
         val cashControlService = CashControlService(kernelRepo, accessService, CashMovementPolicy())
-        val shiftClosingService = ShiftClosingService(kernelRepo, accessService, NoopOperationalSalesPort, ShiftClosePolicy())
+        val shiftClosingService = ShiftClosingService(
+            kernelRepo,
+            accessService,
+            NoopOperationalSalesPort,
+            ShiftClosePolicy()
+        )
 
-        val inventoryRepo = InventoryRepository(InventoryDatabase(inventoryDriver), EmptyCoroutineContext, Clock.System)
+        val inventoryRepo = InventoryRepository(
+            InventoryDatabase(inventoryDriver),
+            EmptyCoroutineContext,
+            Clock.System
+        )
         val inventoryService = InventoryService(
             inventoryRepo,
             accessService,
@@ -209,7 +244,11 @@ class DesktopAppControllerTest {
             BarcodeNormalizer()
         )
 
-        val salesRepo = SalesRepository(SalesDatabase(salesDriver), EmptyCoroutineContext, Clock.System)
+        val salesRepo = SalesRepository(
+            SalesDatabase(salesDriver),
+            EmptyCoroutineContext,
+            Clock.System
+        )
         val salesService = SalesService(
             salesRepository = salesRepo,
             inventoryService = inventoryService,
@@ -269,7 +308,12 @@ class DesktopAppControllerTest {
         shiftService.submitStartShift(100_000.0)
     }
 
-    private suspend fun DesktopFixture.insertOperator(id: String, name: String, pin: String, role: OperatorRole) {
+    private suspend fun DesktopFixture.insertOperator(
+        id: String,
+        name: String,
+        pin: String,
+        role: OperatorRole
+    ) {
         val salt = "test-salt"
         val hasher = PinHasher()
         kernelRepository.upsertOperator(
@@ -335,6 +379,7 @@ private class DesktopTestOperationalSalesPort(
 private class KernelRepositorySalesKernelPort(
     private val kernelRepository: KernelRepository
 ) : id.azureenterprise.cassy.sales.application.SalesKernelPort {
+    @Suppress("ReturnCount")
     override suspend fun getOperationalContext(): id.azureenterprise.cassy.sales.application.SalesOperationalContext? {
         val binding = kernelRepository.getTerminalBinding() ?: return null
         val shift = kernelRepository.getActiveShift(binding.terminalId) ?: return null
@@ -357,8 +402,19 @@ private class KernelRepositorySalesKernelPort(
 
 private object NoopHardwarePort : CashierHardwarePort {
     override suspend fun getSnapshot() = CashierHardwareSnapshot()
-    override suspend fun handlePostFinalization(paymentMethod: String, receiptPayload: ReceiptPrintPayload) = HardwarePostFinalizationResult(CashierHardwareSnapshot())
-    override suspend fun printReceipt(receiptPayload: ReceiptPrintPayload) = HardwarePrintExecutionResult(CashierHardwareSnapshot(), id.azureenterprise.cassy.sales.domain.ReceiptPrintState(id.azureenterprise.cassy.sales.domain.ReceiptPrintStatus.NOT_REQUESTED))
+    override suspend fun handlePostFinalization(
+        paymentMethod: String,
+        receiptPayload: ReceiptPrintPayload
+    ) = HardwarePostFinalizationResult(CashierHardwareSnapshot())
+
+    override suspend fun printReceipt(
+        receiptPayload: ReceiptPrintPayload
+    ) = HardwarePrintExecutionResult(
+        CashierHardwareSnapshot(),
+        id.azureenterprise.cassy.sales.domain.ReceiptPrintState(
+            id.azureenterprise.cassy.sales.domain.ReceiptPrintStatus.NOT_REQUESTED
+        )
+    )
 }
 
 private object NoopOperationalHardwarePort : id.azureenterprise.cassy.kernel.application.OperationalHardwarePort {

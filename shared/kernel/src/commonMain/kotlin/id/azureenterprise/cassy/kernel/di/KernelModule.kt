@@ -21,12 +21,14 @@ import id.azureenterprise.cassy.kernel.domain.OpeningCashPolicy
 import id.azureenterprise.cassy.kernel.domain.PinHasher
 import id.azureenterprise.cassy.kernel.domain.ShiftClosePolicy
 import kotlinx.datetime.Clock
+import kotlinx.datetime.TimeZone
 import kotlin.coroutines.CoroutineContext
 import org.koin.core.module.Module
 
 val kernelModule = module {
     single<CoroutineContext> { Dispatchers.Default }
     single<Clock> { Clock.System }
+    single<TimeZone> { TimeZone.currentSystemDefault() }
     single { PinHasher() }
     single { OutboxRepository(get(), get(), get()) }
     single { KernelRepository(get(), get(), get()) }
@@ -43,7 +45,7 @@ val kernelModule = module {
     // R5 Reporting Foundation
     single<OperationalSalesPort> { NoopOperationalSalesPort }
     single<OperationalHardwarePort> { NoopOperationalHardwarePort }
-    single { ReportingQueryFacade(get(), get(), get(), get(), get()) }
+    single { ReportingQueryFacade(get(), get(), get(), get(), get(), get()) }
 
     single { SyncVisibilityService(get(), get(), get()) }
 }
