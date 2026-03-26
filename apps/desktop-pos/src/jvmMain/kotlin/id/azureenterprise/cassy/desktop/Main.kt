@@ -81,6 +81,7 @@ fun main(args: Array<String>) {
                                 CassyTopBar(
                                     state = state.shell,
                                     hardware = state.hardware,
+                                    syncStatus = state.operations.reportingSummary?.syncStatus,
                                     onShowReporting = { showReportingDialog = true }
                                 )
 

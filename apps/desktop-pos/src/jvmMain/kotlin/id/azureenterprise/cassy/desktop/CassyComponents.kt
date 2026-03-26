@@ -1,5 +1,6 @@
 package id.azureenterprise.cassy.desktop
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -17,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -24,6 +26,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import id.azureenterprise.cassy.kernel.domain.SyncLevel
+import id.azureenterprise.cassy.kernel.domain.SyncStatus
 import id.azureenterprise.cassy.masterdata.domain.Product
 import java.text.NumberFormat
 import java.util.*
@@ -109,6 +113,7 @@ fun CassyCurrencyInput(
 
 /**
  * CassySlimRail: 72dp width rail for high-throughput desktop workspace.
+ * Uses brand logo for identity.
  */
 @Composable
 fun CassySlimRail(
@@ -121,11 +126,11 @@ fun CassySlimRail(
         containerColor = MaterialTheme.colorScheme.surfaceVariant,
         header = {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(
-                    imageVector = Icons.Default.ShoppingCart,
-                    contentDescription = "Cassy POS",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(32.dp).padding(top = 12.dp)
+                // R5 UX Hardening: Use official brand logo in Slim Rail
+                Image(
+                    painter = painterResource("logo.png"),
+                    contentDescription = "Cassy Logo",
+                    modifier = Modifier.size(40.dp).padding(top = 12.dp)
                 )
                 Spacer(modifier = Modifier.height(24.dp))
             }
@@ -250,7 +255,7 @@ fun CassyDenseProductRow(
 fun CassyTopBar(
     state: DesktopShellState,
     hardware: CashierHardwareSnapshot,
-    syncStatus: String = "Online",
+    syncStatus: SyncStatus? = null,
     onShowReporting: () -> Unit = {}
 ) {
     val runtimeChannel = remember { System.getProperty("cassy.runtime.channel", "unknown") }
@@ -259,6 +264,25 @@ fun CassyTopBar(
         if (runtimeChannel == "packaged-release-candidate") "RC $releaseVersion" else "DEV $releaseVersion"
     }
     val buildTone = if (runtimeChannel == "packaged-release-candidate") UiTone.Info else UiTone.Warning
+
+    val syncLabel = syncStatus?.let {
+        when (it.level) {
+            SyncLevel.HEALTHY -> "Online"
+            SyncLevel.PENDING -> "Sync (${it.pendingCount})"
+            SyncLevel.DELAYED -> "Delayed (${it.pendingCount})"
+            SyncLevel.STALLED -> "Stalled!"
+            SyncLevel.ERROR -> "Sync Error"
+        }
+    } ?: "Offline"
+
+    val syncTone = syncStatus?.let {
+        when (it.level) {
+            SyncLevel.HEALTHY -> UiTone.Success
+            SyncLevel.PENDING -> UiTone.Info
+            SyncLevel.DELAYED -> UiTone.Warning
+            SyncLevel.STALLED, SyncLevel.ERROR -> UiTone.Danger
+        }
+    } ?: UiTone.Warning
 
     Surface(
         tonalElevation = 1.dp,
@@ -294,7 +318,7 @@ fun CassyTopBar(
                 state.nextActionLabel?.let {
                     StatusIndicator(label = "Next", status = it, tone = UiTone.Info)
                 }
-                StatusIndicator(label = "Sync", status = syncStatus, tone = if (syncStatus == "Online") UiTone.Success else UiTone.Warning)
+                StatusIndicator(label = "Sync", status = syncLabel, tone = syncTone)
                 StatusIndicator(label = "Print", status = hardware.printer.label, tone = hardwareTone(hardware.printer.status))
                 StatusIndicator(label = "Scan", status = hardware.scanner.label, tone = hardwareTone(hardware.scanner.status))
                 StatusIndicator(label = "Drawer", status = hardware.cashDrawer.label, tone = hardwareTone(hardware.cashDrawer.status))
