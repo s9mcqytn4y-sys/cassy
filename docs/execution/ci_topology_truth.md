@@ -1,5 +1,9 @@
 # CI Topology Truth
 
+> Historical Note (2026-03-27)
+> Dokumen ini adalah snapshot topology sebelum lane installer Windows menjadi scripted evidence.
+> Authority terbaru untuk release truth: `docs/execution/r4_windows_release_trust.md`, `docs/execution/windows_desktop_runbook.md`, `docs/execution/roadmap_bridge.md`.
+
 Dokumen ini mencatat topology workflow yang benar-benar dimaksud repo setelah hardening 2026-03-16.
 
 ## Lane aktif
@@ -15,7 +19,7 @@ Dokumen ini mencatat topology workflow yang benar-benar dimaksud repo setelah ha
   - tujuan: build penuh + subset migration verification yang jujur
 - `Release Evidence` di `.github/workflows/release-evidence.yml`
   - trigger: manual
-  - tujuan: manifest release evidence dan checklist soft-blocker manual
+  - tujuan: manifest release evidence untuk artifact hosted terbaru
 
 ## Failure history yang masih relevan
 
@@ -43,4 +47,4 @@ Dokumen ini mencatat topology workflow yang benar-benar dimaksud repo setelah ha
 ## Gap yang masih tersisa
 
 - Hosted `Mainline Evidence` run `23142319550` untuk commit `a27ddc7` sudah sukses dan menghasilkan artifact Windows.
-- Installer EXE install/uninstall tetap soft blocker manual dan tidak boleh diganti oleh artifact upload semata.
+- Hosted rerun terbaru untuk workflow Windows tetap perlu dibuktikan; lane installer lokal sendiri sudah scripted dan tidak lagi manual-soft-blocker.

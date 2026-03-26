@@ -84,6 +84,7 @@ compose.desktop {
             packageName = "Cassy"
             packageVersion = desktopPackageVersion
             targetFormats(TargetFormat.Exe, TargetFormat.Msi)
+            modules("java.sql")
             windows {
                 iconFile.set(project.file("../../assets/icon/cassy-app-icon.ico"))
                 perUserInstall = true

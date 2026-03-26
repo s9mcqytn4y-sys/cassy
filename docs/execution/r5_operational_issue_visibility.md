@@ -1,17 +1,19 @@
 # R5 Operational Issue Visibility
 
 ## Overview
-Operational Issue Visibility ensures that any state preventing or delaying normal store operations is explicitly visible to the operator and supervisor. This avoids the "flattening" of pending or blocked states into a generic "healthy" or "error" state.
+Operational Issue Visibility memastikan setiap state yang mencegah atau menunda operasi toko tetap terlihat eksplisit untuk operator dan supervisor.
 
 ## Implementation Truth
-1. **Source of Truth**: `ReportingQueryFacade` aggregates data from `KernelRepository`, `OutboxRepository`, `OperationalSalesPort`, and `OperationalHardwarePort`.
-2. **Explicit Taxonomy**: Every issue is categorized using `OperationalIssueType` (e.g., `SYNC_STATUS`, `PENDING_APPROVAL`, `OPEN_WORK_UNIT`).
-3. **Drill-down Consistency**: The same `OperationalIssue` model is used for both summary counts and detailed lists.
-4. **Readback Detail**: Issues include `actor`, `timestamp`, and `reasonCode` where applicable, providing a complete audit trail in the UI.
+1. `ReportingQueryFacade` mengagregasi data dari `KernelRepository`, `OutboxRepository`, `OperationalSalesPort`, dan `OperationalHardwarePort`.
+2. Setiap issue dikategorikan dengan `OperationalIssueType`.
+3. Model `OperationalIssue` dipakai konsisten untuk summary dan detail list.
+4. Readback memuat `actor`, `timestamp`, `reasonCode`, dan `status` bila data memang tersedia.
 
 ## Visibility Rules
-- **Sync**: Latency > 1 hour is `STALLED` (Warning). Latency > 5 mins is `DELAYED` (Info/Warning).
-- **Approvals**: Any `REQUESTED` approval is a `PENDING_APPROVAL` issue.
-- **Transactions**: Any incomplete transaction in a closing shift is a `CRITICAL` blocker.
-- **Work Units**: Any open shift when closing a day is a `CRITICAL` blocker.
-- **Hardware**: Any disconnected or failed hardware is reported as `UNAVAILABLE`.
+- `sync.last_error_message` membuat status menjadi `ERROR` sampai ada `recordSyncSuccess()` yang membersihkan error terakhir.
+- Latency > 1 hour adalah `STALLED`.
+- Latency > 5 minutes adalah `DELAYED`.
+- Approval `REQUESTED` menjadi `PENDING_APPROVAL`.
+- Transaksi belum selesai saat close shift menjadi blocker `CRITICAL`.
+- Shift yang masih open saat close day menjadi blocker `CRITICAL`.
+- Hardware yang putus atau gagal dilaporkan sebagai `UNAVAILABLE`.

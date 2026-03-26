@@ -11,6 +11,9 @@ import id.azureenterprise.cassy.kernel.application.OperationalControlService
 import id.azureenterprise.cassy.kernel.application.ShiftService
 import id.azureenterprise.cassy.kernel.application.ShiftClosingService
 import id.azureenterprise.cassy.kernel.application.ReportingQueryFacade
+import id.azureenterprise.cassy.kernel.application.SyncReplayPort
+import id.azureenterprise.cassy.kernel.application.NoopSyncReplayPort
+import id.azureenterprise.cassy.kernel.application.SyncReplayService
 import id.azureenterprise.cassy.kernel.application.SyncVisibilityService
 import id.azureenterprise.cassy.kernel.application.OperationalSalesPort
 import id.azureenterprise.cassy.kernel.application.NoopOperationalSalesPort
@@ -47,7 +50,9 @@ val kernelModule = module {
     single<OperationalHardwarePort> { NoopOperationalHardwarePort }
     single { ReportingQueryFacade(get(), get(), get(), get(), get(), get()) }
 
+    single<SyncReplayPort> { NoopSyncReplayPort }
     single { SyncVisibilityService(get(), get(), get()) }
+    single { SyncReplayService(get(), get(), get(), get()) }
 }
 
 expect val databaseModule: Module

@@ -1,6 +1,6 @@
 # Cassy Roadmap Execution Bridge
 
-Updated: 2026-03-19
+Updated: 2026-03-27
 
 Dokumen ini adalah bridge antara roadmap PDF, context agent, dan repo reality. Repo diperlakukan sebagai implementation snapshot; status milestone hanya boleh naik bila ada evidence kode, test, dan verifikasi yang nyata.
 
@@ -9,49 +9,51 @@ Dokumen ini adalah bridge antara roadmap PDF, context agent, dan repo reality. R
 | ID | Milestone | Status Repo Jujur | Evidence Utama | Catatan |
 |:---|:---|:---|:---|:---|
 | M0 | Program Setup | **DONE** | `AGENTS.md`, `CODEX.md`, `.agent/` | Struktur kendali dasar telah stabil. |
-| M1 | Scope Lock V1 | **DONE** | `.agent/context/project_overview.md` | Fokus Desktop-first retail core terkunci. |
-| M2 | Arch Control Plane | **DONE** | Kotlin 2.3.20, Multi-module Gradle | Build logic dan dependency management (libs.versions.toml) sudah modern & sinkron. |
-| M3 | Desktop Bootstrap | **DONE** | `Main.kt` branding, `DesktopAppControllerTest` | Flow Login, Restore, dan Lockout telah terverifikasi. |
-| M4 | Business Day & Shift | **DONE** | `ShiftService`, Guardrail Lifecycle | Lifecycle Open/Start/End/Close tervalidasi dengan guardrail operasional. |
-| M5 | Thin M5 (Catalog/Cart) | **DONE (BASELINES)** | `SalesService`, `ActiveBasket` persistence | Catalog lookup, cart mutation, dan basket persistence (survival on restart) sudah stabil. |
-| M6 | Checkout & Receipt | **DONE (DESKTOP-FIRST R1)** | `SalesService`, `SalesRepository`, `DesktopAppController`, sales DB migrations | Finality transaksi, snapshot struk final, readback/reprint dari source final, complete-sale facade, payment callback/idempotency guard, durable finalization bundle, crash/replay proof, cash tender helper, preview/print status, dan separation print vs settlement validity sudah tervalidasi untuk lane desktop. |
-| M7 | Inventory Basic | **DONE (R3 HARDENED SLICE)** | `InventoryService`, `InventoryRepository`, desktop inventory dialog, inventory DB migration v3 | Sale -> inventory boundary sudah tegas, balance vs ledger baseline aktif, FIFO layer baseline ada, stock count/discrepancy review hidup, approval-aware adjustment queue ada, FK/integrity proof ada, dan void-impact contract diblok jujur. |
-| M8 | Reporting Dasar | **PENDING** | - | Belum ada implementasi runtime atau UI reporting. |
-| M9 | Sync Visibility | **PENDING** | outbox/infra parsial | Replay mechanism dan sync state visibility belum di-close. |
-| M10 | Release (Windows) | **FOUNDATION-OK** | `smokeRun`, `run --args="--smoke-run"`, hosted `Mainline Evidence`, diagnostics + state-backup baseline, manual evidence pack | JDK/workspace truth, packaging task map, source smoke, dan distribution smoke sudah explicit; install/uninstall installer masih manual-soft-blocker. |
-| R2-B1 | Operational Control Foundation | **DONE (FOUNDATION SLICE)** | `OperationalControlService`, `BusinessDayService`, `ShiftService`, `DesktopAppController` | Control tower, open day, shift gating, opening cash approval, dan legacy orphan cleanup sudah hidup di desktop-first lane. |
-| R2-B2 | Operational Control Hardening | **DONE (DESKTOP-FIRST SLICE)** | `CashControlService`, `ShiftClosingService`, `KernelRepository`, `DesktopAppController` | Cash control baseline, approval durability, close shift reconciliation, close day fail-closed review, dan kernel migration handling sudah hidup di desktop-first lane. |
-| R2-B3 | Final Gate & Truth Sync | **PARTIAL (HONEST VERDICT)** | `r2_final_gate_report.md`, rerun verification matrix 2026-03-19 | Gate teknis lulus, tetapi R2 penuh belum boleh diklaim `DONE` karena void resolver dan release evidence installer masih terbuka. |
+| M1 | Scope Lock V1 | **DONE** | `.agent/context/project_overview.md` | Fokus desktop-first retail core terkunci. |
+| M2 | Arch Control Plane | **DONE** | Kotlin 2.2.10, multi-module Gradle | Build logic dan dependency management sinkron dengan repo aktual. |
+| M3 | Desktop Bootstrap | **DONE** | `Main.kt`, `DesktopAppControllerTest` | Flow login, restore, dan lockout telah terverifikasi. |
+| M4 | Business Day & Shift | **DONE** | `ShiftService`, guardrail lifecycle | Lifecycle open/start/end/close tervalidasi dengan guardrail operasional. |
+| M5 | Thin M5 (Catalog/Cart) | **DONE (BASELINES)** | `SalesService`, `ActiveBasket` persistence | Catalog lookup, cart mutation, dan basket persistence sudah stabil. |
+| M6 | Checkout & Receipt | **DONE (DESKTOP-FIRST R1)** | `SalesService`, `SalesRepository`, `DesktopAppController` | Finality transaksi, snapshot struk final, readback, replay proof, dan settlement path tervalidasi untuk lane desktop. |
+| M7 | Inventory Basic | **DONE (R3 HARDENED SLICE)** | `InventoryService`, `InventoryRepository`, inventory DB migration v3 | Sale -> inventory boundary sudah tegas dan integrity proof ada. |
+| M8 | Reporting Dasar | **DONE (R5 LITE)** | `ReportingQueryFacade`, `ReportingQueryFacadeTest`, desktop reporting dialog | Daily summary, shift summary, issue taxonomy, dan sync readback sudah hidup di repo. |
+| M9 | Sync Visibility | **PARTIAL (R6 HARDENED)** | `OutboxRepository`, `SyncVisibilityService`, `SyncReplayService`, `ReportingQueryFacade`, desktop sync trigger | Pending, failed, retry, prune, dan last-error visibility sudah hidup; transport backend nyata dan durable conflict lane belum selesai. |
+| M10 | Release (Windows) | **DONE (LOCAL EVIDENCE / CI-CONFIGURED)** | source smoke, distribution smoke, installer evidence, diagnostics, Windows workflows | Packaging, install/repair/uninstall MSI, diagnostics, dan recovery baseline sudah terbukti lokal; hosted rerun terbaru belum diverifikasi. |
+| R2-B1 | Operational Control Foundation | **DONE (FOUNDATION SLICE)** | `OperationalControlService`, `BusinessDayService`, `ShiftService`, `DesktopAppController` | Control tower, open day, shift gating, opening cash approval, dan cleanup orphan UI lama sudah hidup. |
+| R2-B2 | Operational Control Hardening | **DONE (DESKTOP-FIRST SLICE)** | `CashControlService`, `ShiftClosingService`, `KernelRepository`, `DesktopAppController` | Cash control baseline, approval durability, close shift reconciliation, dan close day fail-closed review sudah hidup. |
+| R2-B3 | Final Gate & Truth Sync | **PARTIAL (HONEST VERDICT)** | rerun verification matrix 2026-03-26 | Gate teknis lulus; blocker utama yang tersisa sekarang berpusat di void execution resolver, bukan lagi installer evidence. |
 
 ## Bukti Verifikasi (Evidence Matrix)
 
 ### 1. Local Evidence (Unit/Integration Tests)
-- `.\gradlew :shared:kernel:allTests` -> Access, business day, shift, approval policy, dashboard readiness (PASSED)
-- `.\gradlew :shared:sales:desktopTest` -> Cart logic, receipt snapshot, failure path, retry/idempotency, replay (PASSED)
-- `.\gradlew :shared:inventory:desktopTest` -> Stock transaction invariants, approval-aware adjustment, discrepancy resolution, migration/integrity persistence (PASSED)
-- `.\gradlew :shared:inventory:verifyCommonMainInventoryDatabaseMigration` -> SQLDelight migration verification for inventory truth baseline (PASSED)
-- `.\gradlew :apps:desktop-pos:test` -> Desktop cashier + operational control lane (PASSED)
-- `.\gradlew :shared:kernel:desktopTest --tests "id.azureenterprise.cassy.kernel.persistence.KernelPersistenceMigrationTest.*"` -> kernel operational migration proof (PASSED)
+- `.\gradlew :shared:kernel:allTests` -> PASS
+- `.\gradlew :apps:desktop-pos:build` -> PASS
+- `.\gradlew test` -> PASS
+- `.\gradlew lint detekt` -> PASS
+- `.\gradlew :apps:desktop-pos:smokeRun` -> PASS
+- `.\gradlew :shared:kernel:verifyCommonMainKernelDatabaseMigration :shared:inventory:verifyCommonMainInventoryDatabaseMigration :shared:masterdata:verifyCommonMainMasterDataDatabaseMigration :shared:sales:verifyCommonMainSalesDatabaseMigration` -> PASS
 
 ### 2. Manual / Local Smoke Evidence
-- `.\gradlew :apps:desktop-pos:smokeRun` -> PASS
-- `.\gradlew :apps:desktop-pos:run --args="--smoke-run"` -> PASS
-- Source smoke dan distribution smoke repo-local sudah ada.
+- `powershell -ExecutionPolicy Bypass -File tooling/scripts/Invoke-DesktopDistributionSmoke.ps1` -> PASS
+- `powershell -ExecutionPolicy Bypass -File tooling/scripts/Invoke-WindowsInstallerEvidence.ps1` -> PASS
+- diagnostics terbaru: `build/release-diagnostics/20260327-055513/`
+- installer evidence terbaru: `build/installer-evidence/20260327-055513/`
 - Baseline recovery data lokal: `tooling/scripts/Backup-CassyDesktopState.ps1`
 - Baseline diagnostics Windows: `tooling/scripts/Collect-WindowsReleaseDiagnostics.ps1`
-- **Installer install/uninstall** masih belum boleh diklaim PASS sebelum checklist manual di `docs/execution/windows_installer_smoke_checklist.md` dijalankan.
 
 ### 3. Hosted Evidence (CI/CD)
 - Hosted evidence harus dibuktikan dari run remote yang benar-benar selesai.
-- Status hosted run tidak boleh diangkat dari verifikasi lokal saja.
+- Workflow Windows sudah disinkronkan untuk artifact EXE, MSI, installer evidence, dan diagnostics.
+- Status hosted run baru tidak saya klaim dari verifikasi lokal saja.
 
 ## Next Truthful Focus
+
 - void execution resolver lintas sales/cashflow/inventory/reporting
-- appendix product management yang lebih lengkap bila memang dibutuhkan setelah R3 foundation stabil
-- close report export baseline bila benar-benar dibutuhkan
-- release evidence installer manual agar gap Windows delivery makin kecil
+- transport backend nyata dan durable conflict lane untuk R6
+- R7 Android semantic parity readiness dan test discipline
 - hosted CI reality capture bila ada remote run baru yang benar-benar selesai
 
 ## R3 Final Gate Note
+
 - R3 `DONE` hanya berarti inventory truth lite desktop-first sudah hidup dan terverifikasi.
-- Ini tidak menaikkan status full void execution, second PIN / dual auth, PDF report export, atau Windows installer evidence menjadi PASS.
+- Ini tidak menaikkan status full void execution, second PIN / dual auth, atau PDF report export menjadi PASS.

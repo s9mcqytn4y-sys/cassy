@@ -5,6 +5,7 @@ import id.azureenterprise.cassy.kernel.domain.*
 import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -14,14 +15,15 @@ class ReportingQueryFacadeTest {
 
     private val clock = Clock.System
     private val kernelRepo = FakeKernelRepository()
+    private val pendingEvents = mutableListOf<id.azureenterprise.cassy.kernel.db.OutboxEvent>()
 
     // Mock OutboxRepository to avoid DB driver issues in commonTest
     private val outboxRepo = object : id.azureenterprise.cassy.kernel.data.OutboxRepository(
         database = null,
-        ioDispatcher = kotlin.coroutines.EmptyCoroutineContext,
+        ioDispatcher = EmptyCoroutineContext,
         clock = clock
     ) {
-        override suspend fun getPendingEvents(): List<id.azureenterprise.cassy.kernel.db.OutboxEvent> = emptyList()
+        override suspend fun getPendingEvents(): List<id.azureenterprise.cassy.kernel.db.OutboxEvent> = pendingEvents.toList()
     }
 
     private val salesPort = object : OperationalSalesPort {
@@ -101,5 +103,26 @@ class ReportingQueryFacadeTest {
         assertEquals(170_000.0, summary.expectedCash)
         assertEquals(true, summary.hasUnresolvedIssues) // because status is OPEN
         assertTrue(summary.issues.any { it.type == OperationalIssueType.OPEN_WORK_UNIT && it.severity == IssueSeverity.INFO })
+    }
+
+    @Test
+    fun `getSyncStatus should expose explicit sync error metadata`() = runTest {
+        pendingEvents.clear()
+        pendingEvents += id.azureenterprise.cassy.kernel.db.OutboxEvent(
+            id = "event-1",
+            timestamp = clock.now().toEpochMilliseconds(),
+            type = "SALE_CREATED",
+            payload = """{"saleId":"SALE-1"}""",
+            status = "PENDING"
+        )
+        kernelRepo.upsertMetadata("sync.last_error_message", "HQ unreachable")
+
+        val syncStatus = facade.getSyncStatus()
+
+        assertEquals(SyncLevel.ERROR, syncStatus.level)
+        assertEquals("HQ unreachable", syncStatus.message)
+        assertEquals("HQ unreachable", syncStatus.lastErrorMessage)
+        assertEquals(1, syncStatus.pendingCount)
+        assertEquals(0, syncStatus.failedCount)
     }
 }

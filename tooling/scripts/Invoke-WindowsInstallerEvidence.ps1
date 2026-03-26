@@ -14,6 +14,20 @@ function Get-CassyUninstallEntry {
         Select-Object -First 1
 }
 
+function Resolve-ProductCode {
+    param([object]$UninstallEntry)
+
+    if ($UninstallEntry -and $UninstallEntry.PSChildName -match '^\{[A-F0-9-]+\}$') {
+        return $UninstallEntry.PSChildName
+    }
+
+    if ($UninstallEntry -and $UninstallEntry.UninstallString -match '\{[A-F0-9-]+\}') {
+        return $Matches[0]
+    }
+
+    throw "Unable to resolve Cassy MSI product code from uninstall entry."
+}
+
 function Invoke-MsiStep {
     param(
         [string]$StepName,
@@ -21,8 +35,8 @@ function Invoke-MsiStep {
         [string]$LogPath
     )
 
-    & msiexec.exe @Arguments
-    $exitCode = $LASTEXITCODE
+    $process = Start-Process -FilePath "msiexec.exe" -ArgumentList $Arguments -Wait -PassThru -NoNewWindow
+    $exitCode = $process.ExitCode
     if ($exitCode -notin @(0, 3010)) {
         throw "$StepName failed with exit code $exitCode. Log: $LogPath"
     }
@@ -64,15 +78,22 @@ function Invoke-InstalledSmoke {
     try {
         & $ExePath @Arguments *> $LogPath
         $exitCode = $LASTEXITCODE
-        if ($exitCode -ne 0) {
-            throw "Installed launcher smoke failed with exit code $exitCode"
+        $deadline = (Get-Date).AddSeconds(30)
+        while (-not (Test-Path $MarkerPath) -and (Get-Date) -lt $deadline) {
+            Start-Sleep -Milliseconds 250
         }
         if (-not (Test-Path $MarkerPath)) {
+            if ($null -ne $exitCode -and "$exitCode" -ne "") {
+                throw "Installed launcher smoke marker missing: $MarkerPath (exit code $exitCode)"
+            }
             throw "Installed launcher smoke marker missing: $MarkerPath"
         }
         $marker = (Get-Content $MarkerPath -Raw).Trim()
         if ($marker -notlike "CASSY_SMOKE_OK*") {
             throw "Installed launcher smoke marker invalid: $marker"
+        }
+        if ($null -ne $exitCode -and "$exitCode" -ne "" -and $exitCode -ne 0) {
+            throw "Installed launcher smoke reported success marker but exited with code $exitCode"
         }
         return $marker
     } finally {
@@ -99,6 +120,18 @@ $repairSmokeLog = Join-Path $targetRoot "repair-smoke.log"
 $installMarker = Join-Path $targetRoot "installed-smoke-marker.txt"
 $repairMarker = Join-Path $targetRoot "repair-smoke-marker.txt"
 $summaryPath = Join-Path $targetRoot "installer-evidence-summary.txt"
+$precleanLog = Join-Path $targetRoot "msi-preclean.log"
+
+$existingEntry = Get-CassyUninstallEntry
+if ($existingEntry) {
+    $productCode = Resolve-ProductCode -UninstallEntry $existingEntry
+    Invoke-MsiStep -StepName "MSI preclean uninstall" -Arguments @("/x", $productCode, "/qn", "/norestart", "/L*V", $precleanLog) -LogPath $precleanLog
+
+    $entryAfterPreclean = Get-CassyUninstallEntry
+    if ($entryAfterPreclean) {
+        throw "Cassy uninstall entry still exists after MSI preclean uninstall."
+    }
+}
 
 Invoke-MsiStep -StepName "MSI install" -Arguments @("/i", $resolvedMsiPath, "/qn", "/norestart", "/L*V", $installLog) -LogPath $installLog
 
@@ -130,6 +163,7 @@ $summary = @(
     "installed_exe=$installedExe",
     "install_smoke=$installMarkerValue",
     "repair_smoke=$repairMarkerValue",
+    "preclean_log=$precleanLog",
     "install_log=$installLog",
     "repair_log=$repairLog",
     "uninstall_log=$uninstallLog"

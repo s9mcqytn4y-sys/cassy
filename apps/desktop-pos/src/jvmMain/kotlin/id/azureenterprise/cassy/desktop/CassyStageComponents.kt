@@ -24,6 +24,9 @@ import id.azureenterprise.cassy.kernel.domain.OperationDecision
 import id.azureenterprise.cassy.kernel.domain.OperationStatus
 import id.azureenterprise.cassy.kernel.domain.OperationType
 import id.azureenterprise.cassy.kernel.domain.OperationalControlSnapshot
+import id.azureenterprise.cassy.kernel.domain.SyncLevel
+import id.azureenterprise.cassy.kernel.domain.SyncStatus
+import kotlinx.datetime.Instant
 
 @Composable
 fun LoadingStage() {
@@ -436,8 +439,16 @@ fun ReportingSummaryDialog(
                     ) {
                         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Total Penjualan", style = MaterialTheme.typography.bodyMedium)
+                                Text("Rp ${summary.totalSales.toInt()}", fontWeight = FontWeight.ExtraBold)
+                            }
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Text("Penjualan Tunai", style = MaterialTheme.typography.bodyMedium)
                                 Text("Rp ${summary.cashSalesTotal.toInt()}", fontWeight = FontWeight.ExtraBold)
+                            }
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Penjualan Non-Tunai", style = MaterialTheme.typography.bodyMedium)
+                                Text("Rp ${summary.nonCashSalesTotal.toInt()}", fontWeight = FontWeight.ExtraBold)
                             }
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Text("Kontrol Kas (Net)", style = MaterialTheme.typography.bodyMedium)
@@ -447,6 +458,54 @@ fun ReportingSummaryDialog(
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Text("Total Transaksi", style = MaterialTheme.typography.bodyMedium)
                                 Text("${summary.transactionCount}", fontWeight = FontWeight.ExtraBold)
+                            }
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Shift Aktif / Total", style = MaterialTheme.typography.bodyMedium)
+                                Text("${summary.openShiftCount} / ${summary.shiftCount}", fontWeight = FontWeight.ExtraBold)
+                            }
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Approval Pending", style = MaterialTheme.typography.bodyMedium)
+                                Text("${summary.pendingApprovalCount}", fontWeight = FontWeight.ExtraBold)
+                            }
+                        }
+                    }
+                    Surface(
+                        tonalElevation = 1.dp,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Status Sinkronisasi", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Level", style = MaterialTheme.typography.bodyMedium)
+                                Text(summary.syncStatus.toUiLabel(), fontWeight = FontWeight.ExtraBold)
+                            }
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Pending Event", style = MaterialTheme.typography.bodyMedium)
+                                Text("${summary.syncStatus.pendingCount}", fontWeight = FontWeight.ExtraBold)
+                            }
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Failed Event", style = MaterialTheme.typography.bodyMedium)
+                                Text("${summary.syncStatus.failedCount}", fontWeight = FontWeight.ExtraBold)
+                            }
+                            summary.syncStatus.lastSyncAt?.let {
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("Sinkron Sukses Terakhir", style = MaterialTheme.typography.bodyMedium)
+                                    Text(it.toUiTimestamp(), fontWeight = FontWeight.Medium, textAlign = TextAlign.End)
+                                }
+                            }
+                            summary.syncStatus.oldestPendingAt?.let {
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("Pending Tertua", style = MaterialTheme.typography.bodyMedium)
+                                    Text(it.toUiTimestamp(), fontWeight = FontWeight.Medium, textAlign = TextAlign.End)
+                                }
+                            }
+                            summary.syncStatus.lastErrorMessage?.let {
+                                Text(
+                                    text = "Error terakhir: $it",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (summary.syncStatus.level == SyncLevel.ERROR) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         }
                     }
@@ -679,3 +738,13 @@ private fun String.toShortcutLabel(): String = when (this) {
     "1000000" -> "Rp 1jt"
     else -> "Rp $this"
 }
+
+private fun SyncStatus.toUiLabel(): String = when (level) {
+    SyncLevel.HEALTHY -> "Sehat"
+    SyncLevel.PENDING -> "Menunggu"
+    SyncLevel.DELAYED -> "Terlambat"
+    SyncLevel.STALLED -> "Macet"
+    SyncLevel.ERROR -> "Error"
+}
+
+private fun Instant.toUiTimestamp(): String = toString()

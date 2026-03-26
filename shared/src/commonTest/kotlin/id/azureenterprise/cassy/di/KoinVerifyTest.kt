@@ -4,6 +4,8 @@ import id.azureenterprise.cassy.kernel.di.kernelModule
 import id.azureenterprise.cassy.kernel.di.databaseModule
 import id.azureenterprise.cassy.kernel.application.NoopOperationalSalesPort
 import id.azureenterprise.cassy.kernel.application.OperationalSalesPort
+import id.azureenterprise.cassy.kernel.application.NoopSyncReplayPort
+import id.azureenterprise.cassy.kernel.application.SyncReplayPort
 import id.azureenterprise.cassy.masterdata.di.masterDataModule
 import id.azureenterprise.cassy.masterdata.di.masterDataDatabaseModule
 import id.azureenterprise.cassy.sales.di.salesModule
@@ -35,6 +37,7 @@ class KoinVerifyTest : KoinTest {
                 inventoryDatabaseModule
             )
             single<OperationalSalesPort> { NoopOperationalSalesPort }
+            single<SyncReplayPort> { NoopSyncReplayPort }
         }.verify()
     }
 }

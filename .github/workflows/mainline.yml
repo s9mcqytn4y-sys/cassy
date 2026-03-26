@@ -32,6 +32,9 @@ jobs:
       - name: Smoke Run Windows Distribution
         shell: pwsh
         run: powershell -ExecutionPolicy Bypass -File tooling/scripts/Invoke-DesktopDistributionSmoke.ps1
+      - name: Run Windows Installer Evidence
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File tooling/scripts/Invoke-WindowsInstallerEvidence.ps1
       - name: Collect Windows Release Diagnostics
         if: always()
         shell: pwsh
@@ -47,6 +50,19 @@ jobs:
         with:
           name: cassy-desktop-app
           path: apps/desktop-pos/build/compose/binaries/main/app/Cassy/**
+          retention-days: 14
+      - name: Upload Windows MSI
+        uses: actions/upload-artifact@v6
+        with:
+          name: cassy-desktop-msi
+          path: apps/desktop-pos/build/compose/binaries/main/msi/*.msi
+          retention-days: 14
+      - name: Upload Installer Evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: cassy-installer-evidence
+          path: build/installer-evidence/**
           retention-days: 14
       - name: Upload Windows Diagnostics
         if: always()
@@ -81,6 +97,8 @@ jobs:
             echo "desktop-jdk-policy=17"
             echo "local-config-cache=off"
             echo "ci-config-cache=selective"
+            echo "windows-installer-evidence=scripted"
+            echo "windows-installer-evidence-artifact=cassy-installer-evidence"
             echo "windows-diagnostics-artifact=cassy-release-diagnostics"
           } > build/mainline-evidence/release-manifest.txt
       - uses: actions/upload-artifact@v6

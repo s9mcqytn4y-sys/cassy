@@ -1,5 +1,8 @@
 # R3 Reality Sync
 
+> Historical Note (2026-03-27)
+> Snapshot ini mendahului scripted installer evidence dan R6 replay hardening. Gunakan hanya sebagai jejak evolusi R3.
+
 Updated: 2026-03-19
 
 ## FACT
@@ -21,7 +24,7 @@ Updated: 2026-03-19
 - Keterbatasan yang tetap jujur:
   - `LIGHT_PIN` only
   - `PDF_NOT_SHIPPED`
-  - Windows installer install/uninstall evidence tetap manual-soft-blocker di luar core R3
+  - Pada saat dokumen ini ditulis, Windows installer install/uninstall evidence masih manual-soft-blocker di luar core R3
 
 ## INTERPRETATION
 - Inventory Truth Lite sekarang sudah lebih operasional dan explainable, tetapi bukan berarti receiving suite, return engine, atau auth breadth penuh sudah shipped.

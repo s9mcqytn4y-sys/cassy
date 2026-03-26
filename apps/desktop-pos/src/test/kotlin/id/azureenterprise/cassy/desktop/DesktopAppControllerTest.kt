@@ -268,6 +268,12 @@ class DesktopAppControllerTest {
             Clock.System,
             TimeZone.currentSystemDefault()
         )
+        val syncReplayService = SyncReplayService(
+            outboxRepo,
+            SyncVisibilityService(kernelRepo, outboxRepo, Clock.System),
+            NoopSyncReplayPort,
+            Clock.System
+        )
 
         val operationalControlService = OperationalControlService(
             accessService,
@@ -291,7 +297,8 @@ class DesktopAppControllerTest {
             salesService = salesService,
             hardwarePort = NoopHardwarePort,
             masterDataDatabase = masterDataDb,
-            reportingQueryFacade = reportingQueryFacade
+            reportingQueryFacade = reportingQueryFacade,
+            syncReplayService = syncReplayService
         )
     }
 
@@ -347,7 +354,8 @@ private data class DesktopFixture(
     val salesService: SalesService,
     val hardwarePort: CashierHardwarePort,
     val masterDataDatabase: MasterDataDatabase,
-    val reportingQueryFacade: ReportingQueryFacade
+    val reportingQueryFacade: ReportingQueryFacade,
+    val syncReplayService: SyncReplayService
 ) {
     fun newController(): DesktopAppController = DesktopAppController(
         accessService = accessService,
@@ -361,7 +369,8 @@ private data class DesktopFixture(
         inventoryService = inventoryService,
         salesService = salesService,
         hardwarePort = hardwarePort,
-        reportingQueryFacade = reportingQueryFacade
+        reportingQueryFacade = reportingQueryFacade,
+        syncReplayService = syncReplayService
     )
 }
 

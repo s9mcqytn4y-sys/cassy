@@ -58,7 +58,7 @@ fun main(args: Array<String>) {
                     modifier = Modifier.fillMaxSize().onPreviewKeyEvent {
                         if (it.type == KeyEventType.KeyDown) {
                             when (it.key) {
-                                Key.F1, Key.F5 -> { scope.launch { controller.load() }; true }
+                                Key.F1, Key.F5 -> { scope.launch { controller.replaySyncAndReload() }; true }
                                 Key.F12 -> { showCloseDayDialog = true; true }
                                 Key.F11 -> { showEndShiftDialog = true; true }
                                 Key.F10 -> { showCashControlDialog = true; true }
@@ -73,7 +73,7 @@ fun main(args: Array<String>) {
                         Row(modifier = Modifier.fillMaxSize()) {
                             CassySlimRail(
                                 selectedStage = state.stage,
-                                onReload = { scope.launch { controller.load() } },
+                                onReload = { scope.launch { controller.replaySyncAndReload() } },
                                 onLogout = { scope.launch { controller.logout() } }
                             )
 

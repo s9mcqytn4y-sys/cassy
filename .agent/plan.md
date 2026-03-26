@@ -1,27 +1,25 @@
-# Cassy Rolling Execution Plan (Updated: R5 Block 1 Lock)
+# Cassy Rolling Execution Plan (Updated: R4 Closed Local, R5 Done Lite, R6 Hardened)
 
 ## R1-R4 Retrospective (Hardened)
 - **DONE**: R1 Desktop Cashier Finality (Atomic Bundles).
 - **DONE**: R2 Operational Control (Shift/Day/Approval Taxonomy).
 - **DONE**: R3 Inventory Truth Lite (Ledger/Discrepancy/Balance).
-- **DONE**: R4 Desktop Foundation (Maximized UI/Shortcuts/Safety).
+- **DONE**: R4 Windows Release Trust for local/repo lane (EXE + MSI + installer evidence + diagnostics).
 
-## Current Mission: R5 Visibility & Reporting Lite
-- **Block 1: Preflight Audit & Risk Lock** (**DONE**)
-  - [x] R1-R4 Re-verification.
-  - [x] Reporting Query Facade Surface Identification.
-  - [x] Safe vs Unsafe Metrics Lock.
-  - [x] Risk Register establishment.
-- **Block 2: Core Reporting Facade (Next)**
-  - [ ] Implement `ReportingQueryFacade` in `shared:kernel`.
-  - [ ] Implement `OperationalSalesPort` in `shared:sales`.
-  - [ ] Implement `DailySummaryService` with timezone safety.
-  - [ ] Add `ShiftSummary` to `ReportingQueryFacade`.
-- **Block 3: Visibility UI & Issue Readback**
-  - [ ] Implement dense `ReportingPanel` in desktop UI.
-  - [ ] Add "Blocked/Pending" issue visibility to summaries.
-  - [ ] Add Sync Visibility (Last Sync Age).
-  - [ ] Finalize R5 Smoke tests.
+## Current Mission: R6 Sync-Ready Boundary & Replay
+- **R5 Visibility & Reporting Lite** (**DONE / VERIFIED**)
+  - [x] `ReportingQueryFacade` hidup di `shared:kernel`.
+  - [x] `DailySummary` dan `ShiftSummary` terhubung ke desktop.
+  - [x] "Blocked/Pending/Error" issue visibility muncul di reporting summary.
+  - [x] Sync visibility membaca pending backlog, last success, dan last error.
+- **R6 Boundary Hardening** (**ACTIVE**)
+  - [x] Outbox read path status-aware (`PENDING` only).
+  - [x] Event processed dipertahankan untuk replay/integrity boundary.
+  - [x] Worker replay minimal hidup di `shared:kernel`.
+  - [x] Retry/requeue policy eksplisit untuk failed event.
+  - [x] Desktop recovery trigger eksplisit (`Sync` / `F1` / `F5`).
+  - [ ] Transport backend nyata.
+  - [ ] Durable conflict lane.
 
 ## Strategic Lock
 - Cassy is desktop-first single-outlet retail core.

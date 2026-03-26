@@ -2,8 +2,8 @@ package id.azureenterprise.cassy.kernel.data
 
 import id.azureenterprise.cassy.kernel.db.KernelDatabase
 import kotlinx.coroutines.withContext
-import kotlin.coroutines.CoroutineContext
 import kotlinx.datetime.Clock
+import kotlin.coroutines.CoroutineContext
 
 open class OutboxRepository(
     private val database: KernelDatabase?,
@@ -32,10 +32,30 @@ open class OutboxRepository(
     }
 
     open suspend fun getPendingEvents() = withContext(ioDispatcher) {
-        queries?.selectAllEvents()?.executeAsList() ?: emptyList()
+        queries?.selectPendingEvents()?.executeAsList() ?: emptyList()
+    }
+
+    open suspend fun getFailedEvents() = withContext(ioDispatcher) {
+        queries?.selectEventsByStatus("FAILED")?.executeAsList() ?: emptyList()
+    }
+
+    open suspend fun countEventsByStatus(status: String): Long = withContext(ioDispatcher) {
+        queries?.countEventsByStatus(status)?.executeAsOneOrNull() ?: 0L
     }
 
     open suspend fun markEventProcessed(id: String) = withContext(ioDispatcher) {
-        queries?.deleteEvent(id)
+        queries?.updateEventStatus("PROCESSED", id)
+    }
+
+    open suspend fun markEventFailed(id: String) = withContext(ioDispatcher) {
+        queries?.updateEventStatus("FAILED", id)
+    }
+
+    open suspend fun requeueFailedEvents() = withContext(ioDispatcher) {
+        queries?.updateEventsByStatus("PENDING", "FAILED")
+    }
+
+    open suspend fun pruneProcessedEventsBefore(cutoffEpochMs: Long) = withContext(ioDispatcher) {
+        queries?.deleteProcessedEventsBefore(cutoffEpochMs)
     }
 }

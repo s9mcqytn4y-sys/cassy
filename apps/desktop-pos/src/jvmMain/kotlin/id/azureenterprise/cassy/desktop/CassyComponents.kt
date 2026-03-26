@@ -160,7 +160,7 @@ fun CassySlimRail(
         RailItem(
             selected = false,
             icon = Icons.Default.Refresh,
-            label = "Muat",
+            label = "Sync",
             onClick = onReload
         )
         RailItem(
@@ -271,7 +271,11 @@ fun CassyTopBar(
             SyncLevel.PENDING -> "Sync (${it.pendingCount})"
             SyncLevel.DELAYED -> "Delayed (${it.pendingCount})"
             SyncLevel.STALLED -> "Stalled!"
-            SyncLevel.ERROR -> "Sync Error"
+            SyncLevel.ERROR -> when {
+                it.failedCount > 0 -> "Error (${it.failedCount})"
+                it.pendingCount > 0 -> "Error (${it.pendingCount})"
+                else -> "Sync Error"
+            }
         }
     } ?: "Offline"
 

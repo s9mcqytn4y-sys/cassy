@@ -12,6 +12,7 @@ import id.azureenterprise.cassy.kernel.application.OperationalHardwarePort
 import id.azureenterprise.cassy.kernel.application.ShiftService
 import id.azureenterprise.cassy.kernel.application.ShiftClosingService
 import id.azureenterprise.cassy.kernel.application.ReportingQueryFacade
+import id.azureenterprise.cassy.kernel.application.SyncReplayService
 import id.azureenterprise.cassy.kernel.di.databaseModule
 import id.azureenterprise.cassy.kernel.di.kernelModule
 import id.azureenterprise.cassy.kernel.domain.OperationalIssue
@@ -57,7 +58,8 @@ fun startDesktopKoin() {
                         inventoryService = get<InventoryService>(),
                         salesService = get<SalesService>(),
                         hardwarePort = get<CashierHardwarePort>(),
-                        reportingQueryFacade = get<ReportingQueryFacade>()
+                        reportingQueryFacade = get<ReportingQueryFacade>(),
+                        syncReplayService = get<SyncReplayService>()
                     )
                 }
             }

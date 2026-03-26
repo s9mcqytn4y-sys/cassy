@@ -56,6 +56,8 @@ class SyncVisibilityService(
      */
     suspend fun isSyncHealthy(): Boolean {
         val pending = outboxRepository.getPendingEvents().size
+        val failed = outboxRepository.getFailedEvents().size
+        if (failed > 0) return false
         val lastSuccess = kernelRepository.getMetadata(LAST_SYNC_SUCCESS_KEY)?.toLongOrNull()
             ?: return pending == 0 // If never synced, healthy only if nothing to sync
 

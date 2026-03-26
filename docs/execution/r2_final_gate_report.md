@@ -1,5 +1,8 @@
 # R2 Final Gate Report
 
+> Historical Note (2026-03-27)
+> Laporan ini adalah snapshot gate R2 sebelum scripted installer evidence Windows ditutup secara lokal pada 2026-03-26.
+
 Updated: 2026-03-19
 
 ## FACT
@@ -47,4 +50,4 @@ Updated: 2026-03-19
 
 ## RECOMMENDATION
 - Putusan jujur untuk R2 saat ini adalah `PARTIAL`.
-- Fokus berikutnya yang paling bernilai adalah membuka void resolver secara bounded, lalu menutup release evidence installer bila target distribusi mengharuskannya.
+- Fokus historis setelah laporan ini dibuat adalah membuka void resolver secara bounded dan menutup release evidence installer.

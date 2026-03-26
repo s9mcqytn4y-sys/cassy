@@ -169,6 +169,35 @@ VALUES (?, ?, ?, ?, ?);
 selectAllEvents:
 SELECT * FROM OutboxEvent;
 
+selectPendingEvents:
+SELECT * FROM OutboxEvent
+WHERE status = 'PENDING'
+ORDER BY timestamp ASC;
+
+selectEventsByStatus:
+SELECT * FROM OutboxEvent
+WHERE status = ?
+ORDER BY timestamp ASC;
+
+countEventsByStatus:
+SELECT COUNT(*)
+FROM OutboxEvent
+WHERE status = ?;
+
+updateEventStatus:
+UPDATE OutboxEvent
+SET status = ?
+WHERE id = ?;
+
+updateEventsByStatus:
+UPDATE OutboxEvent
+SET status = ?
+WHERE status = ?;
+
+deleteProcessedEventsBefore:
+DELETE FROM OutboxEvent
+WHERE status = 'PROCESSED' AND timestamp < ?;
+
 deleteEvent:
 DELETE FROM OutboxEvent WHERE id = ?;
 

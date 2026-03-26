@@ -1,5 +1,8 @@
 # R3 Approval Limitations And Future Hooks
 
+> Historical Note (2026-03-27)
+> Catatan ini tetap valid untuk approval breadth, tetapi referensi installer manual adalah konteks historis sebelum R4 local evidence ditutup.
+
 Updated: 2026-03-19
 
 ## FACT
@@ -24,4 +27,4 @@ Updated: 2026-03-19
 
 ## RECOMMENDATION
 - Jika phase berikutnya membuka `SECOND_PIN` atau `DUAL_AUTH`, jangan ganti makna `LIGHT_PIN`; tambah lane baru secara eksplisit.
-- Tetap dokumentasikan `PDF_NOT_SHIPPED` dan Windows installer manual-soft-blocker terpisah dari approval truth.
+- Tetap dokumentasikan `PDF_NOT_SHIPPED`; referensi installer manual di dokumen ini adalah konteks historis, bukan gap aktif terbaru.

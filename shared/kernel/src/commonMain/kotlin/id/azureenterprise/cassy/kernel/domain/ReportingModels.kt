@@ -13,9 +13,11 @@ enum class SyncLevel {
 data class SyncStatus(
     val level: SyncLevel,
     val pendingCount: Int,
+    val failedCount: Int,
     val oldestPendingAt: Instant?,
     val lastSyncAt: Instant?,
-    val message: String? = null
+    val message: String? = null,
+    val lastErrorMessage: String? = null
 )
 
 enum class IssueSeverity {

@@ -1,5 +1,8 @@
 # R2 Reality Sync
 
+> Historical Note (2026-03-27)
+> Snapshot ini mendahului closure lokal R4 dan hardening R6. Jangan gunakan sebagai authority utama untuk status installer atau sync boundary terbaru.
+
 Updated: 2026-03-19
 
 ## FACT
@@ -21,7 +24,7 @@ Updated: 2026-03-19
 ## RISK
 - Void execution resolver lintas sales/cashflow/accounting/inventory masih belum terbuka.
 - Hosted CI remote run belum saya klaim; evidence di turn ini tetap lokal.
-- Windows installer install/uninstall penuh masih manual-soft-blocker untuk release evidence, bukan blocker runtime Block 2.
+- Pada saat dokumen ini ditulis, installer Windows install/uninstall penuh masih manual-soft-blocker untuk release evidence.
 
 ## RECOMMENDATION
 - Step berikutnya yang paling masuk akal adalah membuka resolver void secara bounded, lalu menutup release evidence installer bila target push/release menuntutnya.

@@ -26,6 +26,7 @@ class ReportingQueryFacade(
 ) {
     private companion object {
         const val LAST_SYNC_SUCCESS_KEY = "sync.last_success_timestamp"
+        const val LAST_SYNC_ERROR_KEY = "sync.last_error_message"
     }
 
     /**
@@ -34,36 +35,52 @@ class ReportingQueryFacade(
      */
     suspend fun getSyncStatus(): SyncStatus {
         val pendingEvents = outboxRepository.getPendingEvents()
+        val failedEvents = outboxRepository.getFailedEvents()
         val now = clock.now()
 
         val lastSyncTs = kernelRepository.getMetadata(LAST_SYNC_SUCCESS_KEY)?.toLongOrNull()
         val lastSyncAt = lastSyncTs?.let { Instant.fromEpochMilliseconds(it) }
+        val lastErrorMessage = kernelRepository
+            .getMetadata(LAST_SYNC_ERROR_KEY)
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
 
-        if (pendingEvents.isEmpty()) {
+        if (pendingEvents.isEmpty() && failedEvents.isEmpty()) {
             return SyncStatus(
-                level = SyncLevel.HEALTHY,
+                level = if (lastErrorMessage != null) SyncLevel.ERROR else SyncLevel.HEALTHY,
                 pendingCount = 0,
+                failedCount = 0,
                 oldestPendingAt = null,
-                lastSyncAt = lastSyncAt
+                lastSyncAt = lastSyncAt,
+                message = lastErrorMessage,
+                lastErrorMessage = lastErrorMessage
             )
         }
 
-        val oldestTimestamp = pendingEvents.minOf { it.timestamp }
-        val oldestInstant = Instant.fromEpochMilliseconds(oldestTimestamp)
-        val age = now - oldestInstant
+        val oldestInstant = pendingEvents.minOfOrNull { it.timestamp }
+            ?.let(Instant::fromEpochMilliseconds)
+        val age = oldestInstant?.let { now - it }
 
         val level = when {
-            age > 1.hours -> SyncLevel.STALLED
-            age > 5.minutes -> SyncLevel.DELAYED
+            lastErrorMessage != null || failedEvents.isNotEmpty() -> SyncLevel.ERROR
+            age != null && age > 1.hours -> SyncLevel.STALLED
+            age != null && age > 5.minutes -> SyncLevel.DELAYED
             else -> SyncLevel.PENDING
         }
 
         return SyncStatus(
             level = level,
             pendingCount = pendingEvents.size,
+            failedCount = failedEvents.size,
             oldestPendingAt = oldestInstant,
             lastSyncAt = lastSyncAt,
-            message = if (level == SyncLevel.STALLED) "Sync tertunda lebih dari 1 jam" else null
+            message = when {
+                lastErrorMessage != null -> lastErrorMessage
+                failedEvents.isNotEmpty() -> "Ada ${failedEvents.size} event sync gagal yang perlu diulang"
+                level == SyncLevel.STALLED -> "Sync tertunda lebih dari 1 jam"
+                else -> null
+            },
+            lastErrorMessage = lastErrorMessage
         )
     }
 

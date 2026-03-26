@@ -1,5 +1,8 @@
 # R2 Remaining Gaps
 
+> Historical Note (2026-03-27)
+> Daftar ini merekam gap tersisa pada 2026-03-19. Beberapa item, khususnya installer evidence Windows, sudah tidak berlaku sebagai gap aktif.
+
 Updated: 2026-03-19
 
 ## FACT
@@ -7,7 +10,7 @@ Updated: 2026-03-19
   - void execution resolver lintas sales/cashflow/inventory/reporting
   - export formal/PDF untuk `ShiftCloseReport`
   - approval depth masih light approval
-  - installer Windows install/uninstall evidence masih manual
+  - pada saat dokumen ini ditulis, installer Windows install/uninstall evidence masih manual
 
 ## IMPACT
 - Void belum bisa dioperasikan end-to-end walau dashboard readiness-nya jujur.
@@ -22,4 +25,4 @@ Updated: 2026-03-19
 1. Buka resolver void secara bounded dengan owner tetap di `shared:sales`, `shared:inventory`, dan `shared:kernel`.
 2. Tambahkan export/report presenter di atas `ShiftCloseReport`, bukan source data baru.
 3. Jika dibutuhkan compliance operasional yang lebih keras, tambahkan re-auth approver tanpa memindahkan approval semantics ke UI.
-4. Jalankan checklist installer manual saat release candidate berikutnya dibuat.
+4. Historical: dulu perlu menjalankan checklist installer manual saat release candidate berikutnya dibuat.

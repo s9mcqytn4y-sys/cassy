@@ -1,5 +1,8 @@
 # Cassy Roadmap Status Sync
 
+> Historical Note (2026-03-27)
+> Ini adalah transkripsi snapshot roadmap per 16 Maret 2026. Dokumen ini tidak boleh dipakai sebagai bukti runtime terbaru setelah closure R4 lokal dan hardening R6 berikutnya.
+
 Tanggal: 2026-03-16
 Posture: Desktop-first retail operating core
 Primary pilot OS: Windows

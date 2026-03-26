@@ -1,5 +1,8 @@
 # R3 Remaining Gaps
 
+> Historical Note (2026-03-27)
+> Daftar ini adalah snapshot lama. Gap installer Windows di sini sudah digantikan oleh scripted local evidence pada 2026-03-26.
+
 Updated: 2026-03-19
 
 ## FACT

@@ -1,35 +1,40 @@
 # R5 Exception, Pending & Blocked Readback
 
 ## Readback Strategy
-Operational exceptions and pending states are no longer "silent" or generic. Every non-finalized state must provide a readback that explains **What**, **Who**, **When**, and **Why**.
+Operational exception dan pending state tidak boleh diam. Setiap non-finalized state harus menjelaskan apa yang terjadi, siapa yang terlibat, kapan mulai terjadi, dan kenapa operator harus peduli.
 
 ## Model Requirements
-The `OperationalIssue` model is the carrier for these readbacks:
-- **What**: `label` and `description`.
-- **Who**: `actor` field (e.g., requester of an approval, or the operator who closed a shift with variance).
-- **When**: `timestamp` field (converted to local terminal time).
-- **Why**: `reasonCode` and `status` fields (e.g., `OPENING_CASH_EXCEPTION` or `STALLED`).
+Model `OperationalIssue` adalah carrier utama untuk readback ini:
+- **What**: `label` dan `description`
+- **Who**: `actor`
+- **When**: `timestamp`
+- **Why**: `reasonCode` dan `status`
 
 ## Truthful Readback Scenarios
 
 ### 1. Pending Approvals
 - **Status**: `REQUESTED`
 - **Readback**: "Permintaan oleh [Requester] memerlukan tindakan supervisor."
-- **Metadata**: Shows the requester name and the time the request was made.
+- **Metadata**: requester dan waktu request.
 
 ### 2. Shift Variance
 - **Status**: `COMPLETED_WITH_VARIANCE`
 - **Readback**: "Ditemukan selisih kas sebesar Rp [X]."
-- **Metadata**: Shows the operator who performed the closure and the exact time of closure.
+- **Metadata**: operator dan waktu penutupan.
 
 ### 3. Sync Latency
-- **Status**: `DELAYED` or `STALLED`
+- **Status**: `DELAYED` atau `STALLED`
 - **Readback**: "Ada [N] data yang belum tersinkronisasi."
-- **Metadata**: Shows the timestamp of the oldest pending event to indicate the lag start.
+- **Metadata**: timestamp pending tertua.
 
-### 4. Hardware Failures
-- **Status**: `OFFLINE` or `UNAVAILABLE`
-- **Readback**: Specific detail message from the hardware port (e.g., "Kabel printer terputus").
+### 4. Sync Failure
+- **Status**: `ERROR`
+- **Readback**: pesan terakhir dari `sync.last_error_message`.
+- **Metadata**: last error, jumlah pending event, oldest pending, dan last success timestamp bila ada.
+
+### 5. Hardware Failures
+- **Status**: `OFFLINE` atau `UNAVAILABLE`
+- **Readback**: pesan spesifik dari hardware port.
 
 ## UI Implementation
-The `OperationalIssueCard` in `apps:desktop-pos` is the standardized visual representation of this readback, ensuring that the user never has to guess why a state is blocked or pending.
+Desktop reporting summary dan daftar issue adalah permukaan utama readback saat ini. User tidak perlu menebak kenapa state dianggap blocked atau pending.

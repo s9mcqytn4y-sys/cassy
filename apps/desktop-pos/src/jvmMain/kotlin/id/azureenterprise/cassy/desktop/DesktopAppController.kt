@@ -39,7 +39,8 @@ class DesktopAppController(
     private val inventoryService: InventoryService,
     private val salesService: SalesService,
     private val hardwarePort: CashierHardwarePort,
-    private val reportingQueryFacade: ReportingQueryFacade
+    private val reportingQueryFacade: ReportingQueryFacade,
+    private val syncReplayService: SyncReplayService
 ) {
     private val _state = MutableStateFlow(DesktopAppState())
     val state: StateFlow<DesktopAppState> = _state.asStateFlow()
@@ -56,6 +57,33 @@ class DesktopAppController(
                     )
                 }
             }
+    }
+
+    suspend fun replaySyncAndReload() {
+        mutateBusy(true)
+        val result = syncReplayService.replayPending()
+        val banner = when (result) {
+            SyncReplayResult.Idle -> UiBanner(UiTone.Info, "Tidak ada event sync yang perlu diproses")
+            is SyncReplayResult.Unavailable -> UiBanner(
+                UiTone.Warning,
+                "Sync belum dikonfigurasi. Pending ${result.pendingCount}, failed ${result.failedCount}"
+            )
+            is SyncReplayResult.Completed -> when {
+                result.failedCount == 0 -> UiBanner(
+                    UiTone.Success,
+                    "Sync memproses ${result.processedCount}/${result.attemptedCount} event. Sisa pending ${result.pendingRemaining}."
+                )
+                result.processedCount > 0 -> UiBanner(
+                    UiTone.Warning,
+                    "Sync sebagian berhasil. OK ${result.processedCount}, gagal ${result.failedCount}, conflict ${result.conflictCount}."
+                )
+                else -> UiBanner(
+                    UiTone.Danger,
+                    result.message ?: "Sync gagal. Tidak ada event yang berhasil diproses."
+                )
+            }
+        }
+        refreshStage(banner)
     }
 
     fun updateBootstrapField(field: BootstrapField, value: String) {
