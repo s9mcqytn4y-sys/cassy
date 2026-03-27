@@ -48,6 +48,16 @@ secrets.properties
 # Log
 *.log
 
+# Local agent/docs context that may exist on developer machines
+.agent/
+.aiexclude
+AGENTS.md
+GEMINI.md
+CLAUDE.md
+CODEX.md
+docs/AGENTS.md
+apps/desktop-pos/AGENTS.md
+
 # Local database/runtime noise
 *.db
 *.sqlite

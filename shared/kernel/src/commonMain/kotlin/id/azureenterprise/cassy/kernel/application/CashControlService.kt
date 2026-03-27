@@ -12,6 +12,7 @@ import id.azureenterprise.cassy.kernel.domain.OperationBlockerCode
 import id.azureenterprise.cassy.kernel.domain.OperationDecision
 import id.azureenterprise.cassy.kernel.domain.OperationStatus
 import id.azureenterprise.cassy.kernel.domain.OperationType
+import id.azureenterprise.cassy.kernel.domain.OperatorAccount
 import id.azureenterprise.cassy.kernel.domain.PendingApprovalSummary
 import id.azureenterprise.cassy.kernel.domain.ReasonCategory
 import id.azureenterprise.cassy.kernel.domain.supports
@@ -186,7 +187,10 @@ class CashControlService(
         return CashMovementExecutionResult.Recorded(movement, approvalApplied = false)
     }
 
-    suspend fun approveCashMovement(requestId: String): CashMovementExecutionResult {
+    suspend fun approveCashMovement(
+        requestId: String,
+        approverOverride: OperatorAccount? = null
+    ): CashMovementExecutionResult {
         val request = kernelRepository.getApprovalRequestById(requestId)
             ?: return CashMovementExecutionResult.Blocked(blockedDecision(CashMovementType.CASH_OUT, "Approval request tidak ditemukan.", OperationBlockerCode.APPROVAL_PENDING))
         if (request.status != ApprovalStatus.REQUESTED) {
@@ -199,7 +203,10 @@ class CashControlService(
                 )
             )
         }
-        val operator = accessService.requireCapability(AccessCapability.APPROVE_CASH_MOVEMENT_EXCEPTION).getOrElse {
+        val operator = resolveApprover(
+            capability = AccessCapability.APPROVE_CASH_MOVEMENT_EXCEPTION,
+            operatorOverride = approverOverride
+        ).getOrElse {
             return CashMovementExecutionResult.Blocked(
                 OperationDecision(
                     type = request.operationType,
@@ -236,8 +243,15 @@ class CashControlService(
         return CashMovementExecutionResult.Recorded(movement, approvalApplied = true)
     }
 
-    suspend fun denyCashMovement(requestId: String, decisionNote: String): ApprovalRequest? {
-        val operator = accessService.requireCapability(AccessCapability.APPROVE_CASH_MOVEMENT_EXCEPTION).getOrNull() ?: return null
+    suspend fun denyCashMovement(
+        requestId: String,
+        decisionNote: String,
+        approverOverride: OperatorAccount? = null
+    ): ApprovalRequest? {
+        val operator = resolveApprover(
+            capability = AccessCapability.APPROVE_CASH_MOVEMENT_EXCEPTION,
+            operatorOverride = approverOverride
+        ).getOrNull() ?: return null
         val request = kernelRepository.getApprovalRequestById(requestId) ?: return null
         if (request.status != ApprovalStatus.REQUESTED) return request
         val denied = kernelRepository.resolveApprovalRequest(
@@ -257,6 +271,18 @@ class CashControlService(
     private suspend fun buildReasonCodes(category: ReasonCategory): List<id.azureenterprise.cassy.kernel.domain.ReasonCode> {
         kernelRepository.ensureDefaultReasonCodes()
         return kernelRepository.listActiveReasonCodes(category)
+    }
+
+    private suspend fun resolveApprover(
+        capability: AccessCapability,
+        operatorOverride: OperatorAccount?
+    ): Result<OperatorAccount> {
+        val approvedOverride = operatorOverride?.takeIf { it.role.supports(capability) }
+        return if (approvedOverride != null) {
+            Result.success(approvedOverride)
+        } else {
+            accessService.requireCapability(capability)
+        }
     }
 
     private suspend fun findReasonCode(category: ReasonCategory, code: String) =

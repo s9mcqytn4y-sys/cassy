@@ -17,6 +17,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -27,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import id.azureenterprise.cassy.kernel.domain.CashMovementType
+import id.azureenterprise.cassy.masterdata.data.ProductBarcodeRecord
 import id.azureenterprise.cassy.masterdata.domain.Product
 import id.azureenterprise.cassy.sales.domain.SaleHistoryEntry
 
@@ -48,6 +51,7 @@ fun DesktopWorkspaceContent(
     onPrintLastReceipt: () -> Unit,
     onReprintLastReceipt: () -> Unit,
     onCancelSale: () -> Unit,
+    onSelectInventoryRoute: (DesktopInventoryRoute) -> Unit,
     onSelectInventoryProduct: (String) -> Unit,
     onInventoryCountChanged: (String) -> Unit,
     onSubmitInventoryCount: () -> Unit,
@@ -61,6 +65,25 @@ fun DesktopWorkspaceContent(
     onApproveInventoryAction: (String) -> Unit,
     onDenyInventoryAction: (String) -> Unit,
     onDeferInventoryDiscrepancy: (String) -> Unit,
+    onSelectMasterCategory: (String?) -> Unit,
+    onMasterSearchChanged: (String) -> Unit,
+    onPrepareNewMasterProduct: () -> Unit,
+    onSelectMasterProduct: (String) -> Unit,
+    onMasterProductNameChanged: (String) -> Unit,
+    onMasterProductSkuChanged: (String) -> Unit,
+    onMasterProductPriceChanged: (String) -> Unit,
+    onMasterProductCategoryChanged: (String) -> Unit,
+    onMasterProductImageRefChanged: (String) -> Unit,
+    onMasterProductActiveChanged: (Boolean) -> Unit,
+    onMasterBarcodeDraftChanged: (String) -> Unit,
+    onMasterBarcodeTypeChanged: (String) -> Unit,
+    onSaveMasterProduct: () -> Unit,
+    onAddMasterBarcode: () -> Unit,
+    onRemoveMasterBarcode: (String) -> Unit,
+    onNewCategoryNameChanged: (String) -> Unit,
+    onNewCategoryColorChanged: (String) -> Unit,
+    onSaveMasterCategory: () -> Unit,
+    onSelectOperationsRoute: (DesktopOperationsRoute) -> Unit,
     onCashMovementTypeSelected: (CashMovementType) -> Unit,
     onCashMovementAmountChanged: (String) -> Unit,
     onCashReasonCodeChanged: (String) -> Unit,
@@ -109,7 +132,8 @@ fun DesktopWorkspaceContent(
         )
         DesktopWorkspace.History -> HistoryWorkspace(state.catalog.recentSales)
         DesktopWorkspace.Inventory -> InventoryWorkspace(
-            state = state.inventory,
+            state = state,
+            onSelectInventoryRoute = onSelectInventoryRoute,
             onSelectProduct = onSelectInventoryProduct,
             onCountQuantityChanged = onInventoryCountChanged,
             onSubmitCount = onSubmitInventoryCount,
@@ -122,10 +146,29 @@ fun DesktopWorkspaceContent(
             onMarkInvestigation = onMarkInventoryInvestigation,
             onApproveAction = onApproveInventoryAction,
             onDenyAction = onDenyInventoryAction,
-            onDeferDiscrepancy = onDeferInventoryDiscrepancy
+            onDeferDiscrepancy = onDeferInventoryDiscrepancy,
+            onSelectMasterCategory = onSelectMasterCategory,
+            onMasterSearchChanged = onMasterSearchChanged,
+            onPrepareNewMasterProduct = onPrepareNewMasterProduct,
+            onSelectMasterProduct = onSelectMasterProduct,
+            onMasterProductNameChanged = onMasterProductNameChanged,
+            onMasterProductSkuChanged = onMasterProductSkuChanged,
+            onMasterProductPriceChanged = onMasterProductPriceChanged,
+            onMasterProductCategoryChanged = onMasterProductCategoryChanged,
+            onMasterProductImageRefChanged = onMasterProductImageRefChanged,
+            onMasterProductActiveChanged = onMasterProductActiveChanged,
+            onMasterBarcodeDraftChanged = onMasterBarcodeDraftChanged,
+            onMasterBarcodeTypeChanged = onMasterBarcodeTypeChanged,
+            onSaveMasterProduct = onSaveMasterProduct,
+            onAddMasterBarcode = onAddMasterBarcode,
+            onRemoveMasterBarcode = onRemoveMasterBarcode,
+            onNewCategoryNameChanged = onNewCategoryNameChanged,
+            onNewCategoryColorChanged = onNewCategoryColorChanged,
+            onSaveMasterCategory = onSaveMasterCategory
         )
         DesktopWorkspace.Operations -> OperationsWorkspace(
             state = state,
+            onSelectOperationsRoute = onSelectOperationsRoute,
             onCashMovementTypeSelected = onCashMovementTypeSelected,
             onCashMovementAmountChanged = onCashMovementAmountChanged,
             onCashReasonCodeChanged = onCashReasonCodeChanged,
@@ -277,7 +320,8 @@ private fun HistoryWorkspace(recentSales: List<SaleHistoryEntry>) {
 
 @Composable
 private fun InventoryWorkspace(
-    state: InventoryPanelState,
+    state: DesktopAppState,
+    onSelectInventoryRoute: (DesktopInventoryRoute) -> Unit,
     onSelectProduct: (String) -> Unit,
     onCountQuantityChanged: (String) -> Unit,
     onSubmitCount: () -> Unit,
@@ -290,31 +334,79 @@ private fun InventoryWorkspace(
     onMarkInvestigation: (String) -> Unit,
     onApproveAction: (String) -> Unit,
     onDenyAction: (String) -> Unit,
-    onDeferDiscrepancy: (String) -> Unit
+    onDeferDiscrepancy: (String) -> Unit,
+    onSelectMasterCategory: (String?) -> Unit,
+    onMasterSearchChanged: (String) -> Unit,
+    onPrepareNewMasterProduct: () -> Unit,
+    onSelectMasterProduct: (String) -> Unit,
+    onMasterProductNameChanged: (String) -> Unit,
+    onMasterProductSkuChanged: (String) -> Unit,
+    onMasterProductPriceChanged: (String) -> Unit,
+    onMasterProductCategoryChanged: (String) -> Unit,
+    onMasterProductImageRefChanged: (String) -> Unit,
+    onMasterProductActiveChanged: (Boolean) -> Unit,
+    onMasterBarcodeDraftChanged: (String) -> Unit,
+    onMasterBarcodeTypeChanged: (String) -> Unit,
+    onSaveMasterProduct: () -> Unit,
+    onAddMasterBarcode: () -> Unit,
+    onRemoveMasterBarcode: (String) -> Unit,
+    onNewCategoryNameChanged: (String) -> Unit,
+    onNewCategoryColorChanged: (String) -> Unit,
+    onSaveMasterCategory: () -> Unit
 ) {
-    WorkspacePage("Inventori", "Current state, discrepancy queue, approval queue, dan image readiness.") {
-        InventoryTruthDialogContent(
-            state = state,
-            onSelectProduct = onSelectProduct,
-            onCountQuantityChanged = onCountQuantityChanged,
-            onSubmitCount = onSubmitCount,
-            onAdjustmentDirectionChanged = onAdjustmentDirectionChanged,
-            onAdjustmentQuantityChanged = onAdjustmentQuantityChanged,
-            onAdjustmentReasonCodeChanged = onAdjustmentReasonCodeChanged,
-            onAdjustmentReasonDetailChanged = onAdjustmentReasonDetailChanged,
-            onApplyAdjustment = onApplyAdjustment,
-            onResolveDiscrepancy = onResolveDiscrepancy,
-            onMarkInvestigation = onMarkInvestigation,
-            onApproveAction = onApproveAction,
-            onDenyAction = onDenyAction,
-            onDeferDiscrepancy = onDeferDiscrepancy
+    WorkspacePage("Inventori", "Stock truth dan master data dipisah agar layar tidak sumpek dan operator tidak salah konteks.") {
+        RouteChips(
+            routes = DesktopInventoryRoute.entries.map { route ->
+                Triple(route.shortLabel, state.inventoryRoute == route, { onSelectInventoryRoute(route) })
+            }
         )
+        when (state.inventoryRoute) {
+            DesktopInventoryRoute.StockOverview -> InventoryTruthDialogContent(
+                state = state.inventory,
+                onSelectProduct = onSelectProduct,
+                onCountQuantityChanged = onCountQuantityChanged,
+                onSubmitCount = onSubmitCount,
+                onAdjustmentDirectionChanged = onAdjustmentDirectionChanged,
+                onAdjustmentQuantityChanged = onAdjustmentQuantityChanged,
+                onAdjustmentReasonCodeChanged = onAdjustmentReasonCodeChanged,
+                onAdjustmentReasonDetailChanged = onAdjustmentReasonDetailChanged,
+                onApplyAdjustment = onApplyAdjustment,
+                onResolveDiscrepancy = onResolveDiscrepancy,
+                onMarkInvestigation = onMarkInvestigation,
+                onApproveAction = onApproveAction,
+                onDenyAction = onDenyAction,
+                onDeferDiscrepancy = onDeferDiscrepancy
+            )
+
+            DesktopInventoryRoute.MasterData -> MasterDataWorkspace(
+                state = state.masterData,
+                onSelectCategory = onSelectMasterCategory,
+                onSearchChanged = onMasterSearchChanged,
+                onPrepareNewProduct = onPrepareNewMasterProduct,
+                onSelectProduct = onSelectMasterProduct,
+                onProductNameChanged = onMasterProductNameChanged,
+                onProductSkuChanged = onMasterProductSkuChanged,
+                onProductPriceChanged = onMasterProductPriceChanged,
+                onProductCategoryChanged = onMasterProductCategoryChanged,
+                onProductImageRefChanged = onMasterProductImageRefChanged,
+                onProductActiveChanged = onMasterProductActiveChanged,
+                onBarcodeDraftChanged = onMasterBarcodeDraftChanged,
+                onBarcodeTypeChanged = onMasterBarcodeTypeChanged,
+                onSaveProduct = onSaveMasterProduct,
+                onAddBarcode = onAddMasterBarcode,
+                onRemoveBarcode = onRemoveMasterBarcode,
+                onNewCategoryNameChanged = onNewCategoryNameChanged,
+                onNewCategoryColorChanged = onNewCategoryColorChanged,
+                onSaveCategory = onSaveMasterCategory
+            )
+        }
     }
 }
 
 @Composable
 private fun OperationsWorkspace(
     state: DesktopAppState,
+    onSelectOperationsRoute: (DesktopOperationsRoute) -> Unit,
     onCashMovementTypeSelected: (CashMovementType) -> Unit,
     onCashMovementAmountChanged: (String) -> Unit,
     onCashReasonCodeChanged: (String) -> Unit,
@@ -336,19 +428,209 @@ private fun OperationsWorkspace(
     onCloseBusinessDay: () -> Unit,
     onSync: () -> Unit
 ) {
-    WorkspacePage("Operasional", "Task kompleks dipindah ke workspace penuh, bukan modal besar.") {
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
-            WorkspaceCard("Kontrol Kas", Modifier.weight(1f)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    CashMovementType.entries.forEach { type ->
-                        OutlinedButton(onClick = { onCashMovementTypeSelected(type) }) { Text(type.name.replace('_', ' ')) }
+    WorkspacePage("Operasional", "Task operasional berat dibagi ke sub-route agar mudah diakses, cepat dipahami, dan aman untuk laptop.") {
+        RouteChips(
+            routes = DesktopOperationsRoute.entries.map { route ->
+                Triple(route.shortLabel, state.operationsRoute == route, { onSelectOperationsRoute(route) })
+            }
+        )
+        when (state.operationsRoute) {
+            DesktopOperationsRoute.CashControl -> CashControlRoute(
+                state = state,
+                onCashMovementTypeSelected = onCashMovementTypeSelected,
+                onCashMovementAmountChanged = onCashMovementAmountChanged,
+                onCashReasonCodeChanged = onCashReasonCodeChanged,
+                onCashReasonDetailChanged = onCashReasonDetailChanged,
+                onSubmitCashMovement = onSubmitCashMovement,
+                onApproveCashMovement = onApproveCashMovement,
+                onDenyCashMovement = onDenyCashMovement
+            )
+
+            DesktopOperationsRoute.VoidSale -> VoidSaleRoute(
+                state = state,
+                onSelectVoidSale = onSelectVoidSale,
+                onVoidReasonCodeChanged = onVoidReasonCodeChanged,
+                onVoidReasonDetailChanged = onVoidReasonDetailChanged,
+                onVoidInventoryFollowUpChanged = onVoidInventoryFollowUpChanged,
+                onExecuteVoid = onExecuteVoid
+            )
+
+            DesktopOperationsRoute.CloseShift -> CloseShiftRoute(
+                state = state,
+                onClosingCashChanged = onClosingCashChanged,
+                onCloseShiftReasonCodeChanged = onCloseShiftReasonCodeChanged,
+                onCloseShiftReasonDetailChanged = onCloseShiftReasonDetailChanged,
+                onCloseShift = onCloseShift,
+                onApproveCloseShift = onApproveCloseShift,
+                onDenyCloseShift = onDenyCloseShift
+            )
+
+            DesktopOperationsRoute.CloseDay -> CloseDayRoute(
+                state = state,
+                onCloseBusinessDay = onCloseBusinessDay
+            )
+
+            DesktopOperationsRoute.SyncCenter -> SyncCenterRoute(
+                state = state,
+                onSync = onSync
+            )
+
+            DesktopOperationsRoute.Diagnostics -> DiagnosticsRoute(state = state)
+        }
+    }
+}
+
+@Composable
+private fun MasterDataWorkspace(
+    state: MasterDataPanelState,
+    onSelectCategory: (String?) -> Unit,
+    onSearchChanged: (String) -> Unit,
+    onPrepareNewProduct: () -> Unit,
+    onSelectProduct: (String) -> Unit,
+    onProductNameChanged: (String) -> Unit,
+    onProductSkuChanged: (String) -> Unit,
+    onProductPriceChanged: (String) -> Unit,
+    onProductCategoryChanged: (String) -> Unit,
+    onProductImageRefChanged: (String) -> Unit,
+    onProductActiveChanged: (Boolean) -> Unit,
+    onBarcodeDraftChanged: (String) -> Unit,
+    onBarcodeTypeChanged: (String) -> Unit,
+    onSaveProduct: () -> Unit,
+    onAddBarcode: () -> Unit,
+    onRemoveBarcode: (String) -> Unit,
+    onNewCategoryNameChanged: (String) -> Unit,
+    onNewCategoryColorChanged: (String) -> Unit,
+    onSaveCategory: () -> Unit
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
+        WorkspaceCard("Kategori", Modifier.weight(0.8f)) {
+            Text(state.groupingHint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            FilterChip(
+                selected = state.selectedCategoryId == null,
+                onClick = { onSelectCategory(null) },
+                label = { Text("Semua Produk") }
+            )
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.height(220.dp)) {
+                items(state.categories) { category ->
+                    FilterChip(
+                        selected = state.selectedCategoryId == category.id,
+                        onClick = { onSelectCategory(category.id) },
+                        label = { Text("${category.name} (${category.productCount})") }
+                    )
+                }
+            }
+            HorizontalDivider()
+            SemanticTextField("Kategori Baru", state.newCategoryName, onNewCategoryNameChanged)
+            SemanticTextField("Warna Kategori", state.newCategoryColor, onNewCategoryColorChanged, helperText = "Contoh #1F7A8C")
+            Button(onClick = onSaveCategory, modifier = Modifier.fillMaxWidth()) { Text("Tambah Kategori") }
+        }
+        WorkspaceCard("Produk", Modifier.weight(1f)) {
+            SemanticTextField("Cari Produk / SKU", state.searchQuery, onSearchChanged, helperText = "Cari cepat untuk edit detail.")
+            Button(onClick = onPrepareNewProduct, modifier = Modifier.fillMaxWidth()) { Text("Produk Baru") }
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.height(320.dp)) {
+                items(state.products) { product ->
+                    Surface(shape = RoundedCornerShape(14.dp), tonalElevation = if (state.selectedProductId == product.id) 2.dp else 1.dp, modifier = Modifier.fillMaxWidth()) {
+                        Row(modifier = Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.weight(1f)) {
+                                Text(product.name, fontWeight = FontWeight.SemiBold)
+                                Text("SKU ${product.sku}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            OutlinedButton(onClick = { onSelectProduct(product.id) }) { Text("Pilih") }
+                        }
                     }
                 }
-                CassyCurrencyInput("Nominal", state.operations.cashMovementAmountInput, onCashMovementAmountChanged, helperText = "Reason code tetap wajib.")
-                SemanticTextField("Reason Code", state.operations.cashMovementReasonCode, onCashReasonCodeChanged)
-                SemanticTextField("Catatan", state.operations.cashMovementReasonDetail, onCashReasonDetailChanged, singleLine = false)
-                Button(onClick = onSubmitCashMovement) { Text("Simpan Kontrol Kas") }
-                state.operations.pendingApprovals.forEach { approval ->
+            }
+        }
+        WorkspaceCard("Detail Produk", Modifier.weight(1.2f)) {
+            Text("Permudah operator: label jelas, SKU konsisten, barcode siap scan, dan image ref mudah ditelusuri.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            SemanticTextField("Nama Produk", state.productNameInput, onProductNameChanged)
+            SemanticTextField("SKU", state.productSkuInput, onProductSkuChanged)
+            CassyCurrencyInput("Harga Jual", state.productPriceInput, onProductPriceChanged)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Kategori", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.height(120.dp)) {
+                    items(state.categories) { category ->
+                        FilterChip(
+                            selected = state.productCategoryId == category.id,
+                            onClick = { onProductCategoryChanged(category.id) },
+                            label = { Text(category.name) }
+                        )
+                    }
+                }
+            }
+            SemanticTextField("Image Ref / File Hint", state.productImageRefInput, onProductImageRefChanged, helperText = "Bisa pakai imageUrl lama atau file di input_images.")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                Checkbox(checked = state.productIsActive, onCheckedChange = onProductActiveChanged)
+                Text("Produk aktif untuk lookup dan penjualan")
+            }
+            Button(onClick = onSaveProduct, modifier = Modifier.fillMaxWidth()) { Text(if (state.selectedProductId == null) "Simpan Produk Baru" else "Simpan Perubahan Produk") }
+            HorizontalDivider()
+            Text("Barcode Management", fontWeight = FontWeight.Bold)
+            SemanticTextField("Barcode", state.barcodeDraft, onBarcodeDraftChanged, helperText = "Paste hasil scan atau input manual.")
+            SemanticTextField("Type", state.barcodeType, onBarcodeTypeChanged, helperText = "GLOBAL atau INTERNAL")
+            Button(onClick = onAddBarcode, modifier = Modifier.fillMaxWidth()) { Text("Tambahkan Barcode") }
+            if (state.barcodes.isEmpty()) {
+                Text("Belum ada barcode. Tambahkan minimal satu barcode utama agar lookup siap scan.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                state.barcodes.forEach { barcode ->
+                    BarcodeRow(barcode, onRemoveBarcode)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BarcodeRow(
+    barcode: ProductBarcodeRecord,
+    onRemoveBarcode: (String) -> Unit
+) {
+    Surface(shape = RoundedCornerShape(12.dp), tonalElevation = 1.dp, modifier = Modifier.fillMaxWidth()) {
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(barcode.barcode, fontWeight = FontWeight.SemiBold)
+                Text(barcode.type, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            OutlinedButton(onClick = { onRemoveBarcode(barcode.barcode) }) { Text("Lepas") }
+        }
+    }
+}
+
+@Composable
+private fun CashControlRoute(
+    state: DesktopAppState,
+    onCashMovementTypeSelected: (CashMovementType) -> Unit,
+    onCashMovementAmountChanged: (String) -> Unit,
+    onCashReasonCodeChanged: (String) -> Unit,
+    onCashReasonDetailChanged: (String) -> Unit,
+    onSubmitCashMovement: () -> Unit,
+    onApproveCashMovement: (String) -> Unit,
+    onDenyCashMovement: (String) -> Unit
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
+        WorkspaceCard("Kontrol Kas", Modifier.weight(1f)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                CashMovementType.entries.forEach { type ->
+                    FilterChip(
+                        selected = state.operations.cashMovementType == type,
+                        onClick = { onCashMovementTypeSelected(type) },
+                        label = { Text(type.name.replace('_', ' ')) }
+                    )
+                }
+            }
+            CassyCurrencyInput("Nominal", state.operations.cashMovementAmountInput, onCashMovementAmountChanged, helperText = "Reason code tetap wajib.")
+            SemanticTextField("Reason Code", state.operations.cashMovementReasonCode, onCashReasonCodeChanged)
+            SemanticTextField("Catatan", state.operations.cashMovementReasonDetail, onCashReasonDetailChanged, singleLine = false)
+            Button(onClick = onSubmitCashMovement, modifier = Modifier.fillMaxWidth()) { Text("Simpan Kontrol Kas") }
+        }
+        WorkspaceCard("Approval Queue", Modifier.weight(1f)) {
+            val approvals = state.operations.pendingApprovals.filter {
+                it.operationType.name == "CASH_IN" || it.operationType.name == "CASH_OUT" || it.operationType.name == "SAFE_DROP"
+            }
+            if (approvals.isEmpty()) {
+                Text("Tidak ada approval cash control yang menunggu.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                approvals.forEach { approval ->
                     ApprovalRow(
                         title = approval.title,
                         detail = approval.detail,
@@ -358,52 +640,144 @@ private fun OperationsWorkspace(
                     )
                 }
             }
-            WorkspaceCard("Void Sale Review", Modifier.weight(1f)) {
-                Text(state.operations.voidSale.assessmentMessage, style = MaterialTheme.typography.bodySmall)
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.height(180.dp)) {
-                    items(state.catalog.recentSales) { sale ->
-                        OutlinedButton(onClick = { onSelectVoidSale(sale.saleId) }, modifier = Modifier.fillMaxWidth()) {
-                            Text(humanizeSaleReference(sale))
-                        }
+        }
+    }
+}
+
+@Composable
+private fun VoidSaleRoute(
+    state: DesktopAppState,
+    onSelectVoidSale: (String) -> Unit,
+    onVoidReasonCodeChanged: (String) -> Unit,
+    onVoidReasonDetailChanged: (String) -> Unit,
+    onVoidInventoryFollowUpChanged: (String) -> Unit,
+    onExecuteVoid: () -> Unit
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
+        WorkspaceCard("Void Sale Review", Modifier.weight(1f)) {
+            Text(state.operations.voidSale.assessmentMessage, style = MaterialTheme.typography.bodySmall)
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.height(220.dp)) {
+                items(state.catalog.recentSales) { sale ->
+                    OutlinedButton(onClick = { onSelectVoidSale(sale.saleId) }, modifier = Modifier.fillMaxWidth()) {
+                        Text(humanizeSaleReference(sale))
                     }
                 }
-                SemanticTextField("Reason Code", state.operations.voidSale.reasonCode, onVoidReasonCodeChanged)
-                SemanticTextField("Catatan Void", state.operations.voidSale.reasonDetail, onVoidReasonDetailChanged, singleLine = false)
-                SemanticTextField("Follow-up Stok", state.operations.voidSale.inventoryFollowUpNote, onVoidInventoryFollowUpChanged, singleLine = false)
-                Button(onClick = onExecuteVoid, enabled = state.operations.voidSale.canExecute) { Text("Eksekusi Void") }
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
-            WorkspaceCard("Close Shift", Modifier.weight(1f)) {
-                state.operations.closeShiftReview?.let { review ->
-                    SummaryRow("Expected Cash", "Rp ${review.expectedCash.toInt()}")
-                    SummaryRow("Variance", review.variance?.let { "Rp ${it.toInt()}" } ?: "-")
-                }
-                CassyCurrencyInput("Closing Cash", state.operations.closingCashInput, onClosingCashChanged, helperText = "Hitung fisik tunai dulu.")
-                SemanticTextField("Reason Code", state.operations.closeShiftReasonCode, onCloseShiftReasonCodeChanged)
-                SemanticTextField("Catatan", state.operations.closeShiftReasonDetail, onCloseShiftReasonDetailChanged, singleLine = false)
-                Button(onClick = onCloseShift) { Text("Eksekusi Tutup Shift") }
-                state.operations.pendingApprovals.forEach { approval ->
-                    if (approval.operationType.name == "CLOSE_SHIFT") {
-                        ApprovalRow(
-                            title = approval.title,
-                            detail = approval.detail,
-                            label = humanizeApprovalLabel(approval.id),
-                            onApprove = { onApproveCloseShift(approval.id) },
-                            onDeny = { onDenyCloseShift(approval.id) }
-                        )
-                    }
+        WorkspaceCard("Eksekusi Void", Modifier.weight(1f)) {
+            SummaryRow("Sale Ref", state.operations.voidSale.selectedLocalNumber ?: "-")
+            SummaryRow("Metode", state.operations.voidSale.selectedPaymentMethod ?: "-")
+            SummaryRow("Status", state.operations.voidSale.selectedSaleStatus ?: "-")
+            SummaryRow("Kontrak Stok", state.operations.voidSale.inventoryImpactClassification)
+            SemanticTextField("Reason Code", state.operations.voidSale.reasonCode, onVoidReasonCodeChanged)
+            SemanticTextField("Catatan Void", state.operations.voidSale.reasonDetail, onVoidReasonDetailChanged, singleLine = false)
+            SemanticTextField("Follow-up Stok", state.operations.voidSale.inventoryFollowUpNote, onVoidInventoryFollowUpChanged, singleLine = false)
+            Button(onClick = onExecuteVoid, enabled = state.operations.voidSale.canExecute, modifier = Modifier.fillMaxWidth()) { Text("Eksekusi Void") }
+        }
+    }
+}
+
+@Composable
+private fun CloseShiftRoute(
+    state: DesktopAppState,
+    onClosingCashChanged: (String) -> Unit,
+    onCloseShiftReasonCodeChanged: (String) -> Unit,
+    onCloseShiftReasonDetailChanged: (String) -> Unit,
+    onCloseShift: () -> Unit,
+    onApproveCloseShift: (String) -> Unit,
+    onDenyCloseShift: (String) -> Unit
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
+        WorkspaceCard("Close Shift", Modifier.weight(1f)) {
+            state.operations.closeShiftReview?.let { review ->
+                SummaryRow("Expected Cash", "Rp ${review.expectedCash.toInt()}")
+                SummaryRow("Variance", review.variance?.let { "Rp ${it.toInt()}" } ?: "-")
+            }
+            CassyCurrencyInput("Closing Cash", state.operations.closingCashInput, onClosingCashChanged, helperText = "Hitung fisik tunai dulu.")
+            SemanticTextField("Reason Code", state.operations.closeShiftReasonCode, onCloseShiftReasonCodeChanged)
+            SemanticTextField("Catatan", state.operations.closeShiftReasonDetail, onCloseShiftReasonDetailChanged, singleLine = false)
+            Button(onClick = onCloseShift, modifier = Modifier.fillMaxWidth()) { Text("Eksekusi Tutup Shift") }
+        }
+        WorkspaceCard("Approval Close Shift", Modifier.weight(1f)) {
+            val approvals = state.operations.pendingApprovals.filter { it.operationType.name == "CLOSE_SHIFT" }
+            if (approvals.isEmpty()) {
+                Text("Tidak ada approval close shift yang menunggu.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                approvals.forEach { approval ->
+                    ApprovalRow(
+                        title = approval.title,
+                        detail = approval.detail,
+                        label = humanizeApprovalLabel(approval.id),
+                        onApprove = { onApproveCloseShift(approval.id) },
+                        onDeny = { onDenyCloseShift(approval.id) }
+                    )
                 }
             }
-            WorkspaceCard("Close Day / Sync", Modifier.weight(1f)) {
-                SummaryRow("Hari Bisnis", humanizeBusinessDayLabel(state.operations.businessDayLabel))
-                SummaryRow("Shift", humanizeShiftLabel(state.operations.shiftLabel))
-                SummaryRow("Pending Approval", state.operations.dashboard.pendingApprovalCount.toString())
-                Button(onClick = onCloseBusinessDay) { Text("Tutup Hari") }
-                OutlinedButton(onClick = onSync) { Text("Replay Sync") }
-                SummaryRow("Printer", state.hardware.printer.label)
-                SummaryRow("Scanner", state.hardware.scanner.label)
-            }
+        }
+    }
+}
+
+@Composable
+private fun CloseDayRoute(
+    state: DesktopAppState,
+    onCloseBusinessDay: () -> Unit
+) {
+    WorkspaceCard("Close Day") {
+        SummaryRow("Hari Bisnis", humanizeBusinessDayLabel(state.operations.businessDayLabel))
+        SummaryRow("Shift", humanizeShiftLabel(state.operations.shiftLabel))
+        SummaryRow("Pending Approval", state.operations.dashboard.pendingApprovalCount.toString())
+        SummaryRow("Blocker", state.operations.blockingMessage ?: "Tidak ada blocker besar")
+        Button(onClick = onCloseBusinessDay, modifier = Modifier.fillMaxWidth()) { Text("Tutup Hari") }
+    }
+}
+
+@Composable
+private fun SyncCenterRoute(
+    state: DesktopAppState,
+    onSync: () -> Unit
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
+        WorkspaceCard("Sync Center", Modifier.weight(1f)) {
+            SummaryRow("Status", state.operations.reportingSummary?.syncStatus?.level?.name ?: "OFFLINE")
+            SummaryRow("Pending", state.operations.reportingSummary?.syncStatus?.pendingCount?.toString() ?: "0")
+            SummaryRow("Failed", state.operations.reportingSummary?.syncStatus?.failedCount?.toString() ?: "0")
+            Button(onClick = onSync, modifier = Modifier.fillMaxWidth()) { Text("Replay Sync") }
+        }
+        WorkspaceCard("Recovery", Modifier.weight(1f)) {
+            Text("Sync Cassy tetap local-first. Queue harus explainable dan bisa dipulihkan dengan sengaja.", style = MaterialTheme.typography.bodySmall)
+            Text(devResetCommandHint(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun DiagnosticsRoute(state: DesktopAppState) {
+    Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
+        WorkspaceCard("Hardware", Modifier.weight(1f)) {
+            SummaryRow("Printer", state.hardware.printer.label)
+            SummaryRow("Scanner", state.hardware.scanner.label)
+            SummaryRow("Cash Drawer", state.hardware.cashDrawer.label)
+        }
+        WorkspaceCard("Runtime", Modifier.weight(1f)) {
+            SummaryRow("Data Root", resolveDesktopDataRoot().absolutePath)
+            SummaryRow("Store", state.shell.storeName ?: "-")
+            SummaryRow("Terminal", state.shell.terminalName ?: "-")
+            SummaryRow("Operator", state.shell.operatorName ?: "-")
+        }
+    }
+}
+
+@Composable
+private fun RouteChips(
+    routes: List<Triple<String, Boolean, () -> Unit>>
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        routes.forEach { (label, selected, onClick) ->
+            FilterChip(
+                selected = selected,
+                onClick = onClick,
+                label = { Text(label) }
+            )
         }
     }
 }

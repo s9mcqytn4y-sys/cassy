@@ -86,10 +86,83 @@ class AccessService(
 
     suspend fun login(operatorId: String, pin: String): LoginResult {
         val binding = kernelRepository.getTerminalBinding() ?: return LoginResult.NotBound
-        val operator = kernelRepository.getOperatorById(operatorId) ?: return LoginResult.OperatorNotFound
+        return when (val authResult = authenticateOperator(operatorId, pin)) {
+            is PinAuthResult.Success -> {
+                val operator = authResult.operator
+                val now = authResult.at
+                kernelRepository.clearActiveAccessSessions()
+                kernelRepository.updateOperatorAccessState(
+                    operatorId = operator.id,
+                    failedAttempts = 0,
+                    lockedUntil = null,
+                    lastLoginAt = now
+                )
+                val session = AccessSession(
+                    id = IdGenerator.nextId("session"),
+                    operatorId = operator.id,
+                    terminalId = binding.terminalId,
+                    storeId = binding.storeId,
+                    authMode = "PIN_LOCAL",
+                    status = "ACTIVE",
+                    createdAt = now,
+                    updatedAt = now
+                )
+                kernelRepository.createAccessSession(session)
+                kernelRepository.insertAudit(
+                    id = IdGenerator.nextId("audit"),
+                    message = "Login berhasil untuk ${operator.displayName}",
+                    level = "INFO"
+                )
+                LoginResult.Success(
+                    session = session,
+                    operator = operator.copy(failedAttempts = 0, lockedUntil = null, lastLoginAt = now)
+                )
+            }
+            PinAuthResult.OperatorNotFound -> LoginResult.OperatorNotFound
+            is PinAuthResult.WrongPin -> LoginResult.WrongPin(
+                failedAttempts = authResult.failedAttempts,
+                remainingBeforeLock = authResult.remainingBeforeLock
+            )
+            is PinAuthResult.Locked -> LoginResult.Locked(authResult.lockedUntil)
+        }
+    }
+
+    suspend fun verifyStepUp(
+        operatorId: String,
+        pin: String,
+        capability: AccessCapability
+    ): Result<OperatorAccount> {
+        val binding = kernelRepository.getTerminalBinding()
+            ?: return Result.failure(IllegalStateException("Terminal belum terikat ke store"))
+        return when (val authResult = authenticateOperator(operatorId, pin)) {
+            is PinAuthResult.Success -> {
+                val operator = authResult.operator
+                if (!operator.role.supports(capability)) {
+                    Result.failure(IllegalStateException("Akses ${operator.role.name} tidak diizinkan untuk $capability"))
+                } else {
+                    kernelRepository.insertAudit(
+                        id = IdGenerator.nextId("audit"),
+                        message = "Step-up auth berhasil untuk ${operator.displayName} pada terminal ${binding.terminalName}",
+                        level = "INFO"
+                    )
+                    Result.success(operator)
+                }
+            }
+            PinAuthResult.OperatorNotFound -> Result.failure(IllegalStateException("Operator step-up tidak ditemukan"))
+            is PinAuthResult.WrongPin -> Result.failure(
+                IllegalStateException("PIN salah. Sisa percobaan sebelum lock: ${authResult.remainingBeforeLock}")
+            )
+            is PinAuthResult.Locked -> Result.failure(
+                IllegalStateException("Akses operator terkunci sampai ${authResult.lockedUntil ?: "-"}")
+            )
+        }
+    }
+
+    private suspend fun authenticateOperator(operatorId: String, pin: String): PinAuthResult {
+        val operator = kernelRepository.getOperatorById(operatorId) ?: return PinAuthResult.OperatorNotFound
         val now = clock.now()
         if (operator.lockedUntil?.let { it > now } == true) {
-            return LoginResult.Locked(operator.lockedUntil)
+            return PinAuthResult.Locked(operator.lockedUntil)
         }
 
         val hash = pinHasher.hash(pin, operator.pinSalt)
@@ -113,41 +186,18 @@ class AccessService(
                 level = "WARN"
             )
             return if (lockedUntil != null) {
-                LoginResult.Locked(lockedUntil)
+                PinAuthResult.Locked(lockedUntil)
             } else {
-                LoginResult.WrongPin(
+                PinAuthResult.WrongPin(
                     failedAttempts = failedAttempts,
                     remainingBeforeLock = MAX_FAILED_ATTEMPTS - failedAttempts
                 )
             }
         }
 
-        kernelRepository.clearActiveAccessSessions()
-        kernelRepository.updateOperatorAccessState(
-            operatorId = operator.id,
-            failedAttempts = 0,
-            lockedUntil = null,
-            lastLoginAt = now
-        )
-        val session = AccessSession(
-            id = IdGenerator.nextId("session"),
-            operatorId = operator.id,
-            terminalId = binding.terminalId,
-            storeId = binding.storeId,
-            authMode = "PIN_LOCAL",
-            status = "ACTIVE",
-            createdAt = now,
-            updatedAt = now
-        )
-        kernelRepository.createAccessSession(session)
-        kernelRepository.insertAudit(
-            id = IdGenerator.nextId("audit"),
-            message = "Login berhasil untuk ${operator.displayName}",
-            level = "INFO"
-        )
-        return LoginResult.Success(
-            session = session,
-            operator = operator.copy(failedAttempts = 0, lockedUntil = null, lastLoginAt = now)
+        return PinAuthResult.Success(
+            operator = operator,
+            at = now
         )
     }
 
@@ -206,4 +256,22 @@ class AccessService(
         const val MAX_FAILED_ATTEMPTS = 3
         const val LOCKOUT_DURATION_MS = 5 * 60 * 1000L
     }
+}
+
+private sealed interface PinAuthResult {
+    data class Success(
+        val operator: OperatorAccount,
+        val at: Instant
+    ) : PinAuthResult
+
+    data class WrongPin(
+        val failedAttempts: Int,
+        val remainingBeforeLock: Int
+    ) : PinAuthResult
+
+    data class Locked(
+        val lockedUntil: Instant?
+    ) : PinAuthResult
+
+    data object OperatorNotFound : PinAuthResult
 }

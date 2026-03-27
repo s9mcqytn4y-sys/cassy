@@ -4,6 +4,24 @@ Semua perubahan penting di Cassy dicatat di file ini.
 
 Format changelog ini mengikuti prinsip Keep a Changelog dan versioning pre-release berbasis SemVer.
 
+## [0.2.0-beta.3] - 2026-03-27
+
+### Added
+- Sub-route operasional desktop: `Cash Control`, `Void Sale`, `Close Shift`, `Close Day`, `Sync Center`, dan `Diagnostics`.
+- Layar `Master Data` di lane inventori untuk pengelolaan kategori, SKU, barcode, dan image reference produk.
+- Step-up auth mini-flow supervisor/owner tanpa mengganti sesi kasir aktif.
+- Footer desktop ringan yang merangkum versi, store, terminal, dan bantuan shortcut.
+
+### Changed
+- `.gitignore` sekarang mengabaikan `.agent/**`, `AGENTS.md`, `GEMINI.md`, `.aiexclude`, dan file AI lokal sejenis agar tidak ikut ter-push.
+- Shortcut F-key laptop/desktop dipetakan ulang ke workspace/sub-route yang lebih jelas: `F7` void, `F8` laporan, `F9` inventori, `F10` kas, `F11` close shift, `F12` diagnostics.
+- Master data seed diperluas agar demo produk/kategori lebih realistis untuk retail single outlet.
+- Topbar title kini mengikuti sub-route aktif agar operator selalu tahu konteks kerja saat ini.
+
+### Fixed
+- Flow approval desktop yang sebelumnya mengandalkan sesi approver aktif penuh sekarang bisa memakai verifikasi PIN step-up secara eksplisit.
+- Filter kategori dan pencarian master data sekarang memicu refresh state yang konsisten.
+
 ## [0.2.0-beta.2] - 2026-03-27
 
 ### Added

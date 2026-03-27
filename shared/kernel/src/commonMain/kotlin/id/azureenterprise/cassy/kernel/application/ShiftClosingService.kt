@@ -8,12 +8,14 @@ import id.azureenterprise.cassy.kernel.domain.OperationBlockerCode
 import id.azureenterprise.cassy.kernel.domain.OperationDecision
 import id.azureenterprise.cassy.kernel.domain.OperationStatus
 import id.azureenterprise.cassy.kernel.domain.OperationType
+import id.azureenterprise.cassy.kernel.domain.OperatorAccount
 import id.azureenterprise.cassy.kernel.domain.PendingApprovalSummary
 import id.azureenterprise.cassy.kernel.domain.ReasonCategory
 import id.azureenterprise.cassy.kernel.domain.ShiftCloseExecutionResult
 import id.azureenterprise.cassy.kernel.domain.ShiftClosePolicy
 import id.azureenterprise.cassy.kernel.domain.ShiftCloseReport
 import id.azureenterprise.cassy.kernel.domain.ShiftCloseReview
+import id.azureenterprise.cassy.kernel.domain.supports
 import kotlin.math.abs
 
 class ShiftClosingService(
@@ -227,7 +229,10 @@ class ShiftClosingService(
         return ShiftCloseExecutionResult.Closed(closed, report, approvalApplied = false)
     }
 
-    suspend fun approveCloseShift(requestId: String): ShiftCloseExecutionResult {
+    suspend fun approveCloseShift(
+        requestId: String,
+        approverOverride: OperatorAccount? = null
+    ): ShiftCloseExecutionResult {
         val request = kernelRepository.getApprovalRequestById(requestId)
             ?: return ShiftCloseExecutionResult.Blocked(
                 OperationDecision(
@@ -248,7 +253,10 @@ class ShiftClosingService(
                 )
             )
         }
-        val approver = accessService.requireCapability(AccessCapability.APPROVE_SHIFT_CLOSE_EXCEPTION).getOrElse {
+        val approver = resolveApprover(
+            capability = AccessCapability.APPROVE_SHIFT_CLOSE_EXCEPTION,
+            operatorOverride = approverOverride
+        ).getOrElse {
             return ShiftCloseExecutionResult.Blocked(
                 OperationDecision(
                     type = OperationType.CLOSE_SHIFT,
@@ -299,8 +307,15 @@ class ShiftClosingService(
         return ShiftCloseExecutionResult.Closed(closed, report, approvalApplied = true)
     }
 
-    suspend fun denyCloseShift(requestId: String, decisionNote: String): Boolean {
-        val approver = accessService.requireCapability(AccessCapability.APPROVE_SHIFT_CLOSE_EXCEPTION).getOrNull() ?: return false
+    suspend fun denyCloseShift(
+        requestId: String,
+        decisionNote: String,
+        approverOverride: OperatorAccount? = null
+    ): Boolean {
+        val approver = resolveApprover(
+            capability = AccessCapability.APPROVE_SHIFT_CLOSE_EXCEPTION,
+            operatorOverride = approverOverride
+        ).getOrNull() ?: return false
         val request = kernelRepository.getApprovalRequestById(requestId) ?: return false
         if (request.status != ApprovalStatus.REQUESTED) return false
         kernelRepository.resolveApprovalRequest(
@@ -348,6 +363,18 @@ class ShiftClosingService(
             approvalRequestId = approvalRequestId,
             generatedBy = generatedBy
         )
+    }
+
+    private suspend fun resolveApprover(
+        capability: AccessCapability,
+        operatorOverride: OperatorAccount?
+    ): Result<OperatorAccount> {
+        val approvedOverride = operatorOverride?.takeIf { it.role.supports(capability) }
+        return if (approvedOverride != null) {
+            Result.success(approvedOverride)
+        } else {
+            accessService.requireCapability(capability)
+        }
     }
 
     private fun evaluateReviewDecision(

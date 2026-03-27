@@ -10,7 +10,9 @@ import id.azureenterprise.cassy.inventory.domain.StockAdjustmentDraft
 import id.azureenterprise.cassy.inventory.domain.StockCountDraft
 import id.azureenterprise.cassy.kernel.application.*
 import id.azureenterprise.cassy.kernel.domain.*
+import id.azureenterprise.cassy.masterdata.data.ProductBarcodeRecord
 import id.azureenterprise.cassy.masterdata.data.ProductRepository
+import id.azureenterprise.cassy.masterdata.domain.Category
 import id.azureenterprise.cassy.masterdata.domain.Product
 import id.azureenterprise.cassy.masterdata.domain.ProductLookupResult
 import id.azureenterprise.cassy.masterdata.domain.ProductLookupUseCase
@@ -173,8 +175,36 @@ class DesktopAppController(
     fun selectWorkspace(workspace: DesktopWorkspace) {
         _state.update { current ->
             val allowed = current.shell.availableWorkspaces
+            val resolved = workspace.takeIf { it in allowed } ?: current.activeWorkspace
             current.copy(
-                activeWorkspace = workspace.takeIf { it in allowed } ?: current.activeWorkspace
+                activeWorkspace = resolved,
+                shell = current.shell.copy(
+                    workspaceTitle = resolveWorkspaceTitle(
+                        resolved,
+                        current.inventoryRoute,
+                        current.operationsRoute
+                    )
+                )
+            )
+        }
+    }
+
+    fun selectInventoryRoute(route: DesktopInventoryRoute) {
+        _state.update {
+            it.copy(
+                inventoryRoute = route,
+                activeWorkspace = DesktopWorkspace.Inventory,
+                shell = it.shell.copy(workspaceTitle = resolveWorkspaceTitle(DesktopWorkspace.Inventory, route, it.operationsRoute))
+            )
+        }
+    }
+
+    fun selectOperationsRoute(route: DesktopOperationsRoute) {
+        _state.update {
+            it.copy(
+                operationsRoute = route,
+                activeWorkspace = DesktopWorkspace.Operations,
+                shell = it.shell.copy(workspaceTitle = resolveWorkspaceTitle(DesktopWorkspace.Operations, it.inventoryRoute, route))
             )
         }
     }
@@ -634,8 +664,19 @@ class DesktopAppController(
     }
 
     suspend fun approveCashMovement(requestId: String) {
+        val direct = accessService.requireCapability(AccessCapability.APPROVE_CASH_MOVEMENT_EXCEPTION).getOrNull()
+        if (direct == null) {
+            return openStepUpFlow(
+                title = "Approval Cash Control",
+                detail = "Supervisor/owner perlu memasukkan PIN untuk menyetujui kontrol kas ini.",
+                capability = AccessCapability.APPROVE_CASH_MOVEMENT_EXCEPTION,
+                action = StepUpAction.APPROVE_CASH_MOVEMENT,
+                targetId = requestId,
+                decisionNote = "Disetujui via step-up desktop"
+            )
+        }
         mutateBusy(true)
-        when (val result = cashControlService.approveCashMovement(requestId)) {
+        when (val result = cashControlService.approveCashMovement(requestId, direct)) {
             is CashMovementExecutionResult.Recorded -> refreshStage(
                 UiBanner(UiTone.Success, "${result.movement.type.name.replace('_', ' ')} disetujui dan dicatat")
             )
@@ -645,8 +686,23 @@ class DesktopAppController(
     }
 
     suspend fun denyCashMovement(requestId: String) {
+        val direct = accessService.requireCapability(AccessCapability.APPROVE_CASH_MOVEMENT_EXCEPTION).getOrNull()
+        if (direct == null) {
+            return openStepUpFlow(
+                title = "Tolak Approval Cash Control",
+                detail = "Supervisor/owner perlu memasukkan PIN untuk menolak approval cash control.",
+                capability = AccessCapability.APPROVE_CASH_MOVEMENT_EXCEPTION,
+                action = StepUpAction.DENY_CASH_MOVEMENT,
+                targetId = requestId,
+                decisionNote = "Ditolak dari dashboard desktop"
+            )
+        }
         mutateBusy(true)
-        val denied = cashControlService.denyCashMovement(requestId, "Ditolak dari dashboard desktop")
+        val denied = cashControlService.denyCashMovement(
+            requestId = requestId,
+            decisionNote = "Ditolak dari dashboard desktop",
+            approverOverride = direct
+        )
         refreshStage(
             UiBanner(
                 tone = if (denied != null) UiTone.Warning else UiTone.Danger,
@@ -664,8 +720,19 @@ class DesktopAppController(
     }
 
     suspend fun approveCloseShift(requestId: String) {
+        val direct = accessService.requireCapability(AccessCapability.APPROVE_SHIFT_CLOSE_EXCEPTION).getOrNull()
+        if (direct == null) {
+            return openStepUpFlow(
+                title = "Approval Close Shift",
+                detail = "Supervisor/owner perlu memasukkan PIN untuk menutup shift dengan approval.",
+                capability = AccessCapability.APPROVE_SHIFT_CLOSE_EXCEPTION,
+                action = StepUpAction.APPROVE_CLOSE_SHIFT,
+                targetId = requestId,
+                decisionNote = "Approved by desktop step-up"
+            )
+        }
         mutateBusy(true)
-        when (val result = shiftClosingService.approveCloseShift(requestId)) {
+        when (val result = shiftClosingService.approveCloseShift(requestId, direct)) {
             is ShiftCloseExecutionResult.Closed -> refreshStage(
                 UiBanner(UiTone.Success, "Shift ${result.shift.id} ditutup lewat approval")
             )
@@ -675,8 +742,23 @@ class DesktopAppController(
     }
 
     suspend fun denyCloseShift(requestId: String) {
+        val direct = accessService.requireCapability(AccessCapability.APPROVE_SHIFT_CLOSE_EXCEPTION).getOrNull()
+        if (direct == null) {
+            return openStepUpFlow(
+                title = "Tolak Close Shift",
+                detail = "Supervisor/owner perlu memasukkan PIN untuk menolak approval close shift.",
+                capability = AccessCapability.APPROVE_SHIFT_CLOSE_EXCEPTION,
+                action = StepUpAction.DENY_CLOSE_SHIFT,
+                targetId = requestId,
+                decisionNote = "Ditolak dari wizard close shift"
+            )
+        }
         mutateBusy(true)
-        val denied = shiftClosingService.denyCloseShift(requestId, "Ditolak dari wizard close shift")
+        val denied = shiftClosingService.denyCloseShift(
+            requestId = requestId,
+            decisionNote = "Ditolak dari wizard close shift",
+            approverOverride = direct
+        )
         refreshStage(
             UiBanner(
                 tone = if (denied) UiTone.Warning else UiTone.Danger,
@@ -764,6 +846,166 @@ class DesktopAppController(
             )
         }
         refreshStage()
+    }
+
+    suspend fun selectMasterCategory(categoryId: String?) {
+        _state.update {
+            it.copy(
+                masterData = it.masterData.copy(
+                    selectedCategoryId = categoryId
+                ),
+                inventoryRoute = DesktopInventoryRoute.MasterData
+            )
+        }
+        refreshStage()
+    }
+
+    suspend fun updateMasterDataSearchQuery(value: String) {
+        _state.update { it.copy(masterData = it.masterData.copy(searchQuery = value)) }
+        refreshStage()
+    }
+
+    suspend fun selectMasterProduct(productId: String) {
+        _state.update {
+            it.copy(
+                masterData = it.masterData.copy(selectedProductId = productId),
+                inventoryRoute = DesktopInventoryRoute.MasterData
+            )
+        }
+        refreshStage()
+    }
+
+    fun prepareNewMasterProduct() {
+        _state.update {
+            it.copy(
+                masterData = it.masterData.copy(
+                    selectedProductId = null,
+                    productNameInput = "",
+                    productSkuInput = "",
+                    productPriceInput = "",
+                    productCategoryId = it.masterData.selectedCategoryId ?: it.masterData.productCategoryId,
+                    productImageRefInput = "",
+                    productIsActive = true,
+                    barcodeDraft = "",
+                    barcodes = emptyList()
+                ),
+                inventoryRoute = DesktopInventoryRoute.MasterData
+            )
+        }
+    }
+
+    fun updateMasterProductName(value: String) {
+        _state.update { it.copy(masterData = it.masterData.copy(productNameInput = value)) }
+    }
+
+    fun updateMasterProductSku(value: String) {
+        _state.update { it.copy(masterData = it.masterData.copy(productSkuInput = value.uppercase())) }
+    }
+
+    fun updateMasterProductPrice(value: String) {
+        _state.update { it.copy(masterData = it.masterData.copy(productPriceInput = value.filter { char -> char.isDigit() || char == '.' })) }
+    }
+
+    fun updateMasterProductCategory(value: String) {
+        _state.update { it.copy(masterData = it.masterData.copy(productCategoryId = value)) }
+    }
+
+    fun updateMasterProductImageRef(value: String) {
+        _state.update { it.copy(masterData = it.masterData.copy(productImageRefInput = value)) }
+    }
+
+    fun updateMasterProductActive(value: Boolean) {
+        _state.update { it.copy(masterData = it.masterData.copy(productIsActive = value)) }
+    }
+
+    fun updateMasterBarcodeDraft(value: String) {
+        _state.update { it.copy(masterData = it.masterData.copy(barcodeDraft = value.filter(Char::isLetterOrDigit).uppercase())) }
+    }
+
+    fun updateMasterBarcodeType(value: String) {
+        _state.update { it.copy(masterData = it.masterData.copy(barcodeType = value)) }
+    }
+
+    fun updateNewCategoryName(value: String) {
+        _state.update { it.copy(masterData = it.masterData.copy(newCategoryName = value)) }
+    }
+
+    fun updateNewCategoryColor(value: String) {
+        _state.update { it.copy(masterData = it.masterData.copy(newCategoryColor = value)) }
+    }
+
+    suspend fun saveMasterCategory() {
+        mutateBusy(true)
+        val name = state.value.masterData.newCategoryName.trim()
+        if (name.isBlank()) {
+            mutateBusy(false)
+            return pushBanner(UiBanner(UiTone.Warning, "Nama kategori wajib diisi"))
+        }
+        val color = state.value.masterData.newCategoryColor.trim().ifBlank { "#1F7A8C" }
+        productRepository.upsertCategory(
+            Category(
+                id = IdGenerator.nextId("cat"),
+                name = name,
+                color = color
+            )
+        )
+        _state.update {
+            it.copy(
+                masterData = it.masterData.copy(
+                    newCategoryName = "",
+                    newCategoryColor = color
+                )
+            )
+        }
+        refreshStage(UiBanner(UiTone.Success, "Kategori $name ditambahkan ke master data"))
+    }
+
+    suspend fun saveMasterProduct() {
+        mutateBusy(true)
+        val current = state.value.masterData
+        val name = current.productNameInput.trim()
+        val sku = current.productSkuInput.trim()
+        val price = current.productPriceInput.toDoubleOrNull()
+        val categoryId = current.productCategoryId
+        if (name.isBlank()) return pushBanner(UiBanner(UiTone.Warning, "Nama produk wajib diisi"))
+        if (sku.isBlank()) return pushBanner(UiBanner(UiTone.Warning, "SKU wajib diisi"))
+        if (price == null || price <= 0.0) return pushBanner(UiBanner(UiTone.Warning, "Harga produk harus valid"))
+        if (categoryId.isBlank()) return pushBanner(UiBanner(UiTone.Warning, "Kategori produk wajib dipilih"))
+        val productId = current.selectedProductId ?: IdGenerator.nextId("product")
+        productRepository.upsertProduct(
+            Product(
+                id = productId,
+                name = name,
+                price = price,
+                categoryId = categoryId,
+                sku = sku,
+                imageUrl = current.productImageRefInput.ifBlank { null },
+                isActive = current.productIsActive
+            )
+        )
+        _state.update { it.copy(masterData = it.masterData.copy(selectedProductId = productId)) }
+        refreshStage(UiBanner(UiTone.Success, "$name disimpan ke master data"))
+    }
+
+    suspend fun addMasterBarcode() {
+        mutateBusy(true)
+        val current = state.value.masterData
+        val productId = current.selectedProductId
+            ?: return pushBanner(UiBanner(UiTone.Warning, "Pilih atau simpan produk dulu sebelum menambah barcode"))
+        val barcode = current.barcodeDraft.trim()
+        if (barcode.isBlank()) {
+            mutateBusy(false)
+            return pushBanner(UiBanner(UiTone.Warning, "Barcode tidak boleh kosong"))
+        }
+        productRepository.upsertBarcode(barcode = barcode, productId = productId, type = current.barcodeType)
+        _state.update { it.copy(masterData = it.masterData.copy(barcodeDraft = "")) }
+        refreshStage(UiBanner(UiTone.Success, "Barcode $barcode ditambahkan"))
+    }
+
+    suspend fun removeMasterBarcode(barcode: String) {
+        mutateBusy(true)
+        productRepository.deleteBarcode(barcode)
+        refreshStage(UiBanner(UiTone.Info, "Barcode $barcode dilepas dari produk"))
     }
 
     fun updateInventoryCountQuantityInput(value: String) {
@@ -953,8 +1195,19 @@ class DesktopAppController(
     }
 
     suspend fun approveInventoryAction(actionId: String) {
+        val direct = accessService.requireCapability(AccessCapability.APPROVE_STOCK_ADJUSTMENT).getOrNull()
+        if (direct == null) {
+            return openStepUpFlow(
+                title = "Approval Inventory",
+                detail = "Supervisor/owner perlu memasukkan PIN untuk menerapkan mutasi stok ini.",
+                capability = AccessCapability.APPROVE_STOCK_ADJUSTMENT,
+                action = StepUpAction.APPROVE_INVENTORY_ACTION,
+                targetId = actionId,
+                decisionNote = "Light approval via desktop step-up"
+            )
+        }
         mutateBusy(true)
-        when (val result = inventoryService.approvePendingAction(actionId)) {
+        when (val result = inventoryService.approvePendingAction(actionId, direct)) {
             is InventoryActionExecutionResult.Applied -> refreshStage(
                 UiBanner(
                     UiTone.Success,
@@ -971,10 +1224,22 @@ class DesktopAppController(
     }
 
     suspend fun denyInventoryAction(actionId: String) {
+        val direct = accessService.requireCapability(AccessCapability.APPROVE_STOCK_ADJUSTMENT).getOrNull()
+        if (direct == null) {
+            return openStepUpFlow(
+                title = "Tolak Approval Inventory",
+                detail = "Supervisor/owner perlu memasukkan PIN untuk menolak approval inventory ini.",
+                capability = AccessCapability.APPROVE_STOCK_ADJUSTMENT,
+                action = StepUpAction.DENY_INVENTORY_ACTION,
+                targetId = actionId,
+                decisionNote = "Ditolak dari queue inventory desktop"
+            )
+        }
         mutateBusy(true)
         val result = inventoryService.denyPendingAction(
             actionId = actionId,
-            decisionNote = "Ditolak dari queue inventory desktop"
+            decisionNote = "Ditolak dari queue inventory desktop",
+            approverOverride = direct
         )
         refreshStage(
             result.fold(
@@ -988,6 +1253,111 @@ class DesktopAppController(
         val review = state.value.inventory.unresolvedDiscrepancies.firstOrNull { it.id == reviewId }
         val productLabel = review?.productId ?: reviewId
         pushBanner(UiBanner(UiTone.Info, "Discrepancy $productLabel dibiarkan tetap di review queue untuk tindak lanjut nanti."))
+    }
+
+    fun updateStepUpApprover(operatorId: String) {
+        _state.update {
+            it.copy(
+                stepUpAuth = it.stepUpAuth.copy(
+                    approverOperatorId = operatorId,
+                    error = null
+                )
+            )
+        }
+    }
+
+    fun updateStepUpPin(pin: String) {
+        _state.update {
+            it.copy(
+                stepUpAuth = it.stepUpAuth.copy(
+                    pin = pin.take(6),
+                    error = null
+                )
+            )
+        }
+    }
+
+    fun updateStepUpDecisionNote(value: String) {
+        _state.update {
+            it.copy(
+                stepUpAuth = it.stepUpAuth.copy(
+                    decisionNote = value,
+                    error = null
+                )
+            )
+        }
+    }
+
+    fun dismissStepUp() {
+        _state.update { it.copy(stepUpAuth = StepUpAuthState()) }
+    }
+
+    suspend fun confirmStepUp() {
+        val flow = state.value.stepUpAuth
+        val capability = flow.capability
+            ?: return pushBanner(UiBanner(UiTone.Danger, "Capability step-up tidak tersedia"))
+        val approverId = flow.approverOperatorId
+            ?: return _state.update { it.copy(stepUpAuth = it.stepUpAuth.copy(error = "Pilih operator approver")) }
+        if (flow.pin.length != 6) {
+            return _state.update { it.copy(stepUpAuth = it.stepUpAuth.copy(error = "PIN approver harus 6 digit")) }
+        }
+        mutateBusy(true)
+        val approver = accessService.verifyStepUp(
+            operatorId = approverId,
+            pin = flow.pin,
+            capability = capability
+        ).getOrElse { error ->
+            mutateBusy(false)
+            return _state.update { it.copy(stepUpAuth = it.stepUpAuth.copy(error = error.message ?: "Step-up auth gagal")) }
+        }
+        val targetId = flow.targetId
+            ?: return pushBanner(UiBanner(UiTone.Danger, "Target step-up tidak tersedia"))
+        dismissStepUp()
+        when (flow.action) {
+            StepUpAction.APPROVE_CASH_MOVEMENT -> when (val result = cashControlService.approveCashMovement(targetId, approver)) {
+                is CashMovementExecutionResult.Recorded -> refreshStage(UiBanner(UiTone.Success, "${result.movement.type.name.replace('_', ' ')} disetujui dan dicatat"))
+                is CashMovementExecutionResult.ApprovalRequired -> refreshStage(UiBanner(UiTone.Warning, result.decision.message))
+                is CashMovementExecutionResult.Blocked -> refreshStage(UiBanner(UiTone.Danger, result.decision.message))
+            }
+            StepUpAction.DENY_CASH_MOVEMENT -> {
+                val denied = cashControlService.denyCashMovement(targetId, flow.decisionNote, approver)
+                refreshStage(
+                    UiBanner(
+                        tone = if (denied != null) UiTone.Warning else UiTone.Danger,
+                        message = if (denied != null) "Approval ${denied.id} ditolak" else "Approval tidak bisa ditolak"
+                    )
+                )
+            }
+            StepUpAction.APPROVE_CLOSE_SHIFT -> when (val result = shiftClosingService.approveCloseShift(targetId, approver)) {
+                is ShiftCloseExecutionResult.Closed -> refreshStage(UiBanner(UiTone.Success, "Shift ${result.shift.id} ditutup lewat approval"))
+                is ShiftCloseExecutionResult.ApprovalRequired -> refreshStage(UiBanner(UiTone.Warning, result.decision.message))
+                is ShiftCloseExecutionResult.Blocked -> refreshStage(UiBanner(UiTone.Danger, result.decision.message))
+            }
+            StepUpAction.DENY_CLOSE_SHIFT -> {
+                val denied = shiftClosingService.denyCloseShift(targetId, flow.decisionNote, approver)
+                refreshStage(
+                    UiBanner(
+                        tone = if (denied) UiTone.Warning else UiTone.Danger,
+                        message = if (denied) "Approval close shift ditolak" else "Approval close shift tidak bisa ditolak"
+                    )
+                )
+            }
+            StepUpAction.APPROVE_INVENTORY_ACTION -> when (val result = inventoryService.approvePendingAction(targetId, approver)) {
+                is InventoryActionExecutionResult.Applied -> refreshStage(UiBanner(UiTone.Success, "Approval inventory diterapkan. Balance sekarang ${result.mutation.balance.quantity}."))
+                is InventoryActionExecutionResult.ApprovalRequired -> refreshStage(UiBanner(UiTone.Warning, result.message))
+                is InventoryActionExecutionResult.Blocked -> refreshStage(UiBanner(UiTone.Danger, result.message))
+            }
+            StepUpAction.DENY_INVENTORY_ACTION -> {
+                val result = inventoryService.denyPendingAction(targetId, flow.decisionNote, approver)
+                refreshStage(
+                    result.fold(
+                        onSuccess = { UiBanner(UiTone.Warning, "Approval inventory ditolak. Tidak ada mutasi stok final.") },
+                        onFailure = { UiBanner(UiTone.Danger, it.message ?: "Penolakan approval inventory gagal") }
+                    )
+                )
+            }
+            null -> pushBanner(UiBanner(UiTone.Danger, "Aksi step-up belum dipilih"))
+        }
     }
 
     fun dismissBanner() {
@@ -1089,6 +1459,13 @@ class DesktopAppController(
         } else {
             InventoryPanelState()
         }
+        val refreshedMasterData = if (stage == DesktopStage.Workspace) {
+            buildMasterDataState(
+                previous = state.value.masterData
+            )
+        } else {
+            MasterDataPanelState()
+        }
 
         _state.update {
             it.copy(
@@ -1103,7 +1480,7 @@ class DesktopAppController(
                     dayStatus = businessDay?.status ?: "CLOSED",
                     shiftStatus = activeShift?.status ?: "LOCKED",
                     nextActionLabel = operationalSnapshot.primaryAction?.toUiLabel(),
-                    workspaceTitle = activeWorkspace.title,
+                    workspaceTitle = resolveWorkspaceTitle(activeWorkspace, it.inventoryRoute, it.operationsRoute),
                     availableWorkspaces = availableWorkspaces
                 ),
                 login = it.login.copy(
@@ -1166,6 +1543,7 @@ class DesktopAppController(
                     cashTenderQuote = refreshedCashQuote
                 ),
                 inventory = refreshedInventory,
+                masterData = refreshedMasterData,
                 hardware = hardwarePort.getSnapshot(),
                 banner = resolvedBanner
             )
@@ -1209,6 +1587,94 @@ class DesktopAppController(
             voidContractNote = "Void inventory hanya classification contract. Jalur ambigu wajib diblok atau diinvestigasi manual.",
             approvalLimitationNote = "Approval inventory yang shipped saat ini hanya LIGHT_PIN. SECOND_PIN dan DUAL_AUTH masih future hook."
         )
+    }
+
+    private suspend fun buildMasterDataState(previous: MasterDataPanelState): MasterDataPanelState {
+        val categories = productRepository.getAllCategories()
+        val selectedCategoryId = previous.selectedCategoryId
+            ?.takeIf { categoryId -> categories.any { it.id == categoryId } }
+        val products = when {
+            previous.searchQuery.isNotBlank() -> productRepository.searchProducts(previous.searchQuery)
+            !selectedCategoryId.isNullOrBlank() -> productRepository.getProductsByCategory(selectedCategoryId)
+            else -> productRepository.getAllProducts()
+        }
+        val selectedProductId = previous.selectedProductId
+            ?.takeIf { productId -> products.any { it.id == productId } }
+            ?: products.firstOrNull()?.id
+        val selectedProduct = if (selectedProductId != null) {
+            productRepository.getProductById(selectedProductId)
+        } else {
+            null
+        }
+        val barcodes = if (selectedProductId != null) {
+            productRepository.getBarcodesByProduct(selectedProductId)
+        } else {
+            emptyList()
+        }
+        val categoryCounts = productRepository.getAllProducts()
+            .groupingBy { it.categoryId }
+            .eachCount()
+        return previous.copy(
+            categories = categories.map { category ->
+                MasterCategorySummary(
+                    id = category.id,
+                    name = category.name,
+                    color = category.color,
+                    productCount = categoryCounts[category.id] ?: 0
+                )
+            },
+            selectedCategoryId = selectedCategoryId,
+            selectedProductId = selectedProductId,
+            products = products,
+            productNameInput = selectedProduct?.name ?: previous.productNameInput,
+            productSkuInput = selectedProduct?.sku ?: previous.productSkuInput,
+            productPriceInput = selectedProduct?.price?.toInt()?.toString() ?: previous.productPriceInput,
+            productCategoryId = selectedProduct?.categoryId ?: previous.productCategoryId.takeIf { it.isNotBlank() }
+                ?: categories.firstOrNull()?.id.orEmpty(),
+            productImageRefInput = selectedProduct?.imageUrl.orEmpty(),
+            productIsActive = selectedProduct?.isActive ?: previous.productIsActive,
+            barcodes = barcodes
+        )
+    }
+
+    private fun resolveWorkspaceTitle(
+        workspace: DesktopWorkspace,
+        inventoryRoute: DesktopInventoryRoute,
+        operationsRoute: DesktopOperationsRoute
+    ): String = when (workspace) {
+        DesktopWorkspace.Inventory -> "${workspace.title} / ${inventoryRoute.title}"
+        DesktopWorkspace.Operations -> "${workspace.title} / ${operationsRoute.title}"
+        else -> workspace.title
+    }
+
+    private fun openStepUpFlow(
+        title: String,
+        detail: String,
+        capability: AccessCapability,
+        action: StepUpAction,
+        targetId: String,
+        decisionNote: String
+    ) {
+        val approvers = state.value.login.operators.filter { option ->
+            runCatching { OperatorRole.valueOf(option.roleLabel).supports(capability) }.getOrDefault(false)
+        }
+        _state.update {
+            it.copy(
+                stepUpAuth = StepUpAuthState(
+                    isVisible = true,
+                    title = title,
+                    detail = detail,
+                    capability = capability,
+                    targetId = targetId,
+                    action = action,
+                    approverOptions = approvers,
+                    approverOperatorId = approvers.firstOrNull()?.id,
+                    decisionNote = decisionNote
+                ),
+                banner = UiBanner(UiTone.Warning, "Step-up auth diperlukan sebelum aksi ini diterapkan."),
+                isBusy = false
+            )
+        }
     }
 
     private fun resolveProductImage(product: Product): ProductImageResolution {
@@ -1316,12 +1782,16 @@ class DesktopAppController(
 data class DesktopAppState(
     val stage: DesktopStage = DesktopStage.Loading,
     val activeWorkspace: DesktopWorkspace = DesktopWorkspace.Dashboard,
+    val inventoryRoute: DesktopInventoryRoute = DesktopInventoryRoute.StockOverview,
+    val operationsRoute: DesktopOperationsRoute = DesktopOperationsRoute.CashControl,
     val shell: DesktopShellState = DesktopShellState(),
     val bootstrap: BootstrapState = BootstrapState(),
     val login: LoginState = LoginState(),
     val operations: OperationsState = OperationsState(),
     val catalog: DesktopCatalogState = DesktopCatalogState(),
     val inventory: InventoryPanelState = InventoryPanelState(),
+    val masterData: MasterDataPanelState = MasterDataPanelState(),
+    val stepUpAuth: StepUpAuthState = StepUpAuthState(),
     val hardware: CashierHardwareSnapshot = CashierHardwareSnapshot(),
     val banner: UiBanner? = null,
     val isBusy: Boolean = false
@@ -1475,6 +1945,56 @@ data class InventoryPanelState(
     val voidContractNote: String = "Void inventory masih contract-only.",
     val approvalLimitationNote: String = "Approval inventory hanya LIGHT_PIN."
 )
+
+data class MasterDataPanelState(
+    val categories: List<MasterCategorySummary> = emptyList(),
+    val selectedCategoryId: String? = null,
+    val searchQuery: String = "",
+    val selectedProductId: String? = null,
+    val products: List<Product> = emptyList(),
+    val productNameInput: String = "",
+    val productSkuInput: String = "",
+    val productPriceInput: String = "",
+    val productCategoryId: String = "",
+    val productImageRefInput: String = "",
+    val productIsActive: Boolean = true,
+    val barcodeDraft: String = "",
+    val barcodeType: String = "GLOBAL",
+    val barcodes: List<ProductBarcodeRecord> = emptyList(),
+    val newCategoryName: String = "",
+    val newCategoryColor: String = "#1F7A8C",
+    val groupingHint: String = "Kelompokkan produk berdasarkan kategori yang dipakai operator di lantai toko."
+)
+
+data class MasterCategorySummary(
+    val id: String,
+    val name: String,
+    val color: String,
+    val productCount: Int
+)
+
+data class StepUpAuthState(
+    val isVisible: Boolean = false,
+    val title: String = "",
+    val detail: String = "",
+    val capability: AccessCapability? = null,
+    val targetId: String? = null,
+    val action: StepUpAction? = null,
+    val approverOptions: List<OperatorOption> = emptyList(),
+    val approverOperatorId: String? = null,
+    val pin: String = "",
+    val decisionNote: String = "",
+    val error: String? = null
+)
+
+enum class StepUpAction {
+    APPROVE_CASH_MOVEMENT,
+    DENY_CASH_MOVEMENT,
+    APPROVE_CLOSE_SHIFT,
+    DENY_CLOSE_SHIFT,
+    APPROVE_INVENTORY_ACTION,
+    DENY_INVENTORY_ACTION
+}
 
 data class ReceiptPreviewState(
     val saleId: String? = null,

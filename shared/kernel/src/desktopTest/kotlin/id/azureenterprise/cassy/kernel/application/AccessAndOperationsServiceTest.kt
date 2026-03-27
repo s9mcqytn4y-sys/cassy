@@ -106,6 +106,41 @@ class AccessAndOperationsServiceTest {
         }
     }
 
+    @Test
+    fun `step up auth verifies supervisor without replacing cashier session`() {
+        runBlocking {
+            val fixture = kernelFixture()
+            fixture.accessService.bootstrapStore(
+                BootstrapStoreRequest(
+                    storeName = "Toko StepUp",
+                    terminalName = "Kasir-03",
+                    cashierName = "Maya",
+                    cashierPin = "123456",
+                    supervisorName = "Ardi",
+                    supervisorPin = "654321"
+                )
+            )
+
+            val operators = fixture.accessService.restoreContext().operators
+            val cashier = operators.first { it.employeeCode == "cashier" }
+            val supervisor = operators.first { it.employeeCode == "supervisor" }
+
+            val login = fixture.accessService.login(cashier.id, "123456")
+            assertIs<LoginResult.Success>(login)
+
+            val verified = fixture.accessService.verifyStepUp(
+                operatorId = supervisor.id,
+                pin = "654321",
+                capability = AccessCapability.OPEN_DAY
+            ).getOrThrow()
+
+            val restored = fixture.accessService.restoreContext()
+            assertEquals(supervisor.id, verified.id)
+            assertNotNull(restored.activeSession)
+            assertEquals(cashier.id, restored.activeSession.operatorId)
+        }
+    }
+
     private fun kernelFixture(): KernelFixture {
         val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
         KernelDatabase.Schema.create(driver)

@@ -18,6 +18,26 @@ enum class DesktopWorkspace(
     System(title = "Sistem", shortLabel = "Sistem")
 }
 
+enum class DesktopInventoryRoute(
+    val title: String,
+    val shortLabel: String
+) {
+    StockOverview(title = "Stock Truth", shortLabel = "Stock"),
+    MasterData(title = "Master Data", shortLabel = "Master Data")
+}
+
+enum class DesktopOperationsRoute(
+    val title: String,
+    val shortLabel: String
+) {
+    CashControl(title = "Cash Control", shortLabel = "Kas"),
+    VoidSale(title = "Void Sale", shortLabel = "Void"),
+    CloseShift(title = "Close Shift", shortLabel = "Shift"),
+    CloseDay(title = "Close Day", shortLabel = "Hari"),
+    SyncCenter(title = "Sync Center", shortLabel = "Sync"),
+    Diagnostics(title = "Diagnostics", shortLabel = "Diagnostik")
+}
+
 fun availableWorkspacesFor(
     role: OperatorRole?,
     canAccessSalesHome: Boolean

@@ -25,6 +25,7 @@ import id.azureenterprise.cassy.kernel.domain.AccessCapability
 import id.azureenterprise.cassy.kernel.domain.ApprovalStatus
 import id.azureenterprise.cassy.kernel.domain.IdGenerator
 import id.azureenterprise.cassy.kernel.domain.OperationType
+import id.azureenterprise.cassy.kernel.domain.OperatorAccount
 import id.azureenterprise.cassy.kernel.domain.ReasonCategory
 import id.azureenterprise.cassy.kernel.domain.supports
 import kotlinx.datetime.Clock
@@ -210,9 +211,15 @@ class InventoryService(
         }.getOrElse { InventoryActionExecutionResult.Blocked(it.message ?: "Resolve discrepancy gagal") }
     }
 
-    suspend fun approvePendingAction(actionId: String): InventoryActionExecutionResult {
+    suspend fun approvePendingAction(
+        actionId: String,
+        approverOverride: OperatorAccount? = null
+    ): InventoryActionExecutionResult {
         return runCatching {
-            val operator = accessService.requireCapability(AccessCapability.APPROVE_STOCK_ADJUSTMENT).getOrThrow()
+            val operator = resolveApprover(
+                capability = AccessCapability.APPROVE_STOCK_ADJUSTMENT,
+                operatorOverride = approverOverride
+            ).getOrThrow()
             val action = inventoryRepository.getApprovalActionById(actionId)
                 ?: error("Inventory approval action tidak ditemukan")
             require(action.status == InventoryApprovalActionStatus.REQUESTED) {
@@ -271,8 +278,15 @@ class InventoryService(
         }.getOrElse { InventoryActionExecutionResult.Blocked(it.message ?: "Approve inventory action gagal") }
     }
 
-    suspend fun denyPendingAction(actionId: String, decisionNote: String): Result<InventoryApprovalAction> = runCatching {
-        val operator = accessService.requireCapability(AccessCapability.APPROVE_STOCK_ADJUSTMENT).getOrThrow()
+    suspend fun denyPendingAction(
+        actionId: String,
+        decisionNote: String,
+        approverOverride: OperatorAccount? = null
+    ): Result<InventoryApprovalAction> = runCatching {
+        val operator = resolveApprover(
+            capability = AccessCapability.APPROVE_STOCK_ADJUSTMENT,
+            operatorOverride = approverOverride
+        ).getOrThrow()
         val action = inventoryRepository.getApprovalActionById(actionId)
             ?: error("Inventory approval action tidak ditemukan")
         require(action.status == InventoryApprovalActionStatus.REQUESTED) { "Inventory approval action sudah diproses" }
@@ -631,6 +645,18 @@ class InventoryService(
                     throw error
                 }
             }
+    }
+
+    private suspend fun resolveApprover(
+        capability: AccessCapability,
+        operatorOverride: OperatorAccount?
+    ): Result<OperatorAccount> {
+        val approvedOverride = operatorOverride?.takeIf { it.role.supports(capability) }
+        return if (approvedOverride != null) {
+            Result.success(approvedOverride)
+        } else {
+            accessService.requireCapability(capability)
+        }
     }
 }
 

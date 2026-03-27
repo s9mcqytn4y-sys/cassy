@@ -2,7 +2,7 @@
 
 Desktop-first retail operating core untuk single outlet. Fokus V1 saat ini adalah cashier core yang usable, guided operations yang jujur, dan inventory basic yang explainable.
 
-Versi repo saat ini: `0.2.0-beta.2` dengan posture `Private Beta / Controlled Beta`.
+Versi repo saat ini: `0.2.0-beta.3` dengan posture `Private Beta / Controlled Beta`.
 
 ## Repo Truth & Milestone Status (2026-03-27)
 
@@ -35,7 +35,7 @@ Dokumentasi detail mengenai status dan cara verifikasi:
 - `docs/execution/beta_release_readiness.md`: Status kesiapan beta release.
 - `docs/execution/windows_code_signing_posture.md`: Posture code signing Windows yang jujur.
 - `docs/execution/desktop_device_support_matrix.md`: Authority dukungan device/peripheral desktop.
-- `docs/user/operator_quickstart.md`: Panduan singkat operator.
+- `docs/user/operator_quickstart.md`: Panduan singkat operator, shortcut, dan step-up approval mini-flow.
 - `docs/user/daily_operations_guide.md`: Panduan operasi harian outlet.
 - `LICENSE`, `EULA.md`, `PRIVACY.md`, `SECURITY.md`, `THIRD_PARTY_NOTICES.md`: baseline legal/privacy/security.
 

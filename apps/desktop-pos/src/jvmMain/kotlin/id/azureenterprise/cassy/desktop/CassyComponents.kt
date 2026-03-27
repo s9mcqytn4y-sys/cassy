@@ -479,6 +479,36 @@ fun CassyBottomStatusStrip(
 }
 
 @Composable
+fun CassyFooter(
+    shell: DesktopShellState,
+    modifier: Modifier = Modifier
+) {
+    val releaseVersion = remember { System.getProperty("cassy.release.version", "dev") }
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 1.dp,
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Cassy $releaseVersion",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = "${shell.storeName ?: "Store lokal"} • ${shell.terminalName ?: "Terminal lokal"} • Ctrl+/ bantuan",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
 fun CassyCommandPalette(
     availableWorkspaces: List<DesktopWorkspace>,
     onDismiss: () -> Unit,
@@ -528,18 +558,100 @@ fun CassyShortcutHelpDialog(
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Ctrl+K: command palette")
                 Text("Ctrl+/: bantuan shortcut")
-                Text("Ctrl+Shift+S: sistem / sync / dev tools")
+                Text("Ctrl+Shift+S: sync center")
                 Text("Ctrl+Shift+R: laporan")
-                Text("Ctrl+Shift+I: inventori")
-                Text("Ctrl+Shift+C: operasional")
+                Text("Ctrl+Shift+I: inventori / stock truth")
+                Text("Ctrl+Shift+C: cash control")
                 Text("Ctrl+Shift+H: guided dashboard")
                 Text("F1/F5: replay sync")
-                Text("F7-F12: alias legacy ke workspace operasional terkait")
+                Text("F7: void, F8: laporan, F9: inventori, F10: kas, F11: close shift, F12: diagnostics")
                 Text("Esc: tutup surface ringan")
             }
         },
         confirmButton = { OutlinedButton(onClick = onDismiss) { Text("Tutup") } },
         dismissButton = {}
+    )
+}
+
+@Composable
+fun CassyStepUpAuthDialog(
+    state: StepUpAuthState,
+    onDismiss: () -> Unit,
+    onApproverChanged: (String) -> Unit,
+    onPinChanged: (String) -> Unit,
+    onDecisionNoteChanged: (String) -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(state.title, fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    state.detail,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (state.approverOptions.isEmpty()) {
+                    Text(
+                        "Belum ada operator supervisor/owner aktif di terminal ini.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Pilih approver", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                        state.approverOptions.forEach { option ->
+                            Surface(
+                                modifier = Modifier.fillMaxWidth().clickable { onApproverChanged(option.id) },
+                                shape = RoundedCornerShape(12.dp),
+                                tonalElevation = if (state.approverOperatorId == option.id) 2.dp else 0.dp
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(option.displayName, fontWeight = FontWeight.SemiBold)
+                                    Text(option.roleLabel, style = MaterialTheme.typography.labelSmall)
+                                }
+                            }
+                        }
+                    }
+                }
+                SemanticPinField(
+                    label = "PIN Approver",
+                    value = state.pin,
+                    onValueChange = onPinChanged,
+                    helperText = "PIN tidak mengganti sesi kasir aktif. Ini hanya step-up auth."
+                )
+                SemanticTextField(
+                    label = "Catatan Keputusan",
+                    value = state.decisionNote,
+                    onValueChange = onDecisionNoteChanged,
+                    singleLine = false,
+                    helperText = "Catatan ini dipakai sebagai jejak approval/penolakan."
+                )
+                state.error?.let { error ->
+                    Text(
+                        error,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                enabled = state.approverOptions.isNotEmpty()
+            ) {
+                Text("Verifikasi & Lanjutkan")
+            }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onDismiss) { Text("Batal") }
+        }
     )
 }
 

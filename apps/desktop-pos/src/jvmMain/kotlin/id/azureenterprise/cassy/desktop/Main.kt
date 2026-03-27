@@ -61,12 +61,32 @@ fun main(args: Array<String>) {
                         if (it.type == KeyEventType.KeyDown) {
                             when (it.key) {
                                 Key.F1, Key.F5 -> { scope.launch { controller.replaySyncAndReload() }; true }
-                                Key.F7 -> { controller.selectWorkspace(DesktopWorkspace.Operations); true }
+                                Key.F7 -> {
+                                    controller.selectWorkspace(DesktopWorkspace.Operations)
+                                    controller.selectOperationsRoute(DesktopOperationsRoute.VoidSale)
+                                    true
+                                }
                                 Key.F8 -> { controller.selectWorkspace(DesktopWorkspace.Reporting); true }
-                                Key.F9 -> { controller.selectWorkspace(DesktopWorkspace.Inventory); true }
-                                Key.F10 -> { controller.selectWorkspace(DesktopWorkspace.Operations); true }
-                                Key.F11 -> { controller.selectWorkspace(DesktopWorkspace.Operations); true }
-                                Key.F12 -> { controller.selectWorkspace(DesktopWorkspace.Operations); true }
+                                Key.F9 -> {
+                                    controller.selectWorkspace(DesktopWorkspace.Inventory)
+                                    controller.selectInventoryRoute(DesktopInventoryRoute.StockOverview)
+                                    true
+                                }
+                                Key.F10 -> {
+                                    controller.selectWorkspace(DesktopWorkspace.Operations)
+                                    controller.selectOperationsRoute(DesktopOperationsRoute.CashControl)
+                                    true
+                                }
+                                Key.F11 -> {
+                                    controller.selectWorkspace(DesktopWorkspace.Operations)
+                                    controller.selectOperationsRoute(DesktopOperationsRoute.CloseShift)
+                                    true
+                                }
+                                Key.F12 -> {
+                                    controller.selectWorkspace(DesktopWorkspace.Operations)
+                                    controller.selectOperationsRoute(DesktopOperationsRoute.Diagnostics)
+                                    true
+                                }
                                 Key.K -> {
                                     if (it.isCtrlPressed) {
                                         showCommandPalette = !showCommandPalette
@@ -81,7 +101,8 @@ fun main(args: Array<String>) {
                                 }
                                 Key.S -> {
                                     if (it.isCtrlPressed && it.isShiftPressed) {
-                                        controller.selectWorkspace(DesktopWorkspace.System)
+                                        controller.selectWorkspace(DesktopWorkspace.Operations)
+                                        controller.selectOperationsRoute(DesktopOperationsRoute.SyncCenter)
                                         true
                                     } else false
                                 }
@@ -94,12 +115,14 @@ fun main(args: Array<String>) {
                                 Key.I -> {
                                     if (it.isCtrlPressed && it.isShiftPressed) {
                                         controller.selectWorkspace(DesktopWorkspace.Inventory)
+                                        controller.selectInventoryRoute(DesktopInventoryRoute.StockOverview)
                                         true
                                     } else false
                                 }
                                 Key.C -> {
                                     if (it.isCtrlPressed && it.isShiftPressed) {
                                         controller.selectWorkspace(DesktopWorkspace.Operations)
+                                        controller.selectOperationsRoute(DesktopOperationsRoute.CashControl)
                                         true
                                     } else false
                                 }
@@ -123,6 +146,9 @@ fun main(args: Array<String>) {
                                         true
                                     } else if (showShortcutHelp) {
                                         showShortcutHelp = false
+                                        true
+                                    } else if (state.stepUpAuth.isVisible) {
+                                        controller.dismissStepUp()
                                         true
                                     } else {
                                         false
@@ -158,7 +184,7 @@ fun main(args: Array<String>) {
                                     hardware = state.hardware
                                 )
 
-                                Box(modifier = Modifier.fillMaxSize()) {
+                                Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                                     when (val stage = state.stage) {
                                         DesktopStage.Loading -> LoadingStage()
                                         DesktopStage.Bootstrap -> BootstrapStage(
@@ -189,6 +215,7 @@ fun main(args: Array<String>) {
                                             onPrintLastReceipt = { scope.launch { controller.printLastReceipt() } },
                                             onReprintLastReceipt = { scope.launch { controller.reprintLastReceipt() } },
                                             onCancelSale = { scope.launch { controller.cancelCurrentSale() } },
+                                            onSelectInventoryRoute = controller::selectInventoryRoute,
                                             onSelectInventoryProduct = { productId -> scope.launch { controller.selectInventoryProduct(productId) } },
                                             onInventoryCountChanged = controller::updateInventoryCountQuantityInput,
                                             onSubmitInventoryCount = { scope.launch { controller.submitInventoryCount() } },
@@ -202,6 +229,25 @@ fun main(args: Array<String>) {
                                             onApproveInventoryAction = { id -> scope.launch { controller.approveInventoryAction(id) } },
                                             onDenyInventoryAction = { id -> scope.launch { controller.denyInventoryAction(id) } },
                                             onDeferInventoryDiscrepancy = controller::deferInventoryDiscrepancy,
+                                            onSelectMasterCategory = { categoryId -> scope.launch { controller.selectMasterCategory(categoryId) } },
+                                            onMasterSearchChanged = { value -> scope.launch { controller.updateMasterDataSearchQuery(value) } },
+                                            onPrepareNewMasterProduct = controller::prepareNewMasterProduct,
+                                            onSelectMasterProduct = { id -> scope.launch { controller.selectMasterProduct(id) } },
+                                            onMasterProductNameChanged = controller::updateMasterProductName,
+                                            onMasterProductSkuChanged = controller::updateMasterProductSku,
+                                            onMasterProductPriceChanged = controller::updateMasterProductPrice,
+                                            onMasterProductCategoryChanged = controller::updateMasterProductCategory,
+                                            onMasterProductImageRefChanged = controller::updateMasterProductImageRef,
+                                            onMasterProductActiveChanged = controller::updateMasterProductActive,
+                                            onMasterBarcodeDraftChanged = controller::updateMasterBarcodeDraft,
+                                            onMasterBarcodeTypeChanged = controller::updateMasterBarcodeType,
+                                            onSaveMasterProduct = { scope.launch { controller.saveMasterProduct() } },
+                                            onAddMasterBarcode = { scope.launch { controller.addMasterBarcode() } },
+                                            onRemoveMasterBarcode = { barcode -> scope.launch { controller.removeMasterBarcode(barcode) } },
+                                            onNewCategoryNameChanged = controller::updateNewCategoryName,
+                                            onNewCategoryColorChanged = controller::updateNewCategoryColor,
+                                            onSaveMasterCategory = { scope.launch { controller.saveMasterCategory() } },
+                                            onSelectOperationsRoute = controller::selectOperationsRoute,
                                             onCashMovementTypeSelected = controller::updateCashMovementType,
                                             onCashMovementAmountChanged = controller::updateCashMovementAmountInput,
                                             onCashReasonCodeChanged = controller::updateCashMovementReasonCode,
@@ -242,6 +288,8 @@ fun main(args: Array<String>) {
                                         }
                                     }
                                 }
+
+                                CassyFooter(shell = state.shell)
                             }
                         }
                     }
@@ -259,6 +307,17 @@ fun main(args: Array<String>) {
                     if (showShortcutHelp) {
                         CassyShortcutHelpDialog(
                             onDismiss = { showShortcutHelp = false }
+                        )
+                    }
+
+                    if (state.stepUpAuth.isVisible) {
+                        CassyStepUpAuthDialog(
+                            state = state.stepUpAuth,
+                            onDismiss = controller::dismissStepUp,
+                            onApproverChanged = controller::updateStepUpApprover,
+                            onPinChanged = controller::updateStepUpPin,
+                            onDecisionNoteChanged = controller::updateStepUpDecisionNote,
+                            onConfirm = { scope.launch { controller.confirmStepUp() } }
                         )
                     }
                 }
