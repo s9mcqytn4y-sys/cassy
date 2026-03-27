@@ -72,6 +72,25 @@ CREATE TABLE FinalizationBundle (
     CHECK (paymentStatus NOT IN ('PENDING', 'FAILED') OR paymentDetailCode IS NOT NULL)
 );
 
+CREATE TABLE SaleVoid (
+    id TEXT NOT NULL PRIMARY KEY,
+    saleId TEXT NOT NULL UNIQUE,
+    businessDayId TEXT NOT NULL,
+    shiftId TEXT NOT NULL,
+    terminalId TEXT NOT NULL,
+    localNumber TEXT NOT NULL,
+    paymentMethod TEXT NOT NULL CHECK (paymentMethod IN ('CASH', 'CARD', 'QRIS')),
+    originalAmount REAL NOT NULL CHECK (originalAmount >= 0),
+    cashRefundMovementId TEXT,
+    inventoryImpactClassification TEXT NOT NULL,
+    inventoryFollowUpNote TEXT,
+    reasonCode TEXT NOT NULL,
+    reasonDetail TEXT,
+    voidedBy TEXT NOT NULL,
+    createdAt INTEGER NOT NULL,
+    FOREIGN KEY(saleId) REFERENCES Sale(id) ON DELETE CASCADE
+);
+
 CREATE TABLE ActiveBasket (
     id INTEGER PRIMARY KEY CHECK (id = 1), -- Single row enforcement
     content TEXT NOT NULL, -- JSON serialized Basket
@@ -87,6 +106,8 @@ CREATE INDEX SalePayment_status_timestamp_idx ON SalePayment(status, timestamp);
 CREATE INDEX ReceiptSnapshot_createdAt_idx ON ReceiptSnapshot(createdAt);
 CREATE INDEX ReceiptSnapshot_template_createdAt_idx ON ReceiptSnapshot(templateId, createdAt);
 CREATE INDEX FinalizationBundle_state_updatedAt_idx ON FinalizationBundle(state, updatedAt);
+CREATE INDEX SaleVoid_shift_createdAt_idx ON SaleVoid(shiftId, createdAt);
+CREATE INDEX SaleVoid_businessDay_createdAt_idx ON SaleVoid(businessDayId, createdAt);
 
 -- Queries
 insertSale:
@@ -115,8 +136,30 @@ SELECT * FROM SalePayment WHERE saleId = ? ORDER BY timestamp DESC;
 
 getCompletedSales:
 SELECT * FROM Sale
-WHERE status = 'COMPLETED'
+WHERE status = 'COMPLETED' AND id NOT IN (SELECT saleId FROM SaleVoid)
 ORDER BY timestamp DESC;
+
+getRecentSales:
+SELECT
+    s.id,
+    s.localNumber,
+    s.terminalId,
+    s.finalAmount,
+    CASE WHEN sv.saleId IS NOT NULL THEN 'VOIDED' ELSE s.status END AS status,
+    sp.method,
+    sp.status AS paymentStatus,
+    sp.statusReasonCode,
+    sp.statusDetailMessage,
+    sp.providerReference,
+    rs.createdAt AS finalizedAtEpochMs,
+    sv.createdAt AS voidedAtEpochMs
+FROM Sale s
+INNER JOIN SalePayment sp ON sp.saleId = s.id
+LEFT JOIN ReceiptSnapshot rs ON rs.saleId = s.id
+LEFT JOIN SaleVoid sv ON sv.saleId = s.id
+WHERE s.status = 'COMPLETED'
+ORDER BY COALESCE(sv.createdAt, rs.createdAt, s.timestamp) DESC
+LIMIT ?;
 
 countPendingSalesByShift:
 SELECT COUNT(*) FROM Sale
@@ -132,6 +175,7 @@ SELECT sp.method, COALESCE(SUM(sp.amount), 0.0) AS totalAmount, COUNT(*) AS paym
 FROM SalePayment sp
 INNER JOIN Sale s ON s.id = sp.saleId
 WHERE s.shiftId = ? AND s.status = 'COMPLETED' AND sp.status = 'SUCCESS'
+  AND s.id NOT IN (SELECT saleId FROM SaleVoid)
 GROUP BY sp.method;
 
 getMultiShiftPaymentMethodSummary:
@@ -139,7 +183,24 @@ SELECT sp.method, COALESCE(SUM(sp.amount), 0.0) AS totalAmount, COUNT(*) AS paym
 FROM SalePayment sp
 INNER JOIN Sale s ON s.id = sp.saleId
 WHERE s.shiftId IN ? AND s.status = 'COMPLETED' AND sp.status = 'SUCCESS'
+  AND s.id NOT IN (SELECT saleId FROM SaleVoid)
 GROUP BY sp.method;
+
+getShiftVoidSummary:
+SELECT
+    COUNT(*) AS voidCount,
+    COALESCE(SUM(originalAmount), 0.0) AS totalAmount,
+    MAX(createdAt) AS latestVoidedAt
+FROM SaleVoid
+WHERE shiftId = ?;
+
+getMultiShiftVoidSummary:
+SELECT
+    COUNT(*) AS voidCount,
+    COALESCE(SUM(originalAmount), 0.0) AS totalAmount,
+    MAX(createdAt) AS latestVoidedAt
+FROM SaleVoid
+WHERE shiftId IN ?;
 
 listPendingSalesByMultiShift:
 SELECT id, localNumber, finalAmount FROM Sale
@@ -160,6 +221,29 @@ VALUES (?, ?, ?, ?, ?, ?);
 
 getReceiptSnapshot:
 SELECT * FROM ReceiptSnapshot WHERE saleId = ?;
+
+getSaleVoidBySaleId:
+SELECT * FROM SaleVoid WHERE saleId = ? LIMIT 1;
+
+insertSaleVoid:
+INSERT INTO SaleVoid(
+    id,
+    saleId,
+    businessDayId,
+    shiftId,
+    terminalId,
+    localNumber,
+    paymentMethod,
+    originalAmount,
+    cashRefundMovementId,
+    inventoryImpactClassification,
+    inventoryFollowUpNote,
+    reasonCode,
+    reasonDetail,
+    voidedBy,
+    createdAt
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 insertOrIgnoreFinalizationBundle:
 INSERT OR IGNORE INTO FinalizationBundle(

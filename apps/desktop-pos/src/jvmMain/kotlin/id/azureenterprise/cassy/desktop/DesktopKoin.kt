@@ -23,6 +23,7 @@ import id.azureenterprise.cassy.masterdata.di.masterDataDatabaseModule
 import id.azureenterprise.cassy.masterdata.di.masterDataModule
 import id.azureenterprise.cassy.masterdata.domain.ProductLookupUseCase
 import id.azureenterprise.cassy.sales.application.SalesService
+import id.azureenterprise.cassy.sales.application.VoidSaleService
 import id.azureenterprise.cassy.sales.di.salesDatabaseModule
 import id.azureenterprise.cassy.sales.di.salesModule
 import id.azureenterprise.cassy.sales.di.salesPlatformModule
@@ -58,6 +59,7 @@ fun startDesktopKoin() {
                         productLookupUseCase = get<ProductLookupUseCase>(),
                         inventoryService = get<InventoryService>(),
                         salesService = get<SalesService>(),
+                        voidSaleService = get<VoidSaleService>(),
                         hardwarePort = get<CashierHardwarePort>(),
                         reportingQueryFacade = get<ReportingQueryFacade>(),
                         syncReplayService = get<SyncReplayService>(),
@@ -74,6 +76,8 @@ private class DesktopOperationalSalesPort(
 ) : OperationalSalesPort {
     override suspend fun getShiftSalesSummary(shiftId: String) = salesService.getShiftSalesSummary(shiftId)
     override suspend fun getMultiShiftSalesSummary(shiftIds: List<String>) = salesService.getMultiShiftSalesSummary(shiftIds)
+    override suspend fun getShiftVoidSummary(shiftId: String) = salesService.getShiftVoidSummaryForReporting(shiftId)
+    override suspend fun getMultiShiftVoidSummary(shiftIds: List<String>) = salesService.getMultiShiftVoidSummaryForReporting(shiftIds)
 }
 
 private class DesktopOperationalHardwarePort(

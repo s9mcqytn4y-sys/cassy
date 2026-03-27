@@ -4,11 +4,12 @@ Dokumen ini mencatat jalur installer Windows yang sekarang benar-benar hidup di 
 
 ## Input artifact
 
-- EXE installer: `apps/desktop-pos/build/compose/binaries/main/exe/Cassy-0.1.0.exe`
-- MSI installer: `apps/desktop-pos/build/compose/binaries/main/msi/Cassy-0.1.0.msi`
+- EXE installer: `apps/desktop-pos/build/compose/binaries/main/exe/Cassy-<packageVersion>.exe`
+- MSI installer: `apps/desktop-pos/build/compose/binaries/main/msi/Cassy-<packageVersion>.msi`
 - App distribution: `apps/desktop-pos/build/compose/binaries/main/app/Cassy/`
 - Distribution smoke: `powershell -ExecutionPolicy Bypass -File tooling/scripts/Invoke-DesktopDistributionSmoke.ps1`
 - Installer evidence: `powershell -ExecutionPolicy Bypass -File tooling/scripts/Invoke-WindowsInstallerEvidence.ps1`
+- Upgrade evidence: `powershell -ExecutionPolicy Bypass -File tooling/scripts/Invoke-WindowsUpgradeEvidence.ps1`
 - State backup baseline: `powershell -ExecutionPolicy Bypass -File tooling/scripts/Backup-CassyDesktopState.ps1`
 - Diagnostics baseline: `powershell -ExecutionPolicy Bypass -File tooling/scripts/Collect-WindowsReleaseDiagnostics.ps1`
 
@@ -17,7 +18,7 @@ Dokumen ini mencatat jalur installer Windows yang sekarang benar-benar hidup di 
 - [FACT] `apps/desktop-pos` saat ini menargetkan `TargetFormat.Exe` dan `TargetFormat.Msi`.
 - [FACT] Script `Invoke-WindowsInstallerEvidence.ps1` melakukan pre-clean install lama, install MSI, smoke installed launcher, repair MSI, smoke ulang, lalu uninstall.
 - [FACT] Runtime image installer sudah diverifikasi membawa `java.sql`, sehingga launcher hasil install tidak lagi gagal dengan `java/sql/DriverManager`.
-- [FACT] Local evidence turn 2026-03-26 sukses di `build/installer-evidence/20260326-174744/`.
+- [FACT] Local evidence terbaru selalu ditulis ke `build/installer-evidence/<timestamp>/`.
 - [FACT] Script installer dibuat repeatable di workstation yang sebelumnya sudah pernah memasang Cassy.
 
 ## Automated checklist
@@ -58,5 +59,6 @@ Automation di atas menutup lane installer teknis. Untuk pilot manusia nyata, hal
 ## Status saat ini
 
 - [FACT] Installer smoke tidak lagi manual-soft-blocker untuk lane lokal/repo.
-- [ASSUMPTION] Hosted Windows runner juga bisa menjalankan script yang sama setelah workflow `Mainline Evidence` diperbarui.
-- [RISK] Hosted evidence terbaru belum saya verifikasi karena run remote baru belum dijalankan pada turn ini.
+- [FACT] Hosted `Mainline Evidence` sudah menjadi lane evidence aktif untuk artifact installer dan diagnostics.
+- [FACT] Upgrade antar-versi installer sekarang punya lane evidence terpisah lewat `Invoke-WindowsUpgradeEvidence.ps1`.
+- [RISK] Hosted beta-tag evidence untuk upgrade belum ada sampai commit/tag terbaru dipush dan workflow release dijalankan.

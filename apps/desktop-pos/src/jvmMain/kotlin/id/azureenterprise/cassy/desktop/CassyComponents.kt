@@ -418,7 +418,7 @@ fun CassyTopBar(
                         )
                     }
                     Text(
-                        text = "F1/F5 Sync | F8 Ringkasan | F9 Stok | F10 Kas | F11 Shift | F12 Hari",
+                        text = "F1/F5 Sync | F7 Void | F8 Ringkasan | F9 Stok | F10 Kas | F11 Shift | F12 Hari",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

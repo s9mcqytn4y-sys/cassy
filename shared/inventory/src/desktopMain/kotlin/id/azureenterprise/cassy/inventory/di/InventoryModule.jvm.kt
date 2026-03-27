@@ -9,7 +9,7 @@ import java.io.File
 
 actual val inventoryDatabaseModule: Module = module {
     single {
-        val databasePath = File(System.getProperty("user.home"), ".cassy/inventory.db")
+        val databasePath = File(resolveDesktopDataRoot(), "inventory.db")
         val databaseAlreadyExists = databasePath.exists()
         databasePath.parentFile.mkdirs()
         val driver = JdbcSqliteDriver("jdbc:sqlite:${databasePath.absolutePath}")
@@ -72,4 +72,10 @@ private fun JdbcSqliteDriver.harden() {
     execute(null, "PRAGMA journal_mode = WAL", 0)
     execute(null, "PRAGMA busy_timeout = 5000", 0)
     execute(null, "PRAGMA synchronous = NORMAL", 0)
+}
+
+private fun resolveDesktopDataRoot(): File {
+    val explicit = System.getProperty("cassy.data.dir")
+        ?: System.getenv("CASSY_DATA_DIR")
+    return explicit?.let(::File) ?: File(System.getProperty("user.home"), ".cassy")
 }

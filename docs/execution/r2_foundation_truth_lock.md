@@ -35,3 +35,4 @@ Updated: 2026-03-19
 ## RECOMMENDATION
 - Setiap block R2 harus memperbarui bridge, contract doc, dan `.agent` file inti di hari yang sama dengan code change.
 - Evidence installer historical pada dokumen ini harus dibaca sebagai snapshot lama, bukan status runtime terbaru.
+> Historical Snapshot: dokumen ini merekam gate fase awal. Untuk authority aktif gunakan bridge/status docs terbaru.

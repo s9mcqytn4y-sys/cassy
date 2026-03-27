@@ -14,9 +14,10 @@ Updated: 2026-03-27
 - Packaging desktop yang benar-benar dikonfigurasi saat ini adalah Windows `EXE` dan `MSI`.
 - `shared:kernel:ReportingQueryFacade` sudah hidup dengan daily summary, shift summary, sync visibility, dan explicit last-error readback.
 - `apps:desktop-pos` sekarang punya `DesktopReportingExporter` untuk export bundle CSV/HTML yang tetap membaca snapshot lokal dari reporting facade.
+- `shared:sales:VoidSaleService` sekarang membuka jalur void sale cash final dengan reason code, audit/event, cash refund, dan visibility reporting yang eksplisit.
 - `shared:kernel:OutboxRepository` sekarang membaca pending/failed event secara status-aware, bisa requeue failed, dan memangkas processed lama.
 - `shared:kernel:SyncReplayService` sekarang menjadi worker replay minimal yang dipakai desktop untuk retry sync eksplisit.
-- Hosted `Mainline Evidence` run `23622401164` sukses untuk commit `d0e6a96`, jadi workflow Windows terbaru tidak lagi hanya "CI-configured".
+- Hosted `Mainline Evidence` sudah pernah sukses, jadi workflow Windows terbaru tidak lagi hanya "CI-configured". Authority aktif tetap mengikuti run terbaru yang benar-benar diverifikasi.
 
 ## ASSUMPTION
 - V1 tetap single-outlet, terminal-bound, dan local-first.
@@ -28,8 +29,9 @@ Updated: 2026-03-27
 - R6 boleh diklaim `DONE` untuk definisi local-boundary Cassy V1: replay lokal, retry/requeue, visibility, dan recovery path sudah hidup dan teruji.
 
 ## RISK
-- Upgrade/rollback antar-versi installer belum dibuktikan.
+- Upgrade antar-versi installer sudah dibuktikan secara lokal, tetapi rollback binary lintas versi dan hosted beta-tag evidence belum dibuktikan.
 - Conflict replay masih terbatas pada status failed + last error message, belum sampai persistence conflict detail.
+- Profiler-backed memory/performance evidence masih berupa probe ringan, belum profiler snapshot formal.
 
 ## RECOMMENDATION
 - Gunakan dokumen ini sebagai reality snapshot terbaru.

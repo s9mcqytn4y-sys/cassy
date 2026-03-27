@@ -42,6 +42,8 @@ class ShiftClosingServiceTest {
                     )
                 }
                 override suspend fun getMultiShiftSalesSummary(shiftIds: List<String>): ShiftSalesSummary = ShiftSalesSummary()
+                override suspend fun getShiftVoidSummary(shiftId: String) = id.azureenterprise.cassy.kernel.domain.VoidSalesSummary()
+                override suspend fun getMultiShiftVoidSummary(shiftIds: List<String>) = id.azureenterprise.cassy.kernel.domain.VoidSalesSummary()
             }
         )
 
@@ -71,6 +73,8 @@ class ShiftClosingServiceTest {
                     return ShiftSalesSummary(completedCashSalesTotal = 200_000.0)
                 }
                 override suspend fun getMultiShiftSalesSummary(shiftIds: List<String>): ShiftSalesSummary = ShiftSalesSummary()
+                override suspend fun getShiftVoidSummary(shiftId: String) = id.azureenterprise.cassy.kernel.domain.VoidSalesSummary()
+                override suspend fun getMultiShiftVoidSummary(shiftIds: List<String>) = id.azureenterprise.cassy.kernel.domain.VoidSalesSummary()
             }
         )
 

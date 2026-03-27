@@ -9,6 +9,7 @@ $root = (Resolve-Path $DistributionRoot).Path
 $cfgPath = Join-Path $root "app/Cassy.cfg"
 $javaPath = Join-Path $root "runtime/bin/java.exe"
 $markerPath = Join-Path ([IO.Path]::GetTempPath()) "cassy-distribution-smoke-marker.txt"
+$smokeDataRoot = Join-Path ([IO.Path]::GetTempPath()) ("cassy-smoke-" + [guid]::NewGuid().ToString("N"))
 
 if (-not (Test-Path $cfgPath)) {
     throw "Missing distribution config: $cfgPath"
@@ -59,9 +60,14 @@ if (Test-Path $markerPath) {
 }
 
 $previousMarker = $env:CASSY_SMOKE_MARKER
+$previousDataRoot = $env:CASSY_DATA_DIR
+$previousScenario = $env:CASSY_SMOKE_SCENARIO
 $env:CASSY_SMOKE_MARKER = $markerPath
+$env:CASSY_DATA_DIR = $smokeDataRoot
+$env:CASSY_SMOKE_SCENARIO = "beta"
 
 try {
+    New-Item -ItemType Directory -Path $smokeDataRoot -Force | Out-Null
     & $javaPath @arguments
     $exitCode = $LASTEXITCODE
     if ($exitCode -ne 0) {
@@ -79,9 +85,22 @@ try {
 
     Write-Output "Distribution marker verified: $marker"
 } finally {
+    if (Test-Path $smokeDataRoot) {
+        Remove-Item $smokeDataRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
     if ($null -eq $previousMarker) {
         Remove-Item Env:CASSY_SMOKE_MARKER -ErrorAction SilentlyContinue
     } else {
         $env:CASSY_SMOKE_MARKER = $previousMarker
+    }
+    if ($null -eq $previousDataRoot) {
+        Remove-Item Env:CASSY_DATA_DIR -ErrorAction SilentlyContinue
+    } else {
+        $env:CASSY_DATA_DIR = $previousDataRoot
+    }
+    if ($null -eq $previousScenario) {
+        Remove-Item Env:CASSY_SMOKE_SCENARIO -ErrorAction SilentlyContinue
+    } else {
+        $env:CASSY_SMOKE_SCENARIO = $previousScenario
     }
 }

@@ -16,6 +16,8 @@ import id.azureenterprise.cassy.sales.domain.PersistedReceiptSnapshot
 import id.azureenterprise.cassy.sales.domain.ReceiptSnapshotDocument
 import id.azureenterprise.cassy.sales.domain.SaleStatus
 import id.azureenterprise.cassy.sales.domain.SaleHistoryEntry
+import id.azureenterprise.cassy.sales.domain.SaleVoidRecord
+import id.azureenterprise.cassy.sales.domain.SaleVoidSummary
 import id.azureenterprise.cassy.kernel.domain.PendingTransactionSummary
 import id.azureenterprise.cassy.kernel.domain.ShiftSalesSummary
 import kotlinx.coroutines.withContext
@@ -332,7 +334,28 @@ class SalesRepository(
                 finalizedAtEpochMs = receipt.finalizedAtEpochMs,
                 finalAmount = sale.finalAmount,
                 paymentMethod = receipt.payment.method,
-                paymentState = receipt.payment.state
+                paymentState = receipt.payment.state,
+                saleStatus = SaleStatus.valueOf(sale.status)
+            )
+        }
+    }
+
+    suspend fun getRecentSales(limit: Long): List<SaleHistoryEntry> = withContext(ioDispatcher) {
+        queries.getRecentSales(limit).executeAsList().map { sale ->
+            SaleHistoryEntry(
+                saleId = sale.id,
+                localNumber = sale.localNumber,
+                terminalId = sale.terminalId,
+                finalizedAtEpochMs = sale.finalizedAtEpochMs ?: sale.voidedAtEpochMs ?: 0L,
+                finalAmount = sale.finalAmount,
+                paymentMethod = sale.method,
+                paymentState = PaymentState(
+                    status = enumValueOf<PaymentStatus>(sale.paymentStatus),
+                    detailCode = sale.statusReasonCode?.let { code -> enumValueOfOrNull<PaymentStatusDetailCode>(code) },
+                    detailMessage = sale.statusDetailMessage
+                ),
+                saleStatus = SaleStatus.valueOf(sale.status),
+                voidedAtEpochMs = sale.voidedAtEpochMs
             )
         }
     }
@@ -349,10 +372,13 @@ class SalesRepository(
         val cashTotal = paymentRows.firstOrNull { it.method == "CASH" }?.totalAmount ?: 0.0
         val nonCashTotal = paymentRows.filterNot { it.method == "CASH" }.sumOf { it.totalAmount }
         val completedSaleCount = paymentRows.sumOf { it.paymentCount.toInt() }
+        val voidSummary = queries.getShiftVoidSummary(shiftId).executeAsOne()
         ShiftSalesSummary(
             completedCashSalesTotal = cashTotal,
             completedNonCashSalesTotal = nonCashTotal,
             completedSaleCount = completedSaleCount,
+            voidedSaleCount = voidSummary.voidCount.toInt(),
+            voidedSalesTotal = voidSummary.totalAmount,
             pendingTransactions = pendingTransactions
         )
     }
@@ -369,12 +395,95 @@ class SalesRepository(
         val cashTotal = paymentRows.firstOrNull { it.method == "CASH" }?.totalAmount ?: 0.0
         val nonCashTotal = paymentRows.filterNot { it.method == "CASH" }.sumOf { it.totalAmount }
         val completedSaleCount = paymentRows.sumOf { it.paymentCount.toInt() }
+        val voidSummary = queries.getMultiShiftVoidSummary(shiftIds).executeAsOne()
         ShiftSalesSummary(
             completedCashSalesTotal = cashTotal,
             completedNonCashSalesTotal = nonCashTotal,
             completedSaleCount = completedSaleCount,
+            voidedSaleCount = voidSummary.voidCount.toInt(),
+            voidedSalesTotal = voidSummary.totalAmount,
             pendingTransactions = pendingTransactions
         )
+    }
+
+    suspend fun getShiftVoidSummary(shiftId: String): SaleVoidSummary = withContext(ioDispatcher) {
+        queries.getShiftVoidSummary(shiftId).executeAsOne().let { row ->
+            SaleVoidSummary(
+                count = row.voidCount.toInt(),
+                totalAmount = row.totalAmount,
+                latestVoidedAtEpochMs = row.latestVoidedAt
+            )
+        }
+    }
+
+    suspend fun getMultiShiftVoidSummary(shiftIds: List<String>): SaleVoidSummary = withContext(ioDispatcher) {
+        if (shiftIds.isEmpty()) return@withContext SaleVoidSummary()
+        queries.getMultiShiftVoidSummary(shiftIds).executeAsOne().let { row ->
+            SaleVoidSummary(
+                count = row.voidCount.toInt(),
+                totalAmount = row.totalAmount,
+                latestVoidedAtEpochMs = row.latestVoidedAt
+            )
+        }
+    }
+
+    suspend fun getSaleVoidBySaleId(saleId: String): SaleVoidRecord? = withContext(ioDispatcher) {
+        queries.getSaleVoidBySaleId(saleId).executeAsOneOrNull()?.let { row ->
+            SaleVoidRecord(
+                id = row.id,
+                saleId = row.saleId,
+                businessDayId = row.businessDayId,
+                shiftId = row.shiftId,
+                terminalId = row.terminalId,
+                localNumber = row.localNumber,
+                paymentMethod = row.paymentMethod,
+                originalAmount = row.originalAmount,
+                cashRefundMovementId = row.cashRefundMovementId,
+                inventoryImpactClassification = row.inventoryImpactClassification,
+                inventoryFollowUpNote = row.inventoryFollowUpNote,
+                reasonCode = row.reasonCode,
+                reasonDetail = row.reasonDetail,
+                voidedBy = row.voidedBy,
+                createdAtEpochMs = row.createdAt
+            )
+        }
+    }
+
+    suspend fun recordSaleVoid(
+        id: String,
+        saleId: String,
+        businessDayId: String,
+        shiftId: String,
+        terminalId: String,
+        localNumber: String,
+        paymentMethod: String,
+        originalAmount: Double,
+        cashRefundMovementId: String?,
+        inventoryImpactClassification: String,
+        inventoryFollowUpNote: String?,
+        reasonCode: String,
+        reasonDetail: String?,
+        voidedBy: String
+    ): SaleVoidRecord = withContext(ioDispatcher) {
+        val createdAt = clock.now().toEpochMilliseconds()
+        queries.insertSaleVoid(
+            id = id,
+            saleId = saleId,
+            businessDayId = businessDayId,
+            shiftId = shiftId,
+            terminalId = terminalId,
+            localNumber = localNumber,
+            paymentMethod = paymentMethod,
+            originalAmount = originalAmount,
+            cashRefundMovementId = cashRefundMovementId,
+            inventoryImpactClassification = inventoryImpactClassification,
+            inventoryFollowUpNote = inventoryFollowUpNote,
+            reasonCode = reasonCode,
+            reasonDetail = reasonDetail,
+            voidedBy = voidedBy,
+            createdAt = createdAt
+        )
+        getSaleVoidBySaleId(saleId) ?: error("Void sale tidak tersimpan untuk sale $saleId")
     }
 
     private inline fun <reified T : Enum<T>> enumValueOfOrNull(value: String): T? =

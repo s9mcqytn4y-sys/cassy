@@ -44,6 +44,18 @@ class ReportingQueryFacadeTest {
                 pendingTransactions = emptyList()
             )
         }
+
+        override suspend fun getShiftVoidSummary(shiftId: String): VoidSalesSummary {
+            return VoidSalesSummary(count = 1, totalAmount = 10_000.0, latestVoidedAtEpochMs = clock.now().toEpochMilliseconds())
+        }
+
+        override suspend fun getMultiShiftVoidSummary(shiftIds: List<String>): VoidSalesSummary {
+            return VoidSalesSummary(
+                count = shiftIds.size,
+                totalAmount = shiftIds.size * 10_000.0,
+                latestVoidedAtEpochMs = clock.now().toEpochMilliseconds()
+            )
+        }
     }
 
     private val hardwarePort = NoopOperationalHardwarePort
@@ -75,6 +87,8 @@ class ReportingQueryFacadeTest {
         assertEquals(2, summary.openShiftCount)
         assertEquals(300_000.0, summary.totalSales) // (100k + 50k) * 2 shifts
         assertEquals(10, summary.transactionCount)
+        assertEquals(20_000.0, summary.voidedSalesTotal)
+        assertEquals(2, summary.voidedSaleCount)
         assertEquals(10_000.0, summary.netCashMovement) // 20k - 10k
 
         // Check issues
@@ -97,6 +111,8 @@ class ReportingQueryFacadeTest {
         assertEquals(50_000.0, summary.openingCash)
         assertEquals(150_000.0, summary.salesTotal)
         assertEquals(100_000.0, summary.cashSalesTotal)
+        assertEquals(10_000.0, summary.voidedSalesTotal)
+        assertEquals(1, summary.voidedSaleCount)
         assertEquals(20_000.0, summary.cashInTotal)
 
         // expected = 50k (open) + 100k (cash sales) + 20k (cash in) = 170k

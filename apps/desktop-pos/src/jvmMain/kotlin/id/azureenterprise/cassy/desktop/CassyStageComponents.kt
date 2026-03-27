@@ -2,6 +2,7 @@ package id.azureenterprise.cassy.desktop
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -21,6 +22,7 @@ import id.azureenterprise.cassy.kernel.domain.OperationType
 import id.azureenterprise.cassy.kernel.domain.OperationalControlSnapshot
 import id.azureenterprise.cassy.kernel.domain.SyncLevel
 import id.azureenterprise.cassy.kernel.domain.SyncStatus
+import id.azureenterprise.cassy.sales.domain.SaleHistoryEntry
 import kotlinx.datetime.Instant
 
 @Composable
@@ -507,7 +509,7 @@ fun ReportingSummaryDialog(
                         ReportingMetricTile(
                             title = "Penjualan Hari Ini",
                             primaryValue = "Rp ${summary.totalSales.toInt()}",
-                            supporting = "${summary.transactionCount} transaksi | cash Rp ${summary.cashSalesTotal.toInt()}",
+                            supporting = "${summary.transactionCount} transaksi | void ${summary.voidedSaleCount} / Rp ${summary.voidedSalesTotal.toInt()}",
                             modifier = Modifier.weight(1f)
                         )
                         ReportingMetricTile(
@@ -563,8 +565,9 @@ fun ReportingSummaryDialog(
                         }
                     }
 
-                    StageSectionCard(title = "Aturan Export & Output") {
+                        StageSectionCard(title = "Aturan Export & Output") {
                         Text(state.reportingExportRuleNote, style = MaterialTheme.typography.bodySmall)
+                        ReportingKeyValue("Void Tercatat", "${summary.voidedSaleCount} transaksi")
                         ReportingKeyValue("Lokasi Terakhir", state.reportingExportPath ?: "-")
                         ReportingKeyValue("Diekspor Terakhir", state.reportingExportedAt?.toUiTimestamp() ?: "-")
                         Text(
@@ -587,6 +590,143 @@ fun ReportingSummaryDialog(
                     Spacer(modifier = Modifier.width(12.dp))
                     Button(onClick = onExport, enabled = !isBusy && state.reportingSummary != null) {
                         Text(if (isBusy) "Mengekspor..." else "Export Bundle CSV")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun VoidSaleDialog(
+    voidState: VoidSaleState,
+    recentSales: List<SaleHistoryEntry>,
+    onDismiss: () -> Unit,
+    onSelectSale: (String) -> Unit,
+    onReasonCodeChanged: (String) -> Unit,
+    onReasonDetailChanged: (String) -> Unit,
+    onInventoryFollowUpChanged: (String) -> Unit,
+    onConfirm: () -> Unit,
+    isBusy: Boolean = false
+) {
+    BasicAlertDialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            tonalElevation = 4.dp,
+            modifier = Modifier.widthIn(min = 920.dp, max = 1080.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Void Penjualan", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                        Text(
+                            "Jalur ini hanya untuk sale CASH yang sudah final. Refund kas dicatat eksplisit, stok tidak dibalik otomatis.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    ShortcutHintBar(hints = listOf("F7 Buka", "Review Refund", "Esc Tutup"))
+                }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
+                    StageSectionCard(title = "Pilih Transaksi", modifier = Modifier.weight(1f)) {
+                        if (recentSales.isEmpty()) {
+                            Text(
+                                "Belum ada transaksi recent yang bisa direview.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        } else {
+                            LazyColumn(
+                                modifier = Modifier.fillMaxWidth().heightIn(min = 220.dp, max = 300.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                items(recentSales) { sale ->
+                                    ElevatedCard(
+                                        onClick = { onSelectSale(sale.saleId) },
+                                        shape = RoundedCornerShape(14.dp),
+                                        colors = if (voidState.selectedSaleId == sale.saleId) {
+                                            CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                                        } else {
+                                            CardDefaults.elevatedCardColors()
+                                        }
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.fillMaxWidth().padding(14.dp),
+                                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Text("${sale.localNumber} | ${sale.paymentMethod}", fontWeight = FontWeight.Bold)
+                                            Text(
+                                                "Rp ${sale.finalAmount.toInt()} | ${sale.saleStatus.name} | ${sale.voidedAtEpochMs?.let { "voided" } ?: "normal"}",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    StageSectionCard(title = "Assessment Void", modifier = Modifier.weight(1f)) {
+                        ReportingKeyValue("Sale", voidState.selectedLocalNumber ?: "-")
+                        ReportingKeyValue("Metode Bayar", voidState.selectedPaymentMethod ?: "-")
+                        ReportingKeyValue("Status", voidState.selectedSaleStatus ?: "-")
+                        ReportingKeyValue(
+                            "Nominal",
+                            voidState.selectedAmount?.let { "Rp ${it.toInt()}" } ?: "-"
+                        )
+                        ReportingKeyValue("Inventory", voidState.inventoryImpactClassification)
+                        Text(
+                            voidState.assessmentMessage,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (voidState.canExecute) toneColor(UiTone.Warning) else MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+
+                StageSectionCard(title = "Alasan & Follow-up") {
+                    ReasonOptionGroup(
+                        title = "Reason Code Void",
+                        options = voidState.reasonOptions,
+                        selectedCode = voidState.reasonCode,
+                        onSelected = onReasonCodeChanged
+                    )
+                    SemanticTextField(
+                        label = "Catatan Void",
+                        value = voidState.reasonDetail,
+                        onValueChange = onReasonDetailChanged,
+                        helperText = "Jelaskan konteks koreksi transaksi secara singkat dan bisa diaudit.",
+                        placeholder = "Contoh: double input sebelum pelanggan pergi",
+                        leadingIcon = Icons.Default.EditNote
+                    )
+                    SemanticTextField(
+                        label = "Catatan Follow-up Stok",
+                        value = voidState.inventoryFollowUpNote,
+                        onValueChange = onInventoryFollowUpChanged,
+                        helperText = "Tidak mengembalikan stok otomatis. Gunakan kolom ini untuk instruksi investigasi atau follow-up manual.",
+                        placeholder = "Contoh: barang masih di meja kasir, cek fisik sebelum adjustment terpisah",
+                        leadingIcon = Icons.Default.Inventory2,
+                        singleLine = false
+                    )
+                }
+
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    OutlinedButton(onClick = onDismiss) { Text("Tutup") }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Button(
+                        onClick = onConfirm,
+                        enabled = !isBusy && voidState.canExecute && voidState.reasonCode.isNotBlank()
+                    ) {
+                        Text(if (isBusy) "Memproses..." else "Eksekusi Void")
                     }
                 }
             }

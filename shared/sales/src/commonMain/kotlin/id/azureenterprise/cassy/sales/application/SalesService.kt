@@ -27,7 +27,9 @@ import id.azureenterprise.cassy.sales.domain.ReceiptSnapshotDocument
 import id.azureenterprise.cassy.sales.domain.ReceiptTemplateSnapshot
 import id.azureenterprise.cassy.sales.domain.SaleCompletionResult
 import id.azureenterprise.cassy.sales.domain.SaleHistoryEntry
+import id.azureenterprise.cassy.sales.domain.SaleVoidSummary
 import id.azureenterprise.cassy.kernel.domain.ShiftSalesSummary
+import id.azureenterprise.cassy.kernel.domain.VoidSalesSummary
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -284,6 +286,10 @@ class SalesService(
         return Result.success(salesRepository.getCompletedSales())
     }
 
+    suspend fun getRecentSaleHistory(limit: Long = 10): Result<List<SaleHistoryEntry>> {
+        return Result.success(salesRepository.getRecentSales(limit))
+    }
+
     suspend fun getShiftSalesSummary(shiftId: String): ShiftSalesSummary {
         return salesRepository.getShiftSalesSummary(shiftId)
     }
@@ -294,7 +300,35 @@ class SalesService(
             completedCashSalesTotal = summaries.sumOf { it.completedCashSalesTotal },
             completedNonCashSalesTotal = summaries.sumOf { it.completedNonCashSalesTotal },
             completedSaleCount = summaries.sumOf { it.completedSaleCount },
+            voidedSaleCount = summaries.sumOf { it.voidedSaleCount },
+            voidedSalesTotal = summaries.sumOf { it.voidedSalesTotal },
             pendingTransactions = summaries.flatMap { it.pendingTransactions }
+        )
+    }
+
+    suspend fun getShiftVoidSummary(shiftId: String): SaleVoidSummary {
+        return salesRepository.getShiftVoidSummary(shiftId)
+    }
+
+    suspend fun getShiftVoidSummaryForReporting(shiftId: String): VoidSalesSummary {
+        val summary = salesRepository.getShiftVoidSummary(shiftId)
+        return VoidSalesSummary(
+            count = summary.count,
+            totalAmount = summary.totalAmount,
+            latestVoidedAtEpochMs = summary.latestVoidedAtEpochMs
+        )
+    }
+
+    suspend fun getMultiShiftVoidSummary(shiftIds: List<String>): SaleVoidSummary {
+        return salesRepository.getMultiShiftVoidSummary(shiftIds)
+    }
+
+    suspend fun getMultiShiftVoidSummaryForReporting(shiftIds: List<String>): VoidSalesSummary {
+        val summary = salesRepository.getMultiShiftVoidSummary(shiftIds)
+        return VoidSalesSummary(
+            count = summary.count,
+            totalAmount = summary.totalAmount,
+            latestVoidedAtEpochMs = summary.latestVoidedAtEpochMs
         )
     }
 

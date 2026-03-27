@@ -5,6 +5,8 @@ import id.azureenterprise.cassy.kernel.domain.OperationStatus
 import id.azureenterprise.cassy.kernel.domain.OperationType
 import id.azureenterprise.cassy.kernel.domain.OperationalControlSnapshot
 import id.azureenterprise.cassy.kernel.domain.CashMovementType
+import id.azureenterprise.cassy.kernel.domain.AccessCapability
+import id.azureenterprise.cassy.kernel.domain.supports
 
 class OperationalControlService(
     private val accessService: AccessService,
@@ -34,7 +36,8 @@ class OperationalControlService(
         val closeDayDecision = businessDayService.evaluateCloseDay()
         val voidDecision = evaluateVoidDecision(
             businessDayActive = businessDay != null,
-            shiftActive = activeShift != null
+            shiftActive = activeShift != null,
+            canVoid = context.activeOperator?.role?.supports(AccessCapability.VOID_COMPLETED_SALE) == true
         )
 
         val canAccessSalesHome = businessDay != null && activeShift != null
@@ -88,19 +91,40 @@ class OperationalControlService(
 
     private fun evaluateVoidDecision(
         businessDayActive: Boolean,
-        shiftActive: Boolean
+        shiftActive: Boolean,
+        canVoid: Boolean
     ): OperationDecision {
-        val message = when {
-            !businessDayActive -> "Void diblokir: business day belum aktif."
-            !shiftActive -> "Void diblokir: shift aktif belum ada."
-            else -> "Void belum dibuka di Block 1. Resolver sales, cashflow, accounting report, dan inventory reversal masih harus di-hardening di blok berikutnya."
+        return when {
+            !businessDayActive -> OperationDecision(
+                type = OperationType.VOID_SALE,
+                status = OperationStatus.BLOCKED,
+                title = "Void Penjualan",
+                message = "Void diblokir: business day belum aktif.",
+                blockerCode = id.azureenterprise.cassy.kernel.domain.OperationBlockerCode.BUSINESS_DAY_REQUIRED
+            )
+            !shiftActive -> OperationDecision(
+                type = OperationType.VOID_SALE,
+                status = OperationStatus.BLOCKED,
+                title = "Void Penjualan",
+                message = "Void diblokir: shift aktif belum ada.",
+                blockerCode = id.azureenterprise.cassy.kernel.domain.OperationBlockerCode.SHIFT_REQUIRED
+            )
+            !canVoid -> OperationDecision(
+                type = OperationType.VOID_SALE,
+                status = OperationStatus.BLOCKED,
+                title = "Void Penjualan",
+                message = "Void penjualan memerlukan supervisor/owner aktif. Non-cash tetap dibatasi jujur sampai flow refund eksternal dibuka.",
+                blockerCode = id.azureenterprise.cassy.kernel.domain.OperationBlockerCode.CAPABILITY_DENIED,
+                actionLabel = "Login Supervisor"
+            )
+            else -> OperationDecision(
+                type = OperationType.VOID_SALE,
+                status = OperationStatus.READY,
+                title = "Void Penjualan",
+                message = "Review void untuk penjualan cash yang baru finalized. Dampak stok tetap tidak dibalik otomatis; follow-up fisik harus eksplisit.",
+                actionLabel = "Review Void"
+            )
         }
-        return OperationDecision(
-            type = OperationType.VOID_SALE,
-            status = OperationStatus.UNAVAILABLE,
-            title = "Void Penjualan",
-            message = message
-        )
     }
 
     private companion object {

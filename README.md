@@ -2,32 +2,42 @@
 
 Desktop-first retail operating core untuk single outlet. Fokus V1 saat ini adalah cashier core yang usable, guided operations yang jujur, dan inventory basic yang explainable.
 
-## Repo Truth & Milestone Status (2026-03-19)
+Versi repo saat ini: `0.2.0-beta.1` dengan posture `Private Beta / Controlled Beta`.
+
+## Repo Truth & Milestone Status (2026-03-27)
 
 Status milestone di bawah ini didasarkan pada bukti nyata di dalam repository (code, unit tests, dan manual smoke evidence).
 
 - **M0 (Setup):** **DONE** (Control plane & Agent context stabil)
 - **M1 (Scope):** **DONE** (V1 functional scope terkunci)
-- **M2 (Arch):** **DONE** (Kotlin 2.3.20, Multi-module Gradle, Build Logic stabil)
+- **M2 (Arch):** **DONE** (Kotlin 2.2.10, Multi-module Gradle, Build Logic stabil)
 - **M3 (Bootstrap):** **DONE** (Desktop branding, Login, & State restore terverifikasi)
 - **M4 (Ops):** **DONE** (Business Day & Shift lifecycle guardrails terverifikasi)
 - **M5 (Catalog/Cart):** **DONE (Thin)** (Lookup barcode/SKU & Basket persistence stabil)
 - **M6 (Checkout & Receipt Finality / R1):** **DONE** (desktop-first lane)
 - **R2 (Operational Control):** **DONE** (desktop-first operational slice)
 - **M7 / R3 (Inventory Truth Lite):** **DONE** (desktop-first hardened slice)
+- **M8 / R5 (Visibility & Reporting Lite):** **DONE / HARDENED**
+- **M9 / R6 (Sync-Ready Boundary & Replay):** **DONE** untuk definisi local-boundary Cassy V1
+- **M10 / R4 (Windows Release Trust):** **DONE** untuk lane lokal/repo dengan evidence hosted yang sudah hidup
 
-**Milestone berikutnya yang masih terbuka:** sync visibility breadth, hosted release evidence depth, dan future solver gaps yang memang belum di-scope.
+**Fokus berikutnya yang masih terbuka:** burn-in beta terbatas, hosted beta tag/release evidence, code-signing posture, dan profiler-backed performance/resource proof yang lebih dalam.
 
 ## Verifikasi & Evidence Lane
 
 Dokumentasi detail mengenai status dan cara verifikasi:
 - `docs/execution/roadmap_bridge.md`: **Source of Truth** status milestone saat ini.
-- `docs/execution/r4_windows_release_contract.md`: Kontrak foundation slice R4.
-- `docs/execution/r4_jdk_workspace_truth.md`: Truth JDK/toolchain/workspace desktop.
-- `docs/execution/r4_smoke_foundation.md`: Task map packaging + smoke path yang nyata.
+- `docs/execution/repo_reality_sync.md`: Snapshot repo truth yang terbaru.
 - `docs/execution/windows_installer_smoke_checklist.md`: Panduan verifikasi manual installer Windows.
 - `docs/execution/windows_desktop_runbook.md`: Langkah operasional untuk environment Desktop.
-- `docs/execution/r4_windows_release_trust.md`: Status R4, baseline recovery, dan diagnostics Windows.
+- `docs/execution/release_candidate_checklist.md`: Definisi release candidate yang berlaku.
+- `docs/execution/beta_burn_in_checklist.md`: Checklist burn-in beta.
+- `docs/execution/beta_release_readiness.md`: Status kesiapan beta release.
+- `docs/execution/windows_code_signing_posture.md`: Posture code signing Windows yang jujur.
+- `docs/execution/desktop_device_support_matrix.md`: Authority dukungan device/peripheral desktop.
+- `docs/user/operator_quickstart.md`: Panduan singkat operator.
+- `docs/user/daily_operations_guide.md`: Panduan operasi harian outlet.
+- `LICENSE`, `EULA.md`, `PRIVACY.md`, `SECURITY.md`, `THIRD_PARTY_NOTICES.md`: baseline legal/privacy/security.
 
 ## Struktur Modul Utama
 
@@ -42,20 +52,22 @@ Dokumentasi detail mengenai status dan cara verifikasi:
 Jalankan perintah berikut untuk memverifikasi kesehatan repository secara lokal:
 
 ```powershell
-# Jalankan gate desktop-first R1/R2/R3 yang bermakna
-.\gradlew :shared:kernel:allTests :shared:sales:desktopTest :shared:inventory:desktopTest :shared:inventory:verifyCommonMainInventoryDatabaseMigration :apps:desktop-pos:test :apps:desktop-pos:smokeRun
-
-# Jalankan build/test/lint repo
+# Jalankan gate repo utama
+.\gradlew --version
+.\gradlew clean
 .\gradlew build
 .\gradlew test
-.\gradlew detekt
-.\gradlew :apps:android-pos:lintDebug
+.\gradlew lint detekt
+.\gradlew :shared:kernel:verifyCommonMainKernelDatabaseMigration :shared:inventory:verifyCommonMainInventoryDatabaseMigration :shared:masterdata:verifyCommonMainMasterDataDatabaseMigration :shared:sales:verifyCommonMainSalesDatabaseMigration
 
-# Build distribusi Windows lokal
-.\gradlew :apps:desktop-pos:createDistributable :apps:desktop-pos:packageDistributionForCurrentOS
+# Gate desktop-first utama
+.\gradlew :apps:desktop-pos:createDistributable :apps:desktop-pos:packageExe :apps:desktop-pos:packageMsi :apps:desktop-pos:smokeRun
 
 # Smoke distribution + kumpulkan diagnostics
 powershell -ExecutionPolicy Bypass -File tooling/scripts/Invoke-DesktopDistributionSmoke.ps1
+powershell -ExecutionPolicy Bypass -File tooling/scripts/Invoke-WindowsInstallerEvidence.ps1
+powershell -ExecutionPolicy Bypass -File tooling/scripts/Invoke-WindowsUpgradeEvidence.ps1
+powershell -ExecutionPolicy Bypass -File tooling/scripts/Invoke-DesktopPerformanceProbe.ps1
 powershell -ExecutionPolicy Bypass -File tooling/scripts/Collect-WindowsReleaseDiagnostics.ps1
 
 # Backup state lokal sebelum install/update candidate
@@ -64,8 +76,10 @@ powershell -ExecutionPolicy Bypass -File tooling/scripts/Backup-CassyDesktopStat
 
 ## Catatan Penting
 - **JDK 17** adalah standar wajib untuk pengembangan Desktop.
-- **Active Basket Persistence:** M5 kini mendukung penyimpanan keranjang otomatis; jika aplikasi ditutup paksa, isi keranjang akan kembali saat dibuka (Survival on Restart).
-- **Solver honesty:** `LIGHT_PIN` only, `PDF_NOT_SHIPPED`, dan Windows installer install/uninstall full evidence tetap belum boleh dioverclaim.
+- **Windows release lane:** repo saat ini mengandalkan `EXE` + `MSI`, per-user install, scripted installer evidence, dan diagnostics baseline.
+- **Beta release lane:** repo sekarang juga punya changelog, release manifest, workflow `Beta Release`, dan checklist burn-in.
+- **Active Basket Persistence:** keranjang otomatis disimpan ke database lokal dan dipulihkan saat restart paksa.
+- **Solver honesty:** breadth hardware, backend sync nyata, dan profiler evidence belum boleh dioverclaim.
 
 ---
 *Lihat `.agent/plan.md` untuk rencana eksekusi teknis mendalam.*

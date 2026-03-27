@@ -67,3 +67,4 @@ powershell -ExecutionPolicy Bypass -File tooling/scripts/Invoke-WindowsInstaller
 ## RECOMMENDATION
 - Jalankan lane smoke/package secara serial, bukan paralel, untuk menghindari kontensi jar/build artifact pada host lokal.
 - Pertahankan urutan verifikasi: smoke source -> `--version` -> clean/build/test/lint -> package -> distribution smoke -> installer evidence.
+> Historical Snapshot: dokumen ini adalah catatan fase lama. Untuk truth aktif, gunakan `roadmap_bridge.md`, `repo_reality_sync.md`, dan checklist aktif.

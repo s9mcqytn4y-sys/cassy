@@ -19,10 +19,12 @@ import id.azureenterprise.cassy.masterdata.domain.BarcodeNormalizer
 import id.azureenterprise.cassy.masterdata.domain.Product
 import id.azureenterprise.cassy.masterdata.domain.ProductLookupUseCase
 import id.azureenterprise.cassy.sales.application.SalesService
+import id.azureenterprise.cassy.sales.application.VoidSaleService
 import id.azureenterprise.cassy.sales.data.SalesRepository
 import id.azureenterprise.cassy.sales.db.SalesDatabase
 import id.azureenterprise.cassy.sales.domain.PricingEngine
 import id.azureenterprise.cassy.sales.domain.ReceiptPrintPayload
+import id.azureenterprise.cassy.sales.domain.SaleStatus
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.datetime.Clock
@@ -206,6 +208,33 @@ class DesktopAppControllerTest {
         assertNotNull(controller.state.value.operations.reportingExportPath)
     }
 
+    @Test
+    fun beta_operational_flow_can_checkout_void_and_export_report(): Unit = runBlocking {
+        val fixture = desktopFixture()
+        fixture.loginAsSupervisor()
+        fixture.businessDayService.openNewDay()
+        fixture.openShift()
+
+        val controller = fixture.newController()
+        controller.load()
+        controller.addProduct(Product("P1", "Produk Beta", 10.0, "C1", "SKU-BETA-1"))
+        controller.updateCashReceivedInput("10")
+        controller.checkoutCash()
+
+        val recentSale = controller.state.value.catalog.recentSales.firstOrNull()
+        assertNotNull(recentSale)
+
+        controller.selectVoidSale(recentSale.saleId)
+        controller.updateVoidReasonCode("VOID_DUPLICATE_INPUT")
+        controller.updateVoidReasonDetail("Smoke beta duplicate input")
+        controller.updateVoidInventoryFollowUpNote("Follow-up fisik smoke beta")
+        controller.executeVoidSale()
+        controller.exportOperationalReport()
+
+        assertNotNull(controller.state.value.operations.reportingExportPath)
+        assertEquals(SaleStatus.VOIDED, controller.state.value.catalog.recentSales.first().saleStatus)
+    }
+
     @Suppress("LongMethod")
     private fun desktopFixture(): DesktopFixture {
         val kernelDriver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
@@ -273,6 +302,13 @@ class DesktopAppControllerTest {
             productLookupUseCase = productLookupUseCase,
             clock = Clock.System
         )
+        val voidSaleService = VoidSaleService(
+            salesRepository = salesRepo,
+            kernelRepository = kernelRepo,
+            accessService = accessService,
+            cashControlService = cashControlService,
+            inventoryService = inventoryService
+        )
 
         val operationalSalesPort = DesktopTestOperationalSalesPort(salesService)
         val reportingQueryFacade = ReportingQueryFacade(
@@ -314,6 +350,7 @@ class DesktopAppControllerTest {
             productLookupUseCase = productLookupUseCase,
             inventoryService = inventoryService,
             salesService = salesService,
+            voidSaleService = voidSaleService,
             hardwarePort = NoopHardwarePort,
             masterDataDatabase = masterDataDb,
             reportingQueryFacade = reportingQueryFacade,
@@ -372,6 +409,7 @@ private data class DesktopFixture(
     val productLookupUseCase: ProductLookupUseCase,
     val inventoryService: InventoryService,
     val salesService: SalesService,
+    val voidSaleService: VoidSaleService,
     val hardwarePort: CashierHardwarePort,
     val masterDataDatabase: MasterDataDatabase,
     val reportingQueryFacade: ReportingQueryFacade,
@@ -389,6 +427,7 @@ private data class DesktopFixture(
         productLookupUseCase = productLookupUseCase,
         inventoryService = inventoryService,
         salesService = salesService,
+        voidSaleService = voidSaleService,
         hardwarePort = hardwarePort,
         reportingQueryFacade = reportingQueryFacade,
         syncReplayService = syncReplayService,
@@ -402,9 +441,16 @@ private class DesktopTestOperationalSalesPort(
     override suspend fun getShiftSalesSummary(shiftId: String): ShiftSalesSummary {
         return salesService.getShiftSalesSummary(shiftId)
     }
+
     override suspend fun getMultiShiftSalesSummary(shiftIds: List<String>): ShiftSalesSummary {
         return salesService.getMultiShiftSalesSummary(shiftIds)
     }
+
+    override suspend fun getShiftVoidSummary(shiftId: String) =
+        salesService.getShiftVoidSummaryForReporting(shiftId)
+
+    override suspend fun getMultiShiftVoidSummary(shiftIds: List<String>) =
+        salesService.getMultiShiftVoidSummaryForReporting(shiftIds)
 }
 
 private class KernelRepositorySalesKernelPort(

@@ -1,0 +1,26 @@
+changelog:
+  exclude:
+    labels:
+      - ignore-for-release
+      - docs-only
+  categories:
+    - title: Breaking Changes
+      labels:
+        - breaking-change
+        - semver-major
+    - title: Features
+      labels:
+        - enhancement
+        - semver-minor
+    - title: Reliability & Hardening
+      labels:
+        - bug
+        - hardening
+        - reliability
+    - title: Docs & Ops
+      labels:
+        - documentation
+        - release
+    - title: Other Changes
+      labels:
+        - "*"

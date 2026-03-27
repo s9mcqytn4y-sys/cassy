@@ -5,6 +5,7 @@ import id.azureenterprise.cassy.sales.application.NoopSalesFinalizationHooks
 import id.azureenterprise.cassy.sales.application.PaymentGatewayPort
 import id.azureenterprise.cassy.sales.application.SalesFinalizationHooks
 import id.azureenterprise.cassy.sales.application.SalesService
+import id.azureenterprise.cassy.sales.application.VoidSaleService
 import id.azureenterprise.cassy.sales.data.SalesRepository
 import id.azureenterprise.cassy.sales.domain.PricingEngine
 import org.koin.core.module.Module
@@ -27,6 +28,15 @@ val salesModule = module {
             productLookupUseCase = get(),
             clock = get(),
             finalizationHooks = get()
+        )
+    }
+    single {
+        VoidSaleService(
+            salesRepository = get(),
+            kernelRepository = get(),
+            accessService = get(),
+            cashControlService = get(),
+            inventoryService = get()
         )
     }
 }

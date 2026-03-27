@@ -1,5 +1,5 @@
 param(
-    [string]$MsiPath = "apps/desktop-pos/build/compose/binaries/main/msi/Cassy-0.1.0.msi",
+    [string]$MsiPath = "",
     [string[]]$AppArgs = @("--smoke-run"),
     [string]$OutputDirectory = "build/installer-evidence"
 )
@@ -26,6 +26,18 @@ function Resolve-ProductCode {
     }
 
     throw "Unable to resolve Cassy MSI product code from uninstall entry."
+}
+
+function Resolve-LatestArtifact {
+    param(
+        [string]$SearchRoot,
+        [string]$Pattern
+    )
+
+    $root = (Resolve-Path $SearchRoot).Path
+    return Get-ChildItem -Path $root -Filter $Pattern -File |
+        Sort-Object LastWriteTimeUtc -Descending |
+        Select-Object -First 1
 }
 
 function Invoke-MsiStep {
@@ -74,8 +86,13 @@ function Invoke-InstalledSmoke {
     }
 
     $previousMarker = $env:CASSY_SMOKE_MARKER
+    $previousDataRoot = $env:CASSY_DATA_DIR
+    $previousScenario = $env:CASSY_SMOKE_SCENARIO
     $env:CASSY_SMOKE_MARKER = $MarkerPath
+    $env:CASSY_DATA_DIR = (Join-Path (Split-Path $MarkerPath -Parent) "smoke-data")
+    $env:CASSY_SMOKE_SCENARIO = "beta"
     try {
+        New-Item -ItemType Directory -Path $env:CASSY_DATA_DIR -Force | Out-Null
         & $ExePath @Arguments *> $LogPath
         $exitCode = $LASTEXITCODE
         $deadline = (Get-Date).AddSeconds(30)
@@ -102,10 +119,28 @@ function Invoke-InstalledSmoke {
         } else {
             $env:CASSY_SMOKE_MARKER = $previousMarker
         }
+        if ($null -eq $previousDataRoot) {
+            Remove-Item Env:CASSY_DATA_DIR -ErrorAction SilentlyContinue
+        } else {
+            $env:CASSY_DATA_DIR = $previousDataRoot
+        }
+        if ($null -eq $previousScenario) {
+            Remove-Item Env:CASSY_SMOKE_SCENARIO -ErrorAction SilentlyContinue
+        } else {
+            $env:CASSY_SMOKE_SCENARIO = $previousScenario
+        }
     }
 }
 
-$resolvedMsiPath = (Resolve-Path $MsiPath).Path
+$resolvedMsiPath = if ($MsiPath) {
+    (Resolve-Path $MsiPath).Path
+} else {
+    $resolved = Resolve-LatestArtifact -SearchRoot "apps/desktop-pos/build/compose/binaries/main/msi" -Pattern "Cassy-*.msi"
+    if (-not $resolved) {
+        throw "MSI artifact tidak ditemukan di build compose output."
+    }
+    $resolved.FullName
+}
 $repoRoot = (Get-Location).Path
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $outputRoot = Join-Path $repoRoot $OutputDirectory

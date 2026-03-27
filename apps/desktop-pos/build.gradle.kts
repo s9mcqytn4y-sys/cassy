@@ -49,14 +49,18 @@ val desktopJavaLauncher = javaToolchains.launcherFor {
     languageVersion.set(JavaLanguageVersion.of(17))
 }
 
-val desktopPackageVersion = "0.1.0"
+val desktopReleaseVersion = providers.gradleProperty("cassy.release.version").orElse("0.2.0-beta.1").get()
+val desktopPackageVersion = providers.gradleProperty("cassy.package.version").orElse("0.2.0").get()
+val desktopReleaseChannel = providers.gradleProperty("cassy.release.channel").orElse("beta").get()
+val desktopDisplayName = providers.gradleProperty("cassy.release.displayName").orElse("Cassy Beta").get()
 val desktopUpgradeUuid = "3d66aafe-2e8f-4f6e-a9cb-48d5564752d4"
 
 tasks.withType<JavaExec>().configureEach {
     javaLauncher.set(desktopJavaLauncher)
     jvmArgs(
-        "-Dcassy.release.version=$desktopPackageVersion",
-        "-Dcassy.runtime.channel=gradle-task"
+        "-Dcassy.release.version=$desktopReleaseVersion",
+        "-Dcassy.runtime.channel=$desktopReleaseChannel",
+        "-Dcassy.display.name=$desktopDisplayName"
     )
 }
 
@@ -78,12 +82,16 @@ compose.desktop {
     application {
         mainClass = "id.azureenterprise.cassy.desktop.MainKt"
         jvmArgs += listOf(
-            "-Dcassy.release.version=$desktopPackageVersion",
-            "-Dcassy.runtime.channel=packaged-release-candidate"
+            "-Dcassy.release.version=$desktopReleaseVersion",
+            "-Dcassy.runtime.channel=$desktopReleaseChannel",
+            "-Dcassy.display.name=$desktopDisplayName"
         )
         nativeDistributions {
             packageName = "Cassy"
             packageVersion = desktopPackageVersion
+            description = "Cassy Desktop POS untuk single-outlet retail dengan posture local-first."
+            vendor = "Cassy"
+            copyright = "Copyright (c) 2026 Cassy"
             targetFormats(TargetFormat.Exe, TargetFormat.Msi)
             modules("java.sql")
             windows {

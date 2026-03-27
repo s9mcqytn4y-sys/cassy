@@ -62,6 +62,8 @@ data class DailySummary(
     val transactionCount: Int,
     val cashSalesTotal: Double,
     val nonCashSalesTotal: Double,
+    val voidedSalesTotal: Double,
+    val voidedSaleCount: Int,
     val netCashMovement: Double, // cashIn - cashOut - safeDrop
     val shiftCount: Int,
     val openShiftCount: Int,
@@ -85,6 +87,8 @@ data class ShiftSummary(
     val salesTotal: Double,
     val cashSalesTotal: Double,
     val nonCashSalesTotal: Double,
+    val voidedSalesTotal: Double,
+    val voidedSaleCount: Int,
     val cashInTotal: Double,
     val cashOutTotal: Double,
     val safeDropTotal: Double,

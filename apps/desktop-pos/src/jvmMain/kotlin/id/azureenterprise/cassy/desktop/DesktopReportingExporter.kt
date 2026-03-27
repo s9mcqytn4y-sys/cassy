@@ -61,6 +61,8 @@ class DesktopReportingExporter(
                     "transaction_count",
                     "cash_sales_total",
                     "non_cash_sales_total",
+                    "voided_sales_total",
+                    "voided_sale_count",
                     "net_cash_movement",
                     "shift_count",
                     "open_shift_count",
@@ -87,6 +89,8 @@ class DesktopReportingExporter(
                     bundle.dailySummary.transactionCount,
                     bundle.dailySummary.cashSalesTotal.toCurrencyString(),
                     bundle.dailySummary.nonCashSalesTotal.toCurrencyString(),
+                    bundle.dailySummary.voidedSalesTotal.toCurrencyString(),
+                    bundle.dailySummary.voidedSaleCount,
                     bundle.dailySummary.netCashMovement.toCurrencyString(),
                     bundle.dailySummary.shiftCount,
                     bundle.dailySummary.openShiftCount,
@@ -120,6 +124,8 @@ class DesktopReportingExporter(
                     "sales_total",
                     "cash_sales_total",
                     "non_cash_sales_total",
+                    "voided_sales_total",
+                    "voided_sale_count",
                     "cash_in_total",
                     "cash_out_total",
                     "safe_drop_total",
@@ -143,6 +149,8 @@ class DesktopReportingExporter(
                         shiftSummary.salesTotal.toCurrencyString(),
                         shiftSummary.cashSalesTotal.toCurrencyString(),
                         shiftSummary.nonCashSalesTotal.toCurrencyString(),
+                        shiftSummary.voidedSalesTotal.toCurrencyString(),
+                        shiftSummary.voidedSaleCount,
                         shiftSummary.cashInTotal.toCurrencyString(),
                         shiftSummary.cashOutTotal.toCurrencyString(),
                         shiftSummary.safeDropTotal.toCurrencyString(),
@@ -233,6 +241,10 @@ class DesktopReportingExporter(
                 <section class="card">
                   <div class="label">Total Sales</div>
                   <div class="value">${bundle.dailySummary.totalSales.toCurrencyString()}</div>
+                </section>
+                <section class="card">
+                  <div class="label">Void Tercatat</div>
+                  <div class="value">${bundle.dailySummary.voidedSaleCount} / ${bundle.dailySummary.voidedSalesTotal.toCurrencyString()}</div>
                 </section>
                 <section class="card">
                   <div class="label">Sync State</div>

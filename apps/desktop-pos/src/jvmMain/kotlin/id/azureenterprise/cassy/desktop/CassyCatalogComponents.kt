@@ -54,7 +54,7 @@ fun CassyCatalogView(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 ShortcutHintBar(
-                    hints = listOf("Enter Scan", "F8 Ringkasan", "F10 Kas"),
+                    hints = listOf("Enter Scan", "F7 Void", "F8 Ringkasan", "F10 Kas"),
                     modifier = Modifier.fillMaxWidth()
                 )
                 Row(
@@ -171,6 +171,8 @@ fun CassyCartPanel(
     onPrintLastReceipt: () -> Unit,
     onReprintLastReceipt: () -> Unit,
     onCancelSale: () -> Unit,
+    onVoidSale: () -> Unit,
+    onShowReporting: () -> Unit,
     onInventoryControl: () -> Unit,
     onCashControl: () -> Unit,
     onEndShift: () -> Unit,
@@ -326,6 +328,11 @@ fun CassyCartPanel(
 
             // Operational Controls (Bottom)
             Spacer(modifier = Modifier.height(16.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SmallControlBtn("Void (F7)", onVoidSale, Modifier.weight(1f))
+                SmallControlBtn("Ringkasan (F8)", onShowReporting, Modifier.weight(1f))
+            }
+            Spacer(modifier = Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 SmallControlBtn("Inventori (F9)", onInventoryControl, Modifier.weight(1f))
                 SmallControlBtn("Kas (F10)", onCashControl, Modifier.weight(1f))

@@ -26,3 +26,4 @@ Updated: 2026-03-19
 
 ## RECOMMENDATION
 - Gunakan dokumen ini sebagai ringkasan gate, tetapi tetap rujuk ke `roadmap_bridge.md` dan `r3_solver_status.md` untuk batas honesty.
+> Historical Snapshot: laporan ini adalah snapshot fase R3 dan tidak menggantikan truth aktif repo.

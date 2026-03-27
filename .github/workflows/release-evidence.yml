@@ -12,23 +12,51 @@ jobs:
     name: release-evidence
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+      - name: Validate Release Authority Docs
+        run: |
+          test -f README.md
+          test -f CHANGELOG.md
+          test -f LICENSE
+          test -f EULA.md
+          test -f PRIVACY.md
+          test -f SECURITY.md
+          test -f THIRD_PARTY_NOTICES.md
+          test -f docs/execution/roadmap_bridge.md
+          test -f docs/execution/repo_reality_sync.md
+          test -f docs/execution/release_candidate_checklist.md
+          test -f docs/execution/beta_burn_in_checklist.md
+          test -f docs/execution/beta_release_readiness.md
+          test -f docs/execution/windows_code_signing_posture.md
+          test -f docs/execution/desktop_device_support_matrix.md
+          test -f docs/user/operator_quickstart.md
+          test -f docs/user/daily_operations_guide.md
       - name: Create Release Evidence Manifest
         run: |
           mkdir -p build/release-evidence
           {
             echo "commit=${GITHUB_SHA}"
             echo "generated_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-            echo "required_pr_checks=validate-wrapper,shared-fast,android-pos-fast,desktop-fast,pr-gate-summary"
+            echo "required_pr_checks=validate-wrapper,repo-authority-fast,shared-fast,android-pos-fast,desktop-fast,pr-gate-summary"
             echo "mainline_artifacts=cassy-desktop-exe,cassy-desktop-msi,cassy-desktop-app,cassy-installer-evidence,cassy-mainline-evidence,cassy-release-diagnostics"
             echo "installer-smoke=mainline-scripted"
+            echo "upgrade-evidence=tooling/scripts/Invoke-WindowsUpgradeEvidence.ps1"
+            echo "perf-probe=tooling/scripts/Invoke-DesktopPerformanceProbe.ps1"
             echo "windows-pilot-truth=local-package-plus-hosted-mainline"
             echo "rollback-baseline=tooling/scripts/Backup-CassyDesktopState.ps1"
             echo "diagnostics-baseline=tooling/scripts/Collect-WindowsReleaseDiagnostics.ps1"
             echo "shift-close-report=DIGITAL_ONLY"
             echo "inventory-migration-verify=required"
+            echo "release-candidate-checklist=docs/execution/release_candidate_checklist.md"
+            echo "beta-burn-in-checklist=docs/execution/beta_burn_in_checklist.md"
+            echo "beta-readiness=docs/execution/beta_release_readiness.md"
+            echo "device-support-matrix=docs/execution/desktop_device_support_matrix.md"
+            echo "operator-guide=docs/user/operator_quickstart.md"
+            echo "privacy=PRIVACY.md"
+            echo "security=SECURITY.md"
+            echo "eula=EULA.md"
           } > build/release-evidence/release-evidence-manifest.txt
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: cassy-release-evidence
           path: build/release-evidence/release-evidence-manifest.txt

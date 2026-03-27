@@ -11,6 +11,7 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import id.azureenterprise.cassy.kernel.domain.OperatorRole
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -47,6 +48,7 @@ fun main(args: Array<String>) {
                 var showCloseDayDialog by remember { mutableStateOf(false) }
                 var showCashControlDialog by remember { mutableStateOf(false) }
                 var showInventoryDialog by remember { mutableStateOf(false) }
+                var showVoidDialog by remember { mutableStateOf(false) }
                 var showReportingDialog by remember { mutableStateOf(false) }
 
                 LaunchedEffect(Unit) {
@@ -59,6 +61,7 @@ fun main(args: Array<String>) {
                         if (it.type == KeyEventType.KeyDown) {
                             when (it.key) {
                                 Key.F1, Key.F5 -> { scope.launch { controller.replaySyncAndReload() }; true }
+                                Key.F7 -> { showVoidDialog = true; true }
                                 Key.F12 -> { showCloseDayDialog = true; true }
                                 Key.F11 -> { showEndShiftDialog = true; true }
                                 Key.F10 -> { showCashControlDialog = true; true }
@@ -73,7 +76,10 @@ fun main(args: Array<String>) {
                                     }
                                 }
                                 Key.Escape -> {
-                                    if (showReportingDialog) {
+                                    if (showVoidDialog) {
+                                        showVoidDialog = false
+                                        true
+                                    } else if (showReportingDialog) {
                                         showReportingDialog = false
                                         true
                                     } else {
@@ -148,6 +154,8 @@ fun main(args: Array<String>) {
                                                     onPrintLastReceipt = { scope.launch { controller.printLastReceipt() } },
                                                     onReprintLastReceipt = { scope.launch { controller.reprintLastReceipt() } },
                                                     onCancelSale = { scope.launch { controller.cancelCurrentSale() } },
+                                                    onVoidSale = { showVoidDialog = true },
+                                                    onShowReporting = { showReportingDialog = true },
                                                     onInventoryControl = { showInventoryDialog = true },
                                                     onCashControl = { showCashControlDialog = true },
                                                     onEndShift = { showEndShiftDialog = true },
@@ -263,6 +271,23 @@ fun main(args: Array<String>) {
                             isBusy = state.isBusy
                         )
                     }
+
+                    if (showVoidDialog) {
+                        VoidSaleDialog(
+                            voidState = state.operations.voidSale,
+                            recentSales = state.catalog.recentSales,
+                            onDismiss = { showVoidDialog = false },
+                            onSelectSale = controller::selectVoidSale,
+                            onReasonCodeChanged = controller::updateVoidReasonCode,
+                            onReasonDetailChanged = controller::updateVoidReasonDetail,
+                            onInventoryFollowUpChanged = controller::updateVoidInventoryFollowUpNote,
+                            onConfirm = {
+                                showVoidDialog = false
+                                scope.launch { controller.executeVoidSale() }
+                            },
+                            isBusy = state.isBusy
+                        )
+                    }
                 }
             }
         }
@@ -271,23 +296,17 @@ fun main(args: Array<String>) {
 
 private fun runHeadlessSmoke() {
     val smokeMarkerPath = System.getenv("CASSY_SMOKE_MARKER")
+    val smokeScenario = System.getenv("CASSY_SMOKE_SCENARIO") ?: "basic"
     try {
         startDesktopKoin()
         runBlocking {
             val controller = GlobalContext.get().get<DesktopAppController>()
-            controller.load()
-            delay(300)
-            val stage = controller.state.value.stage
-            if (stage is DesktopStage.FatalError) {
-                val message = "CASSY_SMOKE_FAILED stage=${stage.message.replace('\n', ' ')}"
-                smokeMarkerPath?.let { File(it).writeText(message) }
-                System.err.println(message)
-                exitProcess(1)
-            } else {
-                val message = "CASSY_SMOKE_OK stage=${stage::class.simpleName}"
-                smokeMarkerPath?.let { File(it).writeText(message) }
-                println(message)
+            val message = when (smokeScenario.lowercase()) {
+                "beta" -> runBetaSmokeScenario(controller)
+                else -> runBasicSmokeScenario(controller)
             }
+            smokeMarkerPath?.let { File(it).writeText(message) }
+            println(message)
         }
     } catch (error: Throwable) {
         val detail = error.message?.replace('\n', ' ')?.takeIf { it.isNotBlank() } ?: error::class.simpleName.orEmpty()
@@ -295,5 +314,98 @@ private fun runHeadlessSmoke() {
         smokeMarkerPath?.let { File(it).writeText(message) }
         System.err.println(message)
         exitProcess(1)
+    }
+}
+
+private suspend fun runBasicSmokeScenario(controller: DesktopAppController): String {
+    controller.load()
+    delay(300)
+    val stage = controller.state.value.stage
+    if (stage is DesktopStage.FatalError) {
+        error(stage.message.replace('\n', ' '))
+    }
+    return "CASSY_SMOKE_OK scenario=basic stage=${stage::class.simpleName}"
+}
+
+private suspend fun runBetaSmokeScenario(controller: DesktopAppController): String {
+    controller.load()
+    delay(300)
+
+    if (controller.state.value.stage == DesktopStage.Bootstrap) {
+        controller.updateBootstrapField(BootstrapField.StoreName, "Cassy Beta Store")
+        controller.updateBootstrapField(BootstrapField.TerminalName, "Kasir Beta 01")
+        controller.updateBootstrapField(BootstrapField.CashierName, "Kasir Beta")
+        controller.updateBootstrapField(BootstrapField.CashierPin, "123456")
+        controller.updateBootstrapField(BootstrapField.SupervisorName, "Supervisor Beta")
+        controller.updateBootstrapField(BootstrapField.SupervisorPin, "654321")
+        controller.bootstrapStore()
+        delay(400)
+    }
+
+    val operator = controller.state.value.login.operators.firstOrNull {
+        it.roleLabel.contains(OperatorRole.SUPERVISOR.name, ignoreCase = true) ||
+            it.roleLabel.contains("Supervisor", ignoreCase = true)
+    } ?: controller.state.value.login.operators.firstOrNull()
+        ?: error("Operator smoke tidak tersedia setelah bootstrap")
+
+    controller.selectOperator(operator.id)
+    controller.updatePin("654321")
+    controller.login()
+    delay(400)
+
+    if (controller.state.value.stage == DesktopStage.OpenDay) {
+        controller.openBusinessDay()
+        delay(400)
+    }
+
+    if (controller.state.value.stage == DesktopStage.StartShift) {
+        controller.updateOpeningCashInput("100000")
+        controller.startShift()
+        delay(400)
+    }
+
+    val stageAfterShift = controller.state.value.stage
+    if (stageAfterShift is DesktopStage.FatalError) {
+        error(stageAfterShift.message.replace('\n', ' '))
+    }
+
+    controller.updateBarcodeInput("8996001600033")
+    controller.scanBarcodeOrSku()
+    delay(200)
+
+    controller.updateCashReceivedInput("1")
+    controller.checkoutCash()
+    delay(500)
+
+    val recentSale = controller.state.value.catalog.recentSales.firstOrNull()
+        ?: error("Recent sale smoke tidak tersedia setelah checkout")
+
+    controller.selectVoidSale(recentSale.saleId)
+    controller.updateVoidReasonCode("VOID_DUPLICATE_INPUT")
+    controller.updateVoidReasonDetail("Beta smoke duplicate input")
+    controller.updateVoidInventoryFollowUpNote("Verifikasi fisik item smoke beta")
+    controller.executeVoidSale()
+    delay(500)
+
+    controller.exportOperationalReport()
+    delay(400)
+
+    val exportPath = controller.state.value.operations.reportingExportPath
+        ?: error("Export reporting smoke beta tidak menghasilkan path")
+    if (!File(exportPath).exists()) {
+        error("Folder export reporting smoke beta tidak ditemukan: $exportPath")
+    }
+
+    val finalStage = controller.state.value.stage
+    if (finalStage is DesktopStage.FatalError) {
+        error(finalStage.message.replace('\n', ' '))
+    }
+
+    return buildString {
+        append("CASSY_SMOKE_OK")
+        append(" scenario=beta")
+        append(" stage=${finalStage::class.simpleName}")
+        append(" flow=bootstrap,login,open-day,start-shift,checkout,void,report-export")
+        append(" export=${File(exportPath).name}")
     }
 }

@@ -40,7 +40,8 @@ enum class OperationBlockerCode {
     SHIFT_VARIANCE_OUT_OF_TOLERANCE,
     OPEN_SHIFT_EXISTS,
     PENDING_APPROVAL_EXISTS,
-    VOID_NOT_READY
+    VOID_NOT_READY,
+    VOID_PAYMENT_METHOD_UNSUPPORTED
 }
 
 data class OperationDecision(
@@ -96,7 +97,8 @@ enum class ReasonCategory {
     CASH_OUT,
     SAFE_DROP,
     SHIFT_CLOSE_VARIANCE,
-    INVENTORY_ADJUSTMENT
+    INVENTORY_ADJUSTMENT,
+    VOID_SALE
 }
 
 enum class ApprovalStatus {
@@ -255,5 +257,13 @@ data class ShiftSalesSummary(
     val completedCashSalesTotal: Double = 0.0,
     val completedNonCashSalesTotal: Double = 0.0,
     val completedSaleCount: Int = 0,
+    val voidedSaleCount: Int = 0,
+    val voidedSalesTotal: Double = 0.0,
     val pendingTransactions: List<PendingTransactionSummary> = emptyList()
+)
+
+data class VoidSalesSummary(
+    val count: Int = 0,
+    val totalAmount: Double = 0.0,
+    val latestVoidedAtEpochMs: Long? = null
 )

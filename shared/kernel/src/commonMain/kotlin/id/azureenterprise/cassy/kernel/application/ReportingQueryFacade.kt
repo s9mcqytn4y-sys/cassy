@@ -97,6 +97,7 @@ class ReportingQueryFacade(
         val shiftIds = shifts.map { it.id }
 
         val salesSummary = salesPort.getMultiShiftSalesSummary(shiftIds)
+        val voidSummary = salesPort.getMultiShiftVoidSummary(shiftIds)
         val cashTotals = kernelRepository.getCashMovementTotalsByMultiShift(shiftIds)
 
         val pendingApprovals = kernelRepository.listPendingApprovalRequests().filter { it.businessDayId == businessDayId }
@@ -153,6 +154,17 @@ class ReportingQueryFacade(
         // 4. Hardware Issues
         issues.addAll(hardwarePort.getHardwareIssues())
 
+        if (voidSummary.count > 0) {
+            issues.add(OperationalIssue(
+                type = OperationalIssueType.OPERATIONAL_BLOCKER,
+                severity = IssueSeverity.INFO,
+                label = "Void Tercatat",
+                description = "Ada ${voidSummary.count} penjualan yang sudah ditandai void. Review cash-out/refund dan tindak lanjut stok manual bila relevan.",
+                timestamp = voidSummary.latestVoidedAtEpochMs?.let(Instant::fromEpochMilliseconds),
+                status = "VOID_RECORDED"
+            ))
+        }
+
         return DailySummary(
             businessDayId = businessDayId,
             dateLabel = dateLabel,
@@ -163,6 +175,8 @@ class ReportingQueryFacade(
             transactionCount = salesSummary.completedSaleCount,
             cashSalesTotal = salesSummary.completedCashSalesTotal,
             nonCashSalesTotal = salesSummary.completedNonCashSalesTotal,
+            voidedSalesTotal = voidSummary.totalAmount,
+            voidedSaleCount = voidSummary.count,
             netCashMovement = netCashMovement,
             shiftCount = shifts.size,
             openShiftCount = openShiftsCount,
@@ -187,6 +201,7 @@ class ReportingQueryFacade(
     suspend fun getShiftSummary(shiftId: String): ShiftSummary? {
         val shift = kernelRepository.getShiftById(shiftId) ?: return null
         val salesSummary = salesPort.getShiftSalesSummary(shiftId)
+        val voidSummary = salesPort.getShiftVoidSummary(shiftId)
         val cashTotals = kernelRepository.getCashMovementTotalsByShift(shiftId)
 
         val expectedCash = shift.openingCash +
@@ -239,6 +254,17 @@ class ReportingQueryFacade(
         // 4. Hardware Issues
         issues.addAll(hardwarePort.getHardwareIssues())
 
+        if (voidSummary.count > 0) {
+            issues.add(OperationalIssue(
+                type = OperationalIssueType.OPERATIONAL_BLOCKER,
+                severity = IssueSeverity.INFO,
+                label = "Void Tercatat di Shift",
+                description = "Shift ini memiliki ${voidSummary.count} void dengan total Rp ${voidSummary.totalAmount.toInt()}. Review refund kas dan follow-up stok manual.",
+                timestamp = voidSummary.latestVoidedAtEpochMs?.let(Instant::fromEpochMilliseconds),
+                status = "VOID_RECORDED"
+            ))
+        }
+
         return ShiftSummary(
             shiftId = shiftId,
             businessDayId = shift.businessDayId,
@@ -253,6 +279,8 @@ class ReportingQueryFacade(
             salesTotal = salesSummary.completedCashSalesTotal + salesSummary.completedNonCashSalesTotal,
             cashSalesTotal = salesSummary.completedCashSalesTotal,
             nonCashSalesTotal = salesSummary.completedNonCashSalesTotal,
+            voidedSalesTotal = voidSummary.totalAmount,
+            voidedSaleCount = voidSummary.count,
             cashInTotal = cashTotals.cashInTotal,
             cashOutTotal = cashTotals.cashOutTotal,
             safeDropTotal = cashTotals.safeDropTotal,

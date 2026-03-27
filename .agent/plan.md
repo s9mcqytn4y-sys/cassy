@@ -1,4 +1,4 @@
-# Cassy Rolling Execution Plan (Updated: R4 Hosted Verified, R5 Hardened, R6 Done Local-Boundary)
+# Cassy Rolling Execution Plan (Updated: 0.2.0-beta.1, R4/R5/R6 Done, Beta Hardening Active)
 
 ## R1-R4 Retrospective (Hardened)
 - **DONE**: R1 Desktop Cashier Finality (Atomic Bundles).
@@ -6,7 +6,7 @@
 - **DONE**: R3 Inventory Truth Lite (Ledger/Discrepancy/Balance).
 - **DONE**: R4 Windows Release Trust for local/repo lane (EXE + MSI + installer evidence + diagnostics).
 
-## Current Mission: R5 Hardening + Risk Closure
+## Current Mission: Desktop Beta Hardening
 - **R5 Visibility & Reporting** (**DONE / HARDENED**)
   - [x] `ReportingQueryFacade` hidup di `shared:kernel`.
   - [x] `DailySummary` dan `ShiftSummary` terhubung ke desktop.
@@ -22,6 +22,17 @@
   - [x] Test/build/evidence cukup untuk definisi milestone aktif.
   - [ ] Transport backend nyata tetap future lane.
   - [ ] Durable conflict lane tetap future lane.
+
+## Active RC Hardening Track
+- [x] Sinkronkan `README` dan entry docs agar tidak drift dari `docs/execution`.
+- [x] Finalkan baseline legal/privacy/security (`LICENSE`, `EULA`, `PRIVACY`, `SECURITY`, third-party notice).
+- [x] Finalkan support matrix device dan operator quickstart.
+- [x] Tambahkan release-candidate checklist sebagai authority gate desktop.
+- [x] Tutup void sale execution lane untuk desktop-first V1.
+- [x] Finalkan versioning beta, upgrade evidence, perf probe, dan burn-in checklist.
+- [x] Kumpulkan evidence build/test/lint/package/smoke terbaru setelah patch beta.
+- [ ] Push commit beta ke GitHub + verifikasi hosted workflow/tag terbaru.
+- [ ] Selesaikan burn-in rehearsal 2-3 hari untuk pilot terbatas.
 
 ## Strategic Lock
 - Cassy is desktop-first single-outlet retail core.

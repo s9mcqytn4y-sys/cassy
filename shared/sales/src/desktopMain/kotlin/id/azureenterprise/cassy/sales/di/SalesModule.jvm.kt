@@ -12,7 +12,7 @@ import java.io.File
 
 actual val salesDatabaseModule: Module = module {
     single {
-        val databasePath = File(System.getProperty("user.home"), ".cassy/sales.db")
+        val databasePath = File(resolveDesktopDataRoot(), "sales.db")
         if (!databasePath.parentFile.exists()) {
             databasePath.parentFile.mkdirs()
         }
@@ -169,4 +169,10 @@ private suspend fun ignoreDuplicateConstraint(block: suspend () -> Unit) {
                 throw error
             }
         }
+}
+
+private fun resolveDesktopDataRoot(): File {
+    val explicit = System.getProperty("cassy.data.dir")
+        ?: System.getenv("CASSY_DATA_DIR")
+    return explicit?.let(::File) ?: File(System.getProperty("user.home"), ".cassy")
 }

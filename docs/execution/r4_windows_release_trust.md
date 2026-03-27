@@ -77,3 +77,4 @@ powershell -ExecutionPolicy Bypass -File tooling/scripts/Collect-WindowsReleaseD
 - [RECOMMENDATION] Jalankan backup state sebelum install/update candidate lokal.
 - [RECOMMENDATION] Lampirkan artifact `cassy-release-diagnostics` dan `cassy-installer-evidence` pada review release Windows.
 - [RECOMMENDATION] Perlakukan upgrade/rollback antar-versi sebagai follow-up terpisah, bukan blocker untuk truth R4 saat ini.
+> Historical Snapshot: dokumen ini tetap disimpan sebagai jejak evolusi. Authority aktif ada di `roadmap_bridge.md`, `windows_desktop_runbook.md`, dan checklist release aktif.

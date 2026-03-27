@@ -17,6 +17,31 @@ jobs:
       - uses: actions/checkout@v5
       - uses: gradle/wrapper-validation-action@v3
 
+  repo-authority-fast:
+    name: repo-authority-fast
+    needs: validate-wrapper
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Verify authority docs
+        run: |
+          test -f README.md
+          test -f CHANGELOG.md
+          test -f LICENSE
+          test -f EULA.md
+          test -f PRIVACY.md
+          test -f SECURITY.md
+          test -f THIRD_PARTY_NOTICES.md
+          test -f docs/execution/roadmap_bridge.md
+          test -f docs/execution/repo_reality_sync.md
+          test -f docs/execution/release_candidate_checklist.md
+          test -f docs/execution/beta_burn_in_checklist.md
+          test -f docs/execution/beta_release_readiness.md
+          test -f docs/execution/windows_code_signing_posture.md
+          test -f docs/execution/desktop_device_support_matrix.md
+          test -f docs/user/operator_quickstart.md
+          test -f docs/user/daily_operations_guide.md
+
   shared-fast:
     name: shared-fast
     needs: validate-wrapper
@@ -36,7 +61,10 @@ jobs:
           dependencyGuard
           test
           detekt
+          :shared:kernel:verifyCommonMainKernelDatabaseMigration
           :shared:inventory:verifyCommonMainInventoryDatabaseMigration
+          :shared:masterdata:verifyCommonMainMasterDataDatabaseMigration
+          :shared:sales:verifyCommonMainSalesDatabaseMigration
           --configuration-cache
           --scan
           --no-daemon
@@ -84,16 +112,18 @@ jobs:
   pr-gate-summary:
     name: pr-gate-summary
     if: always()
-    needs: [validate-wrapper, shared-fast, android-pos-fast, desktop-fast]
+    needs: [validate-wrapper, repo-authority-fast, shared-fast, android-pos-fast, desktop-fast]
     runs-on: ubuntu-latest
     steps:
       - name: Summarize PR Gate
         run: |
           echo "validate-wrapper=${{ needs.validate-wrapper.result }}"
+          echo "repo-authority-fast=${{ needs.repo-authority-fast.result }}"
           echo "shared-fast=${{ needs.shared-fast.result }}"
           echo "android-pos-fast=${{ needs.android-pos-fast.result }}"
           echo "desktop-fast=${{ needs.desktop-fast.result }}"
           test "${{ needs.validate-wrapper.result }}" = "success"
+          test "${{ needs.repo-authority-fast.result }}" = "success"
           test "${{ needs.shared-fast.result }}" = "success"
           test "${{ needs.android-pos-fast.result }}" = "success"
           test "${{ needs.desktop-fast.result }}" = "success"

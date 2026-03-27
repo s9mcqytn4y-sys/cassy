@@ -63,3 +63,4 @@ Primary pilot OS: Windows
 - Source markdown ini: `docs/execution/roadmap_pdf_source_2026_03_16.md`
 - Output PDF repo-local: `output/pdf/cassy_roadmap_status_sync_2026_03_16.pdf`
 - Generator: `tooling/scripts/generate_roadmap_status_pdf.py`
+> Historical Snapshot: dokumen ini memotret baseline dari PDF/turn lama dan tidak boleh dipakai sebagai runtime authority terbaru.

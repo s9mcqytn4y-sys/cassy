@@ -6,6 +6,7 @@ import kotlinx.serialization.Serializable
 enum class SaleStatus {
     PENDING,
     COMPLETED,
+    VOIDED,
     CANCELLED,
     SUSPENDED
 }
@@ -186,7 +187,52 @@ data class SaleHistoryEntry(
     val finalizedAtEpochMs: Long,
     val finalAmount: Double,
     val paymentMethod: String,
-    val paymentState: PaymentState
+    val paymentState: PaymentState,
+    val saleStatus: SaleStatus,
+    val voidedAtEpochMs: Long? = null
+)
+
+data class SaleVoidRecord(
+    val id: String,
+    val saleId: String,
+    val businessDayId: String,
+    val shiftId: String,
+    val terminalId: String,
+    val localNumber: String,
+    val paymentMethod: String,
+    val originalAmount: Double,
+    val cashRefundMovementId: String?,
+    val inventoryImpactClassification: String,
+    val inventoryFollowUpNote: String?,
+    val reasonCode: String,
+    val reasonDetail: String?,
+    val voidedBy: String,
+    val createdAtEpochMs: Long
+)
+
+data class SaleVoidSummary(
+    val count: Int = 0,
+    val totalAmount: Double = 0.0,
+    val latestVoidedAtEpochMs: Long? = null
+)
+
+data class VoidSaleAssessment(
+    val saleId: String,
+    val localNumber: String,
+    val paymentMethod: String,
+    val originalAmount: Double,
+    val saleStatus: SaleStatus,
+    val isEligible: Boolean,
+    val message: String,
+    val inventoryImpactClassification: String,
+    val inventoryFollowUpNote: String?,
+    val existingVoid: SaleVoidRecord? = null
+)
+
+data class VoidSaleExecutionResult(
+    val assessment: VoidSaleAssessment,
+    val saleVoid: SaleVoidRecord,
+    val cashRefundMovementId: String?
 )
 
 data class PersistedReceiptSnapshot(

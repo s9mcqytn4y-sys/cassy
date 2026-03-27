@@ -1,8 +1,9 @@
-# Cassy Codex Entry (Updated 2026-03-19)
+# Cassy Codex Entry (Updated 2026-03-27)
 
 ## Current Truth
 - Desktop adalah frontline utama.
-- R1 cashier finality, R2 operational control, dan R3 inventory truth lite sudah hidup di repo.
+- Repo sedang berada pada posture `0.2.0-beta.1` dengan target `Private Beta / Controlled Beta`.
+- R1 cashier finality, R2 operational control, R3 inventory truth lite, R4 Windows release trust, R5 reporting/export lite, dan R6 local-boundary replay sudah hidup di repo.
 - `shared:inventory` adalah owner tunggal untuk balance/ledger/discrepancy stock truth.
 
 ## UI Hardening Protocol (Finalized Phase 0-3)
@@ -24,6 +25,14 @@
 3. `.agent/plan.md`
 
 ## Verification Order
-1. `.\gradlew :shared:kernel:allTests :shared:sales:desktopTest :shared:inventory:desktopTest :shared:inventory:verifyCommonMainInventoryDatabaseMigration :apps:desktop-pos:test :apps:desktop-pos:smokeRun`
-2. `.\gradlew build`
-3. `.\gradlew detekt lint`
+1. `.\gradlew --version`
+2. `.\gradlew clean`
+3. `.\gradlew build`
+4. `.\gradlew test`
+5. `.\gradlew lint detekt`
+6. `.\gradlew :shared:kernel:verifyCommonMainKernelDatabaseMigration :shared:inventory:verifyCommonMainInventoryDatabaseMigration :shared:masterdata:verifyCommonMainMasterDataDatabaseMigration :shared:sales:verifyCommonMainSalesDatabaseMigration`
+7. `.\gradlew :apps:desktop-pos:createDistributable :apps:desktop-pos:packageExe :apps:desktop-pos:packageMsi :apps:desktop-pos:smokeRun`
+8. `powershell -ExecutionPolicy Bypass -File tooling/scripts/Invoke-DesktopDistributionSmoke.ps1`
+9. `powershell -ExecutionPolicy Bypass -File tooling/scripts/Invoke-WindowsInstallerEvidence.ps1`
+10. `powershell -ExecutionPolicy Bypass -File tooling/scripts/Invoke-WindowsUpgradeEvidence.ps1`
+11. `powershell -ExecutionPolicy Bypass -File tooling/scripts/Invoke-DesktopPerformanceProbe.ps1`

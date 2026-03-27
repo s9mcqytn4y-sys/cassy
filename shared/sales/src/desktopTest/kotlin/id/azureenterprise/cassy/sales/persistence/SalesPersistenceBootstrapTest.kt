@@ -139,6 +139,9 @@ class SalesPersistenceBootstrapTest {
                 stmt.executeQuery("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'FinalizationBundle'").use { rs ->
                     assertTrue(rs.next())
                 }
+                stmt.executeQuery("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'SaleVoid'").use { rs ->
+                    assertTrue(rs.next())
+                }
             }
         }
     }

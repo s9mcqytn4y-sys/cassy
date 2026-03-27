@@ -15,12 +15,14 @@ import id.azureenterprise.cassy.masterdata.domain.Product
 import id.azureenterprise.cassy.masterdata.domain.ProductLookupResult
 import id.azureenterprise.cassy.masterdata.domain.ProductLookupUseCase
 import id.azureenterprise.cassy.sales.application.SalesService
+import id.azureenterprise.cassy.sales.application.VoidSaleService
 import id.azureenterprise.cassy.sales.domain.Basket
 import id.azureenterprise.cassy.sales.domain.CashTenderQuote
 import id.azureenterprise.cassy.sales.domain.CompleteSaleOutcome
 import id.azureenterprise.cassy.sales.domain.ReceiptPrintState
 import id.azureenterprise.cassy.sales.domain.ReceiptPrintStatus
 import id.azureenterprise.cassy.sales.domain.SaleHistoryEntry
+import id.azureenterprise.cassy.sales.domain.SaleStatus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -38,6 +40,7 @@ class DesktopAppController(
     private val productLookupUseCase: ProductLookupUseCase,
     private val inventoryService: InventoryService,
     private val salesService: SalesService,
+    private val voidSaleService: VoidSaleService,
     private val hardwarePort: CashierHardwarePort,
     private val reportingQueryFacade: ReportingQueryFacade,
     private val syncReplayService: SyncReplayService,
@@ -429,7 +432,7 @@ class DesktopAppController(
                                 catalog = it.catalog.copy(
                                     lastFinalizedSaleId = saleId,
                                     lastReceiptPreview = receiptPreview.renderedContent,
-                                    recentSales = loadSaleHistory(),
+                                    recentSales = loadRecentSaleHistory(),
                                     cashReceivedInput = "",
                                     cashTenderQuote = null,
                                     receiptPreview = ReceiptPreviewState(
@@ -669,6 +672,63 @@ class DesktopAppController(
             UiBanner(
                 tone = if (denied) UiTone.Warning else UiTone.Danger,
                 message = if (denied) "Approval close shift ditolak" else "Approval close shift tidak bisa ditolak"
+            )
+        )
+    }
+
+    fun selectVoidSale(saleId: String) {
+        _state.update {
+            val updated = it.operations.voidSale.copy(selectedSaleId = saleId)
+            it.copy(operations = it.operations.copy(voidSale = recalculateVoidDraft(updated, it.catalog.recentSales)))
+        }
+    }
+
+    fun updateVoidReasonCode(value: String) {
+        _state.update {
+            val updated = it.operations.voidSale.copy(reasonCode = value)
+            it.copy(operations = it.operations.copy(voidSale = recalculateVoidDraft(updated, it.catalog.recentSales)))
+        }
+    }
+
+    fun updateVoidReasonDetail(value: String) {
+        _state.update {
+            val updated = it.operations.voidSale.copy(reasonDetail = value)
+            it.copy(operations = it.operations.copy(voidSale = recalculateVoidDraft(updated, it.catalog.recentSales)))
+        }
+    }
+
+    fun updateVoidInventoryFollowUpNote(value: String) {
+        _state.update {
+            val updated = it.operations.voidSale.copy(inventoryFollowUpNote = value)
+            it.copy(operations = it.operations.copy(voidSale = recalculateVoidDraft(updated, it.catalog.recentSales)))
+        }
+    }
+
+    suspend fun executeVoidSale() {
+        mutateBusy(true)
+        val voidState = state.value.operations.voidSale
+        val saleId = voidState.selectedSaleId
+            ?: return pushBanner(UiBanner(UiTone.Warning, "Pilih transaksi final yang akan di-void"))
+        if (voidState.reasonCode.isBlank()) {
+            return pushBanner(UiBanner(UiTone.Warning, "Pilih reason code void terlebih dahulu"))
+        }
+        val result = voidSaleService.executeVoid(
+            saleId = saleId,
+            reasonCode = voidState.reasonCode,
+            reasonDetail = voidState.reasonDetail,
+            inventoryFollowUpNote = voidState.inventoryFollowUpNote
+        )
+        refreshStage(
+            result.fold(
+                onSuccess = {
+                    UiBanner(
+                        UiTone.Warning,
+                        "Sale ${it.saleVoid.localNumber} di-void. Refund kas dicatat dan stok tetap perlu follow-up manual."
+                    )
+                },
+                onFailure = {
+                    UiBanner(UiTone.Danger, it.message ?: "Void sale gagal dieksekusi")
+                }
             )
         )
     }
@@ -944,6 +1004,16 @@ class DesktopAppController(
         val selectedCloseShiftReasonCode = state.value.operations.closeShiftReasonCode
             .takeIf { code -> closeShiftReasonOptions.any { it.code == code } }
             ?: closeShiftReasonOptions.firstOrNull()?.code.orEmpty()
+        val voidReasonOptions = cashControlService.listReasonCodes(ReasonCategory.VOID_SALE)
+            .map { ReasonOption(it.code, it.title) }
+        val recentSales = loadRecentSaleHistory()
+        val selectedVoidSaleId = state.value.operations.voidSale.selectedSaleId
+            ?.takeIf { selectedId -> recentSales.any { it.saleId == selectedId } }
+            ?: recentSales.firstOrNull { it.saleStatus == SaleStatus.COMPLETED }?.saleId
+            ?: recentSales.firstOrNull()?.saleId
+        val selectedVoidReasonCode = state.value.operations.voidSale.reasonCode
+            .takeIf { code -> voidReasonOptions.any { it.code == code } }
+            ?: voidReasonOptions.firstOrNull()?.code.orEmpty()
         val closeShiftReview = shiftClosingService.reviewCloseShift(
             state.value.operations.closingCashInput.toDoubleOrNull()
         )
@@ -975,6 +1045,12 @@ class DesktopAppController(
             activeShift != null -> reportingQueryFacade.getShiftSummary(activeShift.id)
             businessDay != null -> reportingQueryFacade.getLatestShiftSummary(businessDay.id)
             else -> null
+        }
+        val voidAssessment = selectedVoidSaleId?.let { saleId ->
+            voidSaleService.assessVoid(
+                saleId = saleId,
+                inventoryFollowUpNote = state.value.operations.voidSale.inventoryFollowUpNote
+            ).getOrNull()
         }
 
         var resolvedBanner = banner
@@ -1045,6 +1121,21 @@ class DesktopAppController(
                     dashboard = operationalSnapshot,
                     reportingSummary = reportingState,
                     reportingShiftSummary = reportingShiftState,
+                    voidSale = VoidSaleState(
+                        selectedSaleId = selectedVoidSaleId,
+                        reasonCode = selectedVoidReasonCode,
+                        reasonDetail = it.operations.voidSale.reasonDetail,
+                        inventoryFollowUpNote = it.operations.voidSale.inventoryFollowUpNote,
+                        reasonOptions = voidReasonOptions,
+                        assessmentMessage = voidAssessment?.message
+                            ?: "Pilih transaksi final untuk review void.",
+                        inventoryImpactClassification = voidAssessment?.inventoryImpactClassification ?: "NOT_READY",
+                        canExecute = voidAssessment?.isEligible == true,
+                        selectedLocalNumber = voidAssessment?.localNumber,
+                        selectedPaymentMethod = voidAssessment?.paymentMethod,
+                        selectedAmount = voidAssessment?.originalAmount,
+                        selectedSaleStatus = voidAssessment?.saleStatus?.name
+                    ),
                     reportingExportPath = it.operations.reportingExportPath,
                     reportingExportRuleNote = it.operations.reportingExportRuleNote.ifBlank {
                         "Export mengikuti snapshot lokal desktop. Data yang keluar harus dibaca sebagai operational truth terminal saat ini."
@@ -1054,7 +1145,7 @@ class DesktopAppController(
                 catalog = it.catalog.copy(
                     products = catalogProducts,
                     basket = refreshedBasket,
-                    recentSales = loadSaleHistory(),
+                    recentSales = recentSales,
                     cashTenderQuote = refreshedCashQuote
                 ),
                 inventory = refreshedInventory,
@@ -1157,12 +1248,51 @@ class DesktopAppController(
         _state.update { it.copy(isBusy = false, banner = banner) }
     }
 
-    private suspend fun loadSaleHistory(): List<SaleHistoryEntry> {
-        return salesService.getSaleHistory().getOrDefault(emptyList()).take(5)
+    private suspend fun loadRecentSaleHistory(): List<SaleHistoryEntry> {
+        return salesService.getRecentSaleHistory(limit = 8).getOrDefault(emptyList())
     }
 
     private fun currentCashTenderQuote(): CashTenderQuote? {
         return state.value.catalog.cashTenderQuote
+    }
+
+    private fun recalculateVoidDraft(
+        draft: VoidSaleState,
+        recentSales: List<SaleHistoryEntry>
+    ): VoidSaleState {
+        val selectedSale = recentSales.firstOrNull { it.saleId == draft.selectedSaleId }
+            ?: return draft.copy(
+                selectedLocalNumber = null,
+                selectedPaymentMethod = null,
+                selectedAmount = null,
+                selectedSaleStatus = null,
+                assessmentMessage = "Pilih transaksi final untuk review void.",
+                inventoryImpactClassification = "NOT_READY",
+                canExecute = false
+            )
+        val canExecute = selectedSale.saleStatus == SaleStatus.COMPLETED && selectedSale.paymentMethod == "CASH"
+        val assessmentMessage = when {
+            selectedSale.saleStatus == SaleStatus.VOIDED ->
+                "Penjualan ini sudah pernah di-void dan tidak boleh diproses ulang."
+            selectedSale.paymentMethod != "CASH" ->
+                "Void desktop V1 hanya mengeksekusi penjualan CASH. CARD/QRIS tetap perlu reversal/refund eksternal."
+            else ->
+                "Void sale cash siap dijalankan. Refund kas akan dicatat, stok tetap perlu follow-up manual."
+        }
+        val inventoryImpact = if (draft.inventoryFollowUpNote.isBlank()) {
+            "MANUAL_INVESTIGATION_REQUIRED"
+        } else {
+            "POST_SETTLEMENT_REVERSAL_CANDIDATE"
+        }
+        return draft.copy(
+            selectedLocalNumber = selectedSale.localNumber,
+            selectedPaymentMethod = selectedSale.paymentMethod,
+            selectedAmount = selectedSale.finalAmount,
+            selectedSaleStatus = selectedSale.saleStatus.name,
+            assessmentMessage = assessmentMessage,
+            inventoryImpactClassification = inventoryImpact,
+            canExecute = canExecute
+        )
     }
 }
 
@@ -1260,9 +1390,25 @@ data class OperationsState(
     ),
     val reportingSummary: DailySummary? = null,
     val reportingShiftSummary: ShiftSummary? = null,
+    val voidSale: VoidSaleState = VoidSaleState(),
     val reportingExportPath: String? = null,
     val reportingExportRuleNote: String = "Export mengikuti snapshot lokal desktop. Data yang keluar harus dibaca sebagai operational truth terminal saat ini.",
     val reportingExportedAt: kotlinx.datetime.Instant? = null
+)
+
+data class VoidSaleState(
+    val selectedSaleId: String? = null,
+    val selectedLocalNumber: String? = null,
+    val selectedPaymentMethod: String? = null,
+    val selectedAmount: Double? = null,
+    val selectedSaleStatus: String? = null,
+    val reasonCode: String = "",
+    val reasonDetail: String = "",
+    val inventoryFollowUpNote: String = "",
+    val reasonOptions: List<ReasonOption> = emptyList(),
+    val assessmentMessage: String = "Pilih transaksi final untuk review void.",
+    val inventoryImpactClassification: String = "NOT_READY",
+    val canExecute: Boolean = false
 )
 
 data class ReasonOption(

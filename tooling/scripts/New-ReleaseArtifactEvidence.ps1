@@ -1,7 +1,7 @@
 param(
     [string]$OutputDirectory = "build/release-artifact-evidence",
-    [string]$ExePath = "apps/desktop-pos/build/compose/binaries/main/exe/Cassy-0.1.0.exe",
-    [string]$MsiPath = "apps/desktop-pos/build/compose/binaries/main/msi/Cassy-0.1.0.msi",
+    [string]$ExePath = "",
+    [string]$MsiPath = "",
     [string]$AppRoot = "apps/desktop-pos/build/compose/binaries/main/app/Cassy"
 )
 
@@ -17,7 +17,24 @@ $manifestPath = Join-Path $targetRoot "release-manifest.txt"
 $checksumsPath = Join-Path $targetRoot "checksums.sha256"
 $commit = (git rev-parse HEAD).Trim()
 
-$artifactPaths = @($ExePath, $MsiPath)
+$resolvedExePath = if ($ExePath) {
+    $ExePath
+} else {
+    Get-ChildItem -Path (Join-Path $repoRoot "apps/desktop-pos/build/compose/binaries/main/exe") -Filter "Cassy-*.exe" -File -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTimeUtc -Descending |
+        Select-Object -First 1 |
+        ForEach-Object { $_.FullName.Substring($repoRoot.Length + 1) }
+}
+$resolvedMsiPath = if ($MsiPath) {
+    $MsiPath
+} else {
+    Get-ChildItem -Path (Join-Path $repoRoot "apps/desktop-pos/build/compose/binaries/main/msi") -Filter "Cassy-*.msi" -File -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTimeUtc -Descending |
+        Select-Object -First 1 |
+        ForEach-Object { $_.FullName.Substring($repoRoot.Length + 1) }
+}
+
+$artifactPaths = @($resolvedExePath, $resolvedMsiPath) | Where-Object { $_ }
 $manifest = New-Object System.Collections.Generic.List[string]
 $checksums = New-Object System.Collections.Generic.List[string]
 

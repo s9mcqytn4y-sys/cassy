@@ -1,11 +1,18 @@
 param(
     [string]$OutputDirectory = "build/release-diagnostics",
-    [string]$DataRoot = "$HOME\.cassy"
+    [string]$DataRoot = ""
 )
 
 $ErrorActionPreference = "Stop"
 
 $repoRoot = (Get-Location).Path
+$resolvedDataRoot = if ($DataRoot) {
+    $DataRoot
+} elseif ($env:CASSY_DATA_DIR) {
+    $env:CASSY_DATA_DIR
+} else {
+    "$HOME\.cassy"
+}
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $outputRoot = Join-Path $repoRoot $OutputDirectory
 $targetRoot = Join-Path $outputRoot $timestamp
@@ -15,9 +22,16 @@ $summaryPath = Join-Path $targetRoot "diagnostics-summary.txt"
 $gradleVersionPath = Join-Path $targetRoot "gradle-version.txt"
 $uninstallPath = Join-Path $targetRoot "uninstall-registry.txt"
 
+$artifactExe = Get-ChildItem -Path (Join-Path $repoRoot "apps/desktop-pos/build/compose/binaries/main/exe") -Filter "Cassy-*.exe" -File -ErrorAction SilentlyContinue |
+    Sort-Object LastWriteTimeUtc -Descending |
+    Select-Object -First 1
+$artifactMsi = Get-ChildItem -Path (Join-Path $repoRoot "apps/desktop-pos/build/compose/binaries/main/msi") -Filter "Cassy-*.msi" -File -ErrorAction SilentlyContinue |
+    Sort-Object LastWriteTimeUtc -Descending |
+    Select-Object -First 1
+
 $artifactCandidates = @(
-    "apps/desktop-pos/build/compose/binaries/main/exe/Cassy-0.1.0.exe",
-    "apps/desktop-pos/build/compose/binaries/main/msi/Cassy-0.1.0.msi",
+    $(if ($artifactExe) { $artifactExe.FullName.Substring($repoRoot.Length + 1) }),
+    $(if ($artifactMsi) { $artifactMsi.FullName.Substring($repoRoot.Length + 1) }),
     "apps/desktop-pos/build/compose/binaries/main/app/Cassy/Cassy.exe",
     "apps/desktop-pos/build/compose/binaries/main/app/Cassy/app/Cassy.cfg",
     "apps/desktop-pos/build/compose/binaries/main/app/Cassy/runtime/release",
@@ -26,7 +40,7 @@ $artifactCandidates = @(
     "build/installer-evidence",
     "build/release-artifact-evidence",
     "build/reports/problems/problems-report.html"
-)
+) | Where-Object { $_ }
 
 $summary = New-Object System.Collections.Generic.List[string]
 $summary.Add("generated_at=$(Get-Date -Format o)")
@@ -34,7 +48,7 @@ $summary.Add("host=$env:COMPUTERNAME")
 $summary.Add("user=$env:USERNAME")
 $summary.Add("os=$([System.Environment]::OSVersion.VersionString)")
 $summary.Add("java_home=$env:JAVA_HOME")
-$summary.Add("data_root=$DataRoot")
+$summary.Add("data_root=$resolvedDataRoot")
 $summary.Add("runtime_log_locations=dedicated app log file not implemented; use installer logs, build/reports/problems/problems-report.html, apps/desktop-pos/build/compose/logs, and release-diagnostics outputs")
 $summary.Add("artifacts=")
 
@@ -50,8 +64,8 @@ foreach ($candidate in $artifactCandidates) {
 }
 
 $summary.Add("data_files=")
-if (Test-Path $DataRoot) {
-    Get-ChildItem $DataRoot -File | ForEach-Object {
+if (Test-Path $resolvedDataRoot) {
+    Get-ChildItem $resolvedDataRoot -File | ForEach-Object {
         $summary.Add(" - $($_.Name) size=$($_.Length) modified=$($_.LastWriteTime.ToString('o'))")
     }
 } else {

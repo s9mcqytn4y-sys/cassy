@@ -1,0 +1,11 @@
+Copyright (c) 2026 Cassy.
+All rights reserved.
+
+Cassy V1 adalah perangkat lunak proprietari. Tidak ada hak untuk menggunakan,
+menyalin, memodifikasi, mendistribusikan, memublikasikan, melakukan reverse
+engineering, atau men-deploy ulang perangkat lunak ini kecuali ada izin
+tertulis terpisah dari pemegang hak.
+
+Repository ini dapat memuat dependensi pihak ketiga yang tunduk pada lisensi
+masing-masing. Lihat `THIRD_PARTY_NOTICES.md` untuk baseline notice yang
+relevan terhadap dependency graph langsung repo ini.

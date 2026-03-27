@@ -325,6 +325,7 @@ open class KernelRepository(
             .plus(listActiveReasonCodes(ReasonCategory.SHIFT_CLOSE_VARIANCE))
             .plus(listActiveReasonCodes(ReasonCategory.OPENING_CASH_EXCEPTION))
             .plus(listActiveReasonCodes(ReasonCategory.INVENTORY_ADJUSTMENT))
+            .plus(listActiveReasonCodes(ReasonCategory.VOID_SALE))
             .firstOrNull { it.code == code }
     }
 
@@ -567,6 +568,7 @@ open class KernelRepository(
             ReasonCode("BANK_WITHDRAWAL", ReasonCategory.CASH_IN, "Ambil tunai dari bank", true, true, 20),
             ReasonCode("PETTY_CASH", ReasonCategory.CASH_OUT, "Kas kecil operasional", false, true, 10),
             ReasonCode("SUPPLIER_PAYMENT", ReasonCategory.CASH_OUT, "Bayar supplier tunai", true, true, 20),
+            ReasonCode("VOID_CASH_REFUND", ReasonCategory.CASH_OUT, "Refund tunai karena void penjualan", false, true, 30),
             ReasonCode("SAFE_DROP_ROUTINE", ReasonCategory.SAFE_DROP, "Safe drop rutin", false, true, 10),
             ReasonCode("SAFE_DROP_OVERFLOW", ReasonCategory.SAFE_DROP, "Laci kas terlalu penuh", true, true, 20),
             ReasonCode("COUNTING_ERROR", ReasonCategory.SHIFT_CLOSE_VARIANCE, "Selisih hitung kas", false, true, 10),
@@ -574,7 +576,10 @@ open class KernelRepository(
             ReasonCode("COUNT_VARIANCE", ReasonCategory.INVENTORY_ADJUSTMENT, "Selisih hasil stock opname", false, true, 10),
             ReasonCode("DAMAGED_STOCK", ReasonCategory.INVENTORY_ADJUSTMENT, "Barang rusak", true, true, 20),
             ReasonCode("FOUND_STOCK", ReasonCategory.INVENTORY_ADJUSTMENT, "Stok fisik ditemukan", false, true, 30),
-            ReasonCode("MANUAL_CORRECTION", ReasonCategory.INVENTORY_ADJUSTMENT, "Koreksi manual terkontrol", true, true, 40)
+            ReasonCode("MANUAL_CORRECTION", ReasonCategory.INVENTORY_ADJUSTMENT, "Koreksi manual terkontrol", true, true, 40),
+            ReasonCode("VOID_DUPLICATE_INPUT", ReasonCategory.VOID_SALE, "Double input transaksi", false, true, 10),
+            ReasonCode("VOID_OPERATOR_MISTAKE", ReasonCategory.VOID_SALE, "Kesalahan kasir sebelum barang benar-benar keluar", false, true, 20),
+            ReasonCode("VOID_PRICE_CORRECTION", ReasonCategory.VOID_SALE, "Harga atau item perlu dikoreksi total", true, true, 30)
         )
 
         val operationalMetadataDefaults = mapOf(

@@ -20,7 +20,7 @@ Dokumen ini hanya mencatat jalur yang benar-benar relevan untuk pilot Windows da
 ```
 
 Expected smoke marker:
-- `CASSY_SMOKE_OK stage=Bootstrap` atau stage non-fatal lain yang setara
+- `CASSY_SMOKE_OK scenario=basic ...` atau `CASSY_SMOKE_OK scenario=beta ...`
 
 Yang harus terlihat dari flow foundation:
 - bootstrap store/terminal bila context belum ada
@@ -45,8 +45,12 @@ Gunakan urutan ini:
 .\gradlew :apps:desktop-pos:createDistributable :apps:desktop-pos:packageExe :apps:desktop-pos:packageMsi
 .\tooling\scripts\Invoke-DesktopDistributionSmoke.ps1
 .\tooling\scripts\Invoke-WindowsInstallerEvidence.ps1
+.\tooling\scripts\Invoke-WindowsUpgradeEvidence.ps1
+.\tooling\scripts\Invoke-DesktopPerformanceProbe.ps1
 .\tooling\scripts\Collect-WindowsReleaseDiagnostics.ps1
 ```
+
+Authority gate resmi release candidate sekarang dirangkum di `docs/execution/release_candidate_checklist.md`.
 
 Catatan operasional:
 - packaging dijalankan setelah `clean/build/test/lint` karena file lock Windows bisa membuat `clean` gagal bila artifact masih dipakai.
@@ -61,19 +65,20 @@ Catatan operasional:
 - Installer evidence path: `tooling/scripts/Invoke-WindowsInstallerEvidence.ps1`
 - Diagnostics collector: `tooling/scripts/Collect-WindowsReleaseDiagnostics.ps1`
 - State backup baseline: `tooling/scripts/Backup-CassyDesktopState.ps1`
+- Upgrade evidence baseline: `tooling/scripts/Invoke-WindowsUpgradeEvidence.ps1`
+- Perf probe baseline: `tooling/scripts/Invoke-DesktopPerformanceProbe.ps1`
 - Distribution app folder: `apps/desktop-pos/build/compose/binaries/main/app/Cassy/`
 - Task: `:apps:desktop-pos:createDistributable :apps:desktop-pos:packageExe :apps:desktop-pos:packageMsi`
 - Format lokal terverifikasi: `EXE` dan `MSI`
-- Artifact path EXE: `apps/desktop-pos/build/compose/binaries/main/exe/Cassy-0.1.0.exe`
-- Artifact path MSI: `apps/desktop-pos/build/compose/binaries/main/msi/Cassy-0.1.0.msi`
+- Artifact path EXE: `apps/desktop-pos/build/compose/binaries/main/exe/Cassy-<packageVersion>.exe`
+- Artifact path MSI: `apps/desktop-pos/build/compose/binaries/main/msi/Cassy-<packageVersion>.msi`
 - Embedded runtime evidence: `apps/desktop-pos/build/compose/binaries/main/app/Cassy/runtime/release`
-- Installer evidence lokal terbaru: `build/installer-evidence/20260326-174744/`
+- Installer evidence lokal terbaru selalu berada di `build/installer-evidence/<timestamp>/`.
 
 ## Hosted CI dan gap yang masih harus diakui
 
-- Hosted `Mainline Evidence` run `23142319550` untuk commit `a27ddc7` sukses pada 2026-03-16 dan mengunggah artifact `cassy-desktop-exe`, `cassy-desktop-app`, serta `cassy-mainline-evidence`.
+- Hosted `Mainline Evidence` adalah evidence lane aktif untuk artifact desktop, MSI, installer evidence, diagnostics, dan manifest.
 - Workflow `Mainline Evidence` sekarang disiapkan untuk menjalankan `Invoke-WindowsInstallerEvidence.ps1` dan mengunggah `cassy-desktop-msi` + `cassy-installer-evidence`.
-- Hosted run terbaru untuk workflow yang sudah diperbarui belum diverifikasi pada turn ini.
 - Launcher GUI `Cassy.exe` dari app image tidak selalu memberi output exit code CLI yang stabil, sehingga smoke otomatis memakai marker file sebagai sumber kebenaran.
 - Debian package pada Ubuntu hanya compatibility artifact; bukan release truth untuk pilot Windows.
 - Diagnostics baseline sekarang mengandalkan `build/release-diagnostics/` + Gradle/Compose reports, bukan klaim adanya app log file khusus yang belum diimplementasikan.

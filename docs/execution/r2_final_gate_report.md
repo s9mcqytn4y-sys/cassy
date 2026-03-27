@@ -51,3 +51,4 @@ Updated: 2026-03-19
 ## RECOMMENDATION
 - Putusan jujur untuk R2 saat ini adalah `PARTIAL`.
 - Fokus historis setelah laporan ini dibuat adalah membuka void resolver secara bounded dan menutup release evidence installer.
+> Historical Snapshot: laporan ini disimpan untuk jejak audit fase lama dan bukan source of truth aktif.
