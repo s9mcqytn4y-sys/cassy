@@ -45,6 +45,7 @@ fun startDesktopKoin() {
                 single<OperationalSalesPort> { DesktopOperationalSalesPort(get()) }
                 single<CashierHardwarePort> { DesktopNoopCashierHardwarePort() }
                 single<OperationalHardwarePort> { DesktopOperationalHardwarePort(get()) }
+                single { DesktopReportingExporter(get()) }
                 single {
                     DesktopAppController(
                         accessService = get<AccessService>(),
@@ -59,7 +60,8 @@ fun startDesktopKoin() {
                         salesService = get<SalesService>(),
                         hardwarePort = get<CashierHardwarePort>(),
                         reportingQueryFacade = get<ReportingQueryFacade>(),
-                        syncReplayService = get<SyncReplayService>()
+                        syncReplayService = get<SyncReplayService>(),
+                        reportingExporter = get<DesktopReportingExporter>()
                     )
                 }
             }

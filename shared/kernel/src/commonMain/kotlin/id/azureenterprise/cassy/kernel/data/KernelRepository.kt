@@ -265,6 +265,23 @@ open class KernelRepository(
         } ?: emptyList()
     }
 
+    open suspend fun listShiftsByBusinessDayLatestFirst(businessDayId: String): List<Shift> = withContext(ioDispatcher) {
+        queries?.listShiftsByBusinessDayLatestFirst(businessDayId)?.executeAsList()?.map { record ->
+            Shift(
+                id = record.id,
+                businessDayId = record.businessDayId,
+                terminalId = record.terminalId,
+                openedAt = Instant.fromEpochMilliseconds(record.openedAt),
+                openingCash = record.openingCash,
+                closedAt = record.closedAt?.let(Instant::fromEpochMilliseconds),
+                closingCash = record.closingCash,
+                openedBy = record.openedBy,
+                closedBy = record.closedBy,
+                status = record.status
+            )
+        } ?: emptyList()
+    }
+
     open suspend fun ensureDefaultReasonCodes() {
         withContext(ioDispatcher) {
             defaultReasonCodes.forEach { reason ->
@@ -276,6 +293,14 @@ open class KernelRepository(
                     reason.isActive,
                     reason.sortOrder.toLong()
                 )
+            }
+        }
+    }
+
+    open suspend fun ensureOperationalMetadataDefaults() {
+        operationalMetadataDefaults.forEach { (key, value) ->
+            if (getMetadata(key) == null) {
+                upsertMetadata(key, value)
             }
         }
     }
@@ -550,6 +575,14 @@ open class KernelRepository(
             ReasonCode("DAMAGED_STOCK", ReasonCategory.INVENTORY_ADJUSTMENT, "Barang rusak", true, true, 20),
             ReasonCode("FOUND_STOCK", ReasonCategory.INVENTORY_ADJUSTMENT, "Stok fisik ditemukan", false, true, 30),
             ReasonCode("MANUAL_CORRECTION", ReasonCategory.INVENTORY_ADJUSTMENT, "Koreksi manual terkontrol", true, true, 40)
+        )
+
+        val operationalMetadataDefaults = mapOf(
+            "report.export.schema_version" to "1",
+            "report.export.policy" to "LOCAL_FIRST_SNAPSHOT",
+            "report.export.formats" to "CSV,HTML",
+            "report.export.owner" to "DESKTOP_POS",
+            "sync.replay.scope" to "LOCAL_BOUNDARY_READY"
         )
     }
 }

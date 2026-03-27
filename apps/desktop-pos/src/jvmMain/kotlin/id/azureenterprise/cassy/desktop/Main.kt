@@ -64,6 +64,22 @@ fun main(args: Array<String>) {
                                 Key.F10 -> { showCashControlDialog = true; true }
                                 Key.F9 -> { showInventoryDialog = true; true }
                                 Key.F8 -> { showReportingDialog = true; true }
+                                Key.E -> {
+                                    if (it.isCtrlPressed && showReportingDialog) {
+                                        scope.launch { controller.exportOperationalReport() }
+                                        true
+                                    } else {
+                                        false
+                                    }
+                                }
+                                Key.Escape -> {
+                                    if (showReportingDialog) {
+                                        showReportingDialog = false
+                                        true
+                                    } else {
+                                        false
+                                    }
+                                }
                                 else -> false
                             }
                         } else false
@@ -242,7 +258,9 @@ fun main(args: Array<String>) {
                     if (showReportingDialog) {
                         ReportingSummaryDialog(
                             state = state.operations,
-                            onDismiss = { showReportingDialog = false }
+                            onDismiss = { showReportingDialog = false },
+                            onExport = { scope.launch { controller.exportOperationalReport() } },
+                            isBusy = state.isBusy
                         )
                     }
                 }

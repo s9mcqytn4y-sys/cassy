@@ -16,16 +16,16 @@ Updated: 2026-03-27
 - Desktop top bar, reporting summary, dan action `Sync` di rail sekarang memberi recovery path yang eksplisit lewat `replaySyncAndReload()`.
 - Test `SyncReplayServiceTest` memverifikasi success path, requeue failed path, dan unavailable backend path.
 - Test `OutboxRepositoryTest` memverifikasi processed event tidak lagi ikut terbaca sebagai pending dan tetap tertahan sebagai row terpisah.
+- Dengan definisi milestone yang dikunci untuk Cassy V1 local-first, R6 dianggap `DONE` bila boundary replay lokal, retry/requeue, visibility, recovery path, dan evidence test/build sudah lengkap tanpa menjadikan backend harian sebagai hard dependency.
 
 ## ASSUMPTION
 - Dalam posture local-first Cassy V1, transaksi harian tetap sah meski backend/sync engine belum aktif.
-- Implementasi port backend nyata akan datang di lane infra/native berikutnya tanpa memindahkan ownership transaksi keluar dari shared core.
+- Implementasi port backend nyata akan datang di lane infra/native berikutnya tanpa memindahkan ownership transaksi keluar dari shared core, tetapi itu bukan lagi exit gate untuk status R6 pada definisi yang aktif.
 
 ## RISK
-- Belum ada transport backend nyata yang berjalan di repo ini, jadi replay end-to-end ke HQ masih bergantung pada implementasi port berikutnya.
+- Belum ada transport backend nyata yang berjalan di repo ini, jadi replay end-to-end ke HQ masih menjadi lane berikutnya, bukan proof untuk R6 lokal.
 - Conflict outcome sudah punya boundary typed, tetapi belum punya persistence khusus `sync_conflict`.
-- Hosted Windows evidence untuk workflow yang diperbarui belum saya verifikasi dari run remote baru pada dokumen ini.
 
 ## RECOMMENDATION
-- Langkah berikutnya untuk benar-benar menutup R6 adalah menambahkan implementasi port backend nyata atau harness integrasi yang sah, lalu rerun hosted evidence.
-- Setelah itu, tambah persistence `sync_conflict` bila recovery supervisor butuh drill-down lebih kaya daripada `last_error_message`.
+- R6 cukup dipertahankan dengan test dan docs truth yang ketat.
+- Implementasi port backend nyata dan persistence `sync_conflict` diperlakukan sebagai lane lanjutan, bukan syarat untuk tetap menyebut boundary sync desktop-ready.

@@ -22,6 +22,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -47,9 +49,10 @@ fun CassyCurrencyInput(
     errorMessage: String? = null,
     onImeAction: () -> Unit = {}
 ) {
-    val localeID = Locale("in", "ID")
-    val formatter = NumberFormat.getCurrencyInstance(localeID).apply {
-        maximumFractionDigits = 0
+    val formatter = remember {
+        NumberFormat.getCurrencyInstance(Locale("in", "ID")).apply {
+            maximumFractionDigits = 0
+        }
     }
 
     val displayValue = remember(value) {
@@ -106,6 +109,102 @@ fun CassyCurrencyInput(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                 modifier = Modifier.padding(top = 4.dp)
+            )
+        }
+    }
+}
+
+@Composable
+fun SemanticTextField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier.fillMaxWidth(),
+    helperText: String? = null,
+    placeholder: String? = null,
+    leadingIcon: ImageVector? = null,
+    keyboardType: KeyboardType = KeyboardType.Text,
+    imeAction: ImeAction = ImeAction.Next,
+    singleLine: Boolean = true,
+    visualTransformation: VisualTransformation = VisualTransformation.None,
+    onImeAction: () -> Unit = {}
+) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Bold
+        )
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = singleLine,
+            shape = RoundedCornerShape(14.dp),
+            placeholder = placeholder?.let { { Text(it) } },
+            leadingIcon = leadingIcon?.let { icon ->
+                { Icon(imageVector = icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
+            },
+            keyboardOptions = KeyboardOptions(
+                keyboardType = keyboardType,
+                imeAction = imeAction
+            ),
+            keyboardActions = KeyboardActions(
+                onDone = { onImeAction() },
+                onGo = { onImeAction() },
+                onSearch = { onImeAction() },
+                onSend = { onImeAction() }
+            ),
+            visualTransformation = visualTransformation
+        )
+        helperText?.let {
+            Text(
+                text = it,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+fun SemanticPinField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier.fillMaxWidth(),
+    helperText: String? = null,
+    onImeAction: () -> Unit = {}
+) {
+    SemanticTextField(
+        label = label,
+        value = value,
+        onValueChange = { newValue -> onValueChange(newValue.filter(Char::isDigit).take(6)) },
+        modifier = modifier,
+        helperText = helperText,
+        placeholder = "6 digit PIN",
+        leadingIcon = Icons.Default.Lock,
+        keyboardType = KeyboardType.NumberPassword,
+        imeAction = ImeAction.Done,
+        visualTransformation = PasswordVisualTransformation(),
+        onImeAction = onImeAction
+    )
+}
+
+@Composable
+fun ShortcutHintBar(
+    hints: List<String>,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        hints.forEach { hint ->
+            AssistChip(
+                onClick = {},
+                enabled = false,
+                label = { Text(hint) }
             )
         }
     }
@@ -290,7 +389,7 @@ fun CassyTopBar(
 
     Surface(
         tonalElevation = 1.dp,
-        modifier = Modifier.fillMaxWidth().height(48.dp),
+        modifier = Modifier.fillMaxWidth().height(56.dp),
         color = MaterialTheme.colorScheme.surface
     ) {
         Row(
@@ -299,22 +398,31 @@ fun CassyTopBar(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { onShowReporting() }) {
-                Text(
-                    text = state.storeName ?: "Cassy Store",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = " | ${state.terminalName ?: "T01"}",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                )
-                Icon(
-                    imageVector = Icons.Default.Info,
-                    contentDescription = "Show Reporting",
-                    modifier = Modifier.padding(start = 8.dp).size(16.dp),
-                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = state.storeName ?: "Cassy Store",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = " | ${state.terminalName ?: "T01"}",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = "Show Reporting",
+                            modifier = Modifier.padding(start = 8.dp).size(16.dp),
+                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+                        )
+                    }
+                    Text(
+                        text = "F1/F5 Sync | F8 Ringkasan | F9 Stok | F10 Kas | F11 Shift | F12 Hari",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
 
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -348,10 +456,18 @@ fun StatusIndicator(label: String, status: String, tone: UiTone) {
 }
 
 fun toneColor(tone: UiTone): Color = when (tone) {
-    UiTone.Info -> Color(0xFF0E74AF)
-    UiTone.Success -> Color(0xFF16A34A)
-    UiTone.Warning -> Color(0xFFD97706)
-    UiTone.Danger -> Color(0xFFDC2626)
+    UiTone.Info -> Color(0xFF1167B1)
+    UiTone.Success -> Color(0xFF1D7A46)
+    UiTone.Warning -> Color(0xFFB7791F)
+    UiTone.Danger -> Color(0xFFB42318)
+}
+
+@Composable
+fun toneContainerColor(tone: UiTone): Color = when (tone) {
+    UiTone.Info -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.88f)
+    UiTone.Success -> Color(0xFFE2F6E9)
+    UiTone.Warning -> Color(0xFFFBEBC8)
+    UiTone.Danger -> MaterialTheme.colorScheme.errorContainer
 }
 
 private fun hardwareTone(status: HardwareDeviceStatus): UiTone = when (status) {

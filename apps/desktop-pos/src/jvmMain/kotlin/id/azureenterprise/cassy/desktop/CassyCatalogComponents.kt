@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Info
@@ -16,6 +18,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -45,39 +49,48 @@ fun CassyCatalogView(
             shape = RoundedCornerShape(12.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
-            Row(
-                modifier = Modifier.padding(8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                OutlinedTextField(
-                    value = state.searchQuery,
-                    onValueChange = onSearchChanged,
-                    placeholder = { Text("Cari Nama Produk...") },
-                    modifier = Modifier.weight(1f),
-                    singleLine = true,
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-                    shape = RoundedCornerShape(8.dp)
+                ShortcutHintBar(
+                    hints = listOf("Enter Scan", "F8 Ringkasan", "F10 Kas"),
+                    modifier = Modifier.fillMaxWidth()
                 )
-                OutlinedTextField(
-                    value = state.barcodeInput,
-                    onValueChange = onBarcodeChanged,
-                    placeholder = { Text("Barcode / SKU") },
-                    modifier = Modifier.width(200.dp),
-                    singleLine = true,
-                    shape = RoundedCornerShape(8.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
-                    )
-                )
-                Button(
-                    onClick = onScanBarcode,
-                    modifier = Modifier.height(56.dp),
-                    shape = RoundedCornerShape(8.dp),
-                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.Top
                 ) {
-                    Text("INPUT", fontWeight = FontWeight.Black)
+                    SemanticTextField(
+                        label = "Cari Produk",
+                        value = state.searchQuery,
+                        onValueChange = onSearchChanged,
+                        placeholder = "Nama produk / SKU parsial",
+                        helperText = "Gunakan saat barcode tidak tersedia atau terjadi collision.",
+                        modifier = Modifier.weight(1f),
+                        leadingIcon = Icons.Default.Search,
+                        imeAction = ImeAction.Search
+                    )
+                    SemanticTextField(
+                        label = "Barcode / SKU",
+                        value = state.barcodeInput,
+                        onValueChange = onBarcodeChanged,
+                        placeholder = "Scan atau ketik kode",
+                        helperText = "Tekan Enter atau tombol Input untuk menambahkan item.",
+                        modifier = Modifier.width(240.dp),
+                        leadingIcon = Icons.Default.ShoppingCart,
+                        keyboardType = KeyboardType.Ascii,
+                        imeAction = ImeAction.Done,
+                        onImeAction = onScanBarcode
+                    )
+                    Button(
+                        onClick = onScanBarcode,
+                        modifier = Modifier.padding(top = 30.dp).height(56.dp).width(120.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
+                    ) {
+                        Text("INPUT", fontWeight = FontWeight.Black)
+                    }
                 }
             }
         }

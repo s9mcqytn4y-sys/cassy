@@ -4,10 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -15,8 +12,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import id.azureenterprise.cassy.kernel.domain.CashMovementType
@@ -52,38 +47,68 @@ fun BootstrapStage(
     onFieldChanged: (BootstrapField, String) -> Unit,
     onBootstrap: () -> Unit
 ) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(28.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        item {
-            Text("Pengaturan Awal Toko", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-            Text("Terminal adalah perangkat komputer ini yang akan digunakan untuk transaksi.", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
-        }
-        item {
-            FormField(
-                label = "Nama Toko",
-                value = state.bootstrap.storeName,
-                helperText = "Nama bisnis Anda (misal: Toko Berkah Jaya)"
-            ) { onFieldChanged(BootstrapField.StoreName, it) }
-        }
-        item {
-            FormField(
-                label = "ID Terminal / Kasir",
-                value = state.bootstrap.terminalName,
-                helperText = "Nama unik komputer ini (misal: Kasir-01)"
-            ) { onFieldChanged(BootstrapField.TerminalName, it) }
-        }
-        item { FormField("Nama Kasir", state.bootstrap.cashierName) { onFieldChanged(BootstrapField.CashierName, it) } }
-        item { FormField("PIN Kasir (6 digit)", state.bootstrap.cashierPin, masked = true) { onFieldChanged(BootstrapField.CashierPin, it) } }
-        item { FormField("Nama Supervisor", state.bootstrap.supervisorName) { onFieldChanged(BootstrapField.SupervisorName, it) } }
-        item { FormField("PIN Supervisor (6 digit)", state.bootstrap.supervisorPin, masked = true) { onFieldChanged(BootstrapField.SupervisorPin, it) } }
-        item {
-            Button(onClick = onBootstrap, enabled = !state.isBusy, modifier = Modifier.fillMaxWidth().height(48.dp)) {
-                Text(if (state.isBusy) "Menyimpan..." else "Simpan Pengaturan")
+    CenterPanel(
+        title = "Pengaturan Awal Toko",
+        subtitle = "Desktop ini menjadi terminal utama transaksi. Isi identitas toko dan dua peran minimum agar POS langsung operasional.",
+        contentWidth = 780.dp,
+        action = {
+            Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                ShortcutHintBar(hints = listOf("Tab Pindah Field", "Enter Simpan", "PIN 6 Digit"))
+                StageSectionCard(title = "Identitas Terminal") {
+                    SemanticTextField(
+                        label = "Nama Toko",
+                        value = state.bootstrap.storeName,
+                        onValueChange = { onFieldChanged(BootstrapField.StoreName, it) },
+                        helperText = "Nama yang muncul di struk dan reporting, misalnya Toko Berkah Jaya.",
+                        placeholder = "Nama toko",
+                        leadingIcon = Icons.Default.Storefront
+                    )
+                    SemanticTextField(
+                        label = "Nama Terminal",
+                        value = state.bootstrap.terminalName,
+                        onValueChange = { onFieldChanged(BootstrapField.TerminalName, it) },
+                        helperText = "Gunakan nama yang mudah dikenali saat review operasional, misalnya Kasir-01.",
+                        placeholder = "Kasir-01",
+                        leadingIcon = Icons.Default.PointOfSale
+                    )
+                }
+                StageSectionCard(title = "Akses Operator Awal") {
+                    SemanticTextField(
+                        label = "Nama Kasir",
+                        value = state.bootstrap.cashierName,
+                        onValueChange = { onFieldChanged(BootstrapField.CashierName, it) },
+                        helperText = "Kasir frontline untuk transaksi harian.",
+                        placeholder = "Nama kasir",
+                        leadingIcon = Icons.Default.Person
+                    )
+                    SemanticPinField(
+                        label = "PIN Kasir",
+                        value = state.bootstrap.cashierPin,
+                        onValueChange = { onFieldChanged(BootstrapField.CashierPin, it) },
+                        helperText = "Wajib 6 digit numerik."
+                    )
+                    SemanticTextField(
+                        label = "Nama Supervisor",
+                        value = state.bootstrap.supervisorName,
+                        onValueChange = { onFieldChanged(BootstrapField.SupervisorName, it) },
+                        helperText = "Supervisor dibutuhkan untuk open day dan approval operasional.",
+                        placeholder = "Nama supervisor",
+                        leadingIcon = Icons.Default.Badge
+                    )
+                    SemanticPinField(
+                        label = "PIN Supervisor",
+                        value = state.bootstrap.supervisorPin,
+                        onValueChange = { onFieldChanged(BootstrapField.SupervisorPin, it) },
+                        helperText = "Simpan hanya ke orang yang berwenang.",
+                        onImeAction = onBootstrap
+                    )
+                }
+                Button(onClick = onBootstrap, enabled = !state.isBusy, modifier = Modifier.fillMaxWidth().height(50.dp)) {
+                    Text(if (state.isBusy) "Menyimpan..." else "Simpan Pengaturan Awal")
+                }
             }
         }
-    }
+    )
 }
 
 @Composable
@@ -93,41 +118,55 @@ fun LoginStage(
     onPinChanged: (String) -> Unit,
     onLogin: () -> Unit
 ) {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(32.dp),
-        verticalArrangement = Arrangement.spacedBy(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text("Pilih Operator", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            state.login.operators.forEach { option ->
-                val selected = state.login.selectedOperatorId == option.id
-                ElevatedCard(
-                    modifier = Modifier.width(200.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    onClick = { onSelectOperator(option.id) },
-                    colors = if (selected) CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.primaryContainer) else CardDefaults.elevatedCardColors()
-                ) {
-                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(option.displayName, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                        Text(option.roleLabel, style = MaterialTheme.typography.labelMedium)
+    CenterPanel(
+        title = "Pilih Operator",
+        subtitle = "Masuk dengan PIN lokal. Pilih peran dulu agar hak akses dan blocker operasional langsung terlihat.",
+        contentWidth = 760.dp,
+        action = {
+            Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                ShortcutHintBar(hints = listOf("Klik Operator", "PIN 6 Digit", "Enter Masuk"))
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    state.login.operators.forEach { option ->
+                        val selected = state.login.selectedOperatorId == option.id
+                        ElevatedCard(
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(18.dp),
+                            onClick = { onSelectOperator(option.id) },
+                            colors = if (selected) {
+                                CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                            } else {
+                                CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                            }
+                        ) {
+                            Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(option.displayName, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                                Text(option.roleLabel, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(
+                                    if (selected) "Siap login" else "Pilih untuk mengaktifkan PIN",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (selected) toneColor(UiTone.Info) else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
                     }
+                }
+                SemanticPinField(
+                    label = "PIN Operator",
+                    value = state.login.pin,
+                    onValueChange = onPinChanged,
+                    modifier = Modifier.fillMaxWidth(),
+                    helperText = "PIN tidak dikirim ke backend. Validasi terjadi di local-first boundary desktop.",
+                    onImeAction = onLogin
+                )
+                state.login.feedback?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
+                Button(onClick = onLogin, enabled = !state.isBusy, modifier = Modifier.fillMaxWidth().height(50.dp)) {
+                    Text(if (state.isBusy) "Memproses..." else "Masuk ke Terminal")
                 }
             }
         }
-        OutlinedTextField(
-            value = state.login.pin,
-            onValueChange = onPinChanged,
-            label = { Text("PIN Operator") },
-            visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.width(240.dp),
-            singleLine = true
-        )
-        state.login.feedback?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        Button(onClick = onLogin, enabled = !state.isBusy, modifier = Modifier.width(240.dp).height(48.dp)) {
-            Text(if (state.isBusy) "Memproses..." else "Masuk")
-        }
-    }
+    )
 }
 
 @Composable
@@ -167,8 +206,10 @@ fun StartShiftStage(
     CenterPanel(
         title = "Buka Kasir",
         subtitle = state.operations.dashboard.headline,
+        contentWidth = 640.dp,
         action = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                ShortcutHintBar(hints = listOf("Shortcut Nominal", "Enter Buka Kasir", "Review Bloker"))
                 OperationalDashboardCard(state.operations.dashboard)
                 ShortcutNominalRow(
                     values = listOf("100000", "200000", "500000", "1000000"),
@@ -178,14 +219,19 @@ fun StartShiftStage(
                     label = "Modal Awal Tunai",
                     value = state.operations.openingCashInput,
                     onValueChange = onOpeningCashChanged,
-                    helperText = "Jumlah uang tunai yang ada di laci kas saat ini.",
+                    helperText = "Isi saldo laci kas aktual sebelum transaksi pertama.",
                     onImeAction = onStartShift
                 )
-                FormField(
-                    label = "Alasan / Catatan Operasional",
+                SemanticTextField(
+                    label = "Catatan Operasional",
                     value = state.operations.openingCashReason,
-                    helperText = "Wajib diisi bila opening cash di luar kebijakan."
-                ) { onOpeningCashReasonChanged(it) }
+                    onValueChange = onOpeningCashReasonChanged,
+                    helperText = "Wajib diisi bila opening cash di luar kebijakan normal.",
+                    placeholder = "Contoh: butuh pecahan untuk jam sibuk",
+                    leadingIcon = Icons.Default.EditNote,
+                    imeAction = androidx.compose.ui.text.input.ImeAction.Done,
+                    onImeAction = onStartShift
+                )
                 state.operations.blockingMessage?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 Button(onClick = onStartShift, enabled = !state.isBusy, modifier = Modifier.fillMaxWidth().height(48.dp)) {
                     Text(if (state.isBusy) "Memulai..." else "Buka Kasir")
@@ -421,85 +467,75 @@ fun CloseDayReviewDialog(
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReportingSummaryDialog(
     state: OperationsState,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onExport: () -> Unit,
+    isBusy: Boolean = false
 ) {
-    AlertDialog(
+    BasicAlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Ringkasan Operasional", fontWeight = FontWeight.Bold) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                state.reportingSummary?.let { summary ->
-                    Surface(
-                        tonalElevation = 1.dp,
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("Total Penjualan", style = MaterialTheme.typography.bodyMedium)
-                                Text("Rp ${summary.totalSales.toInt()}", fontWeight = FontWeight.ExtraBold)
-                            }
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("Penjualan Tunai", style = MaterialTheme.typography.bodyMedium)
-                                Text("Rp ${summary.cashSalesTotal.toInt()}", fontWeight = FontWeight.ExtraBold)
-                            }
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("Penjualan Non-Tunai", style = MaterialTheme.typography.bodyMedium)
-                                Text("Rp ${summary.nonCashSalesTotal.toInt()}", fontWeight = FontWeight.ExtraBold)
-                            }
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("Kontrol Kas (Net)", style = MaterialTheme.typography.bodyMedium)
-                                Text("Rp ${summary.netCashMovement.toInt()}", fontWeight = FontWeight.ExtraBold)
-                            }
-                            HorizontalDivider()
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("Total Transaksi", style = MaterialTheme.typography.bodyMedium)
-                                Text("${summary.transactionCount}", fontWeight = FontWeight.ExtraBold)
-                            }
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("Shift Aktif / Total", style = MaterialTheme.typography.bodyMedium)
-                                Text("${summary.openShiftCount} / ${summary.shiftCount}", fontWeight = FontWeight.ExtraBold)
-                            }
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("Approval Pending", style = MaterialTheme.typography.bodyMedium)
-                                Text("${summary.pendingApprovalCount}", fontWeight = FontWeight.ExtraBold)
-                            }
-                        }
+    ) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            tonalElevation = 4.dp,
+            modifier = Modifier.widthIn(min = 920.dp, max = 1080.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Ringkasan Operasional", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                        Text(
+                            "Snapshot lokal untuk owner/supervisor. Export menjaga truth terminal saat ini, bukan mirror backend.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
-                    Surface(
-                        tonalElevation = 1.dp,
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("Status Sinkronisasi", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("Level", style = MaterialTheme.typography.bodyMedium)
-                                Text(summary.syncStatus.toUiLabel(), fontWeight = FontWeight.ExtraBold)
+                    ShortcutHintBar(hints = listOf("F8 Buka", "Ctrl+E Export", "Esc Tutup"))
+                }
+                state.reportingSummary?.let { summary ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
+                        ReportingMetricTile(
+                            title = "Penjualan Hari Ini",
+                            primaryValue = "Rp ${summary.totalSales.toInt()}",
+                            supporting = "${summary.transactionCount} transaksi | cash Rp ${summary.cashSalesTotal.toInt()}",
+                            modifier = Modifier.weight(1f)
+                        )
+                        ReportingMetricTile(
+                            title = "Kontrol Operasional",
+                            primaryValue = "${summary.openShiftCount}/${summary.shiftCount} shift aktif",
+                            supporting = "${summary.pendingApprovalCount} approval pending | net cash Rp ${summary.netCashMovement.toInt()}",
+                            modifier = Modifier.weight(1f)
+                        )
+                        ReportingMetricTile(
+                            title = "Status Sync",
+                            primaryValue = summary.syncStatus.toUiLabel(),
+                            supporting = "pending ${summary.syncStatus.pendingCount} | failed ${summary.syncStatus.failedCount}",
+                            modifier = Modifier.weight(1f),
+                            tone = when (summary.syncStatus.level) {
+                                SyncLevel.HEALTHY -> UiTone.Success
+                                SyncLevel.PENDING, SyncLevel.DELAYED -> UiTone.Warning
+                                SyncLevel.STALLED, SyncLevel.ERROR -> UiTone.Danger
                             }
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("Pending Event", style = MaterialTheme.typography.bodyMedium)
-                                Text("${summary.syncStatus.pendingCount}", fontWeight = FontWeight.ExtraBold)
-                            }
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("Failed Event", style = MaterialTheme.typography.bodyMedium)
-                                Text("${summary.syncStatus.failedCount}", fontWeight = FontWeight.ExtraBold)
-                            }
-                            summary.syncStatus.lastSyncAt?.let {
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text("Sinkron Sukses Terakhir", style = MaterialTheme.typography.bodyMedium)
-                                    Text(it.toUiTimestamp(), fontWeight = FontWeight.Medium, textAlign = TextAlign.End)
-                                }
-                            }
-                            summary.syncStatus.oldestPendingAt?.let {
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text("Pending Tertua", style = MaterialTheme.typography.bodyMedium)
-                                    Text(it.toUiTimestamp(), fontWeight = FontWeight.Medium, textAlign = TextAlign.End)
-                                }
-                            }
+                        )
+                    }
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
+                        StageSectionCard(title = "Readback Sync", modifier = Modifier.weight(1f)) {
+                            ReportingKeyValue("Level", summary.syncStatus.toUiLabel())
+                            ReportingKeyValue("Pending Event", summary.syncStatus.pendingCount.toString())
+                            ReportingKeyValue("Failed Event", summary.syncStatus.failedCount.toString())
+                            ReportingKeyValue("Sync Sukses Terakhir", summary.syncStatus.lastSyncAt?.toUiTimestamp() ?: "-")
+                            ReportingKeyValue("Pending Tertua", summary.syncStatus.oldestPendingAt?.toUiTimestamp() ?: "-")
                             summary.syncStatus.lastErrorMessage?.let {
                                 Text(
                                     text = "Error terakhir: $it",
@@ -508,18 +544,54 @@ fun ReportingSummaryDialog(
                                 )
                             }
                         }
+                        StageSectionCard(title = "Shift Relevan", modifier = Modifier.weight(1f)) {
+                            val shift = state.reportingShiftSummary
+                            if (shift == null) {
+                                Text(
+                                    "Belum ada shift yang relevan untuk snapshot ini. Daily summary tetap bisa diekspor.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            } else {
+                                ReportingKeyValue("Shift", shift.shiftId)
+                                ReportingKeyValue("Operator", shift.operatorName)
+                                ReportingKeyValue("Expected Cash", "Rp ${shift.expectedCash.toInt()}")
+                                ReportingKeyValue("Variance", shift.variance?.let { "Rp ${it.toInt()}" } ?: "-")
+                                ReportingKeyValue("Pending Transaksi", shift.pendingTransactionCount.toString())
+                                ReportingKeyValue("Status", shift.status)
+                            }
+                        }
                     }
+
+                    StageSectionCard(title = "Aturan Export & Output") {
+                        Text(state.reportingExportRuleNote, style = MaterialTheme.typography.bodySmall)
+                        ReportingKeyValue("Lokasi Terakhir", state.reportingExportPath ?: "-")
+                        ReportingKeyValue("Diekspor Terakhir", state.reportingExportedAt?.toUiTimestamp() ?: "-")
+                        Text(
+                            "Bundle export berisi daily-summary.csv, shift-summary.csv, operational-issues.csv, dan README.html.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
                     Text("Masalah & Tindakan", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-                    Box(modifier = Modifier.heightIn(max = 400.dp)) {
+                    Box(modifier = Modifier.fillMaxWidth().heightIn(min = 240.dp, max = 360.dp)) {
                         OperationalIssueList(issues = summary.issues)
                     }
                 } ?: Text("Data ringkasan tidak tersedia.")
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    OutlinedButton(onClick = onDismiss) { Text("Tutup") }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Button(onClick = onExport, enabled = !isBusy && state.reportingSummary != null) {
+                        Text(if (isBusy) "Mengekspor..." else "Export Bundle CSV")
+                    }
+                }
             }
-        },
-        confirmButton = {
-            Button(onClick = onDismiss) { Text("Tutup") }
         }
-    )
+    }
 }
 
 @Composable
@@ -644,9 +716,14 @@ private fun ShortcutNominalRow(
 }
 
 @Composable
-fun CenterPanel(title: String, subtitle: String, action: @Composable () -> Unit) {
+fun CenterPanel(
+    title: String,
+    subtitle: String,
+    contentWidth: androidx.compose.ui.unit.Dp = 480.dp,
+    action: @Composable () -> Unit
+) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        ElevatedCard(modifier = Modifier.width(480.dp), shape = RoundedCornerShape(24.dp)) {
+        ElevatedCard(modifier = Modifier.width(contentWidth), shape = RoundedCornerShape(24.dp)) {
             Column(
                 modifier = Modifier.fillMaxWidth().padding(32.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
@@ -669,24 +746,14 @@ private fun FormField(
     helperText: String? = null,
     onValueChange: (String) -> Unit
 ) {
-    Column(modifier = modifier) {
-        OutlinedTextField(
-            modifier = Modifier.fillMaxWidth(),
-            value = value,
-            onValueChange = onValueChange,
-            label = { Text(label) },
-            singleLine = true,
-            visualTransformation = if (masked) PasswordVisualTransformation() else VisualTransformation.None
-        )
-        if (helperText != null) {
-            Text(
-                text = helperText,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                modifier = Modifier.padding(top = 4.dp, start = 4.dp)
-            )
-        }
-    }
+    SemanticTextField(
+        label = label,
+        value = value,
+        onValueChange = onValueChange,
+        modifier = modifier,
+        helperText = helperText,
+        visualTransformation = if (masked) androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None
+    )
 }
 
 @Composable
@@ -694,11 +761,7 @@ fun BannerCard(banner: UiBanner, onDismiss: () -> Unit) {
     ElevatedCard(
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.elevatedCardColors(
-            containerColor = when(banner.tone) {
-                UiTone.Danger -> MaterialTheme.colorScheme.errorContainer
-                UiTone.Warning -> Color(0xFFFFF3E0)
-                else -> MaterialTheme.colorScheme.secondaryContainer
-            }
+            containerColor = toneContainerColor(banner.tone)
         )
     ) {
         Row(
@@ -709,6 +772,63 @@ fun BannerCard(banner: UiBanner, onDismiss: () -> Unit) {
             Text(banner.message, modifier = Modifier.weight(1f))
             IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, contentDescription = "Close") }
         }
+    }
+}
+
+@Composable
+private fun StageSectionCard(
+    title: String,
+    modifier: Modifier = Modifier.fillMaxWidth(),
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Surface(
+        tonalElevation = 1.dp,
+        shape = RoundedCornerShape(16.dp),
+        modifier = modifier
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            content = {
+                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                content()
+            }
+        )
+    }
+}
+
+@Composable
+private fun ReportingMetricTile(
+    title: String,
+    primaryValue: String,
+    supporting: String,
+    modifier: Modifier = Modifier,
+    tone: UiTone = UiTone.Info
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(18.dp),
+        color = toneContainerColor(tone)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(title, style = MaterialTheme.typography.labelLarge, color = toneColor(tone))
+            Text(primaryValue, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold)
+            Text(supporting, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun ReportingKeyValue(
+    label: String,
+    value: String
+) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End)
     }
 }
 

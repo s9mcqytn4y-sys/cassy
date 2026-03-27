@@ -10,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -34,14 +35,14 @@ fun OperationalIssueCard(
     modifier: Modifier = Modifier
 ) {
     val backgroundColor = when (issue.severity) {
-        IssueSeverity.CRITICAL -> MaterialTheme.colorScheme.errorContainer
-        IssueSeverity.WARNING -> Color(0xFFFEF3C7) // Amber 100
+        IssueSeverity.CRITICAL -> toneContainerColor(UiTone.Danger)
+        IssueSeverity.WARNING -> toneContainerColor(UiTone.Warning)
         IssueSeverity.INFO -> MaterialTheme.colorScheme.surfaceVariant
     }
 
     val contentColor = when (issue.severity) {
         IssueSeverity.CRITICAL -> MaterialTheme.colorScheme.onErrorContainer
-        IssueSeverity.WARNING -> Color(0xFF92400E) // Amber 800
+        IssueSeverity.WARNING -> toneColor(UiTone.Warning)
         IssueSeverity.INFO -> MaterialTheme.colorScheme.onSurfaceVariant
     }
 
@@ -169,12 +170,14 @@ fun OperationalIssueList(
             }
         }
     } else {
+        val sortedIssues = remember(issues) {
+            issues.sortedByDescending { it.severity }
+        }
         LazyColumn(
             modifier = modifier.fillMaxSize(),
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            val sortedIssues = issues.sortedByDescending { it.severity }
             items(sortedIssues) { issue ->
                 OperationalIssueCard(issue = issue)
             }

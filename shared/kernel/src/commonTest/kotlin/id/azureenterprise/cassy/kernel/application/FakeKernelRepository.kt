@@ -11,6 +11,7 @@ class FakeKernelRepository : id.azureenterprise.cassy.kernel.data.KernelReposito
     clock = Clock.System
 ) {
     private var terminalBinding: TerminalBinding? = null
+    private var monotonicTick = 0L
     private val operators = mutableMapOf<String, OperatorAccount>()
     private var activeSession: AccessSession? = null
     private var activeBusinessDay: BusinessDay? = null
@@ -52,12 +53,12 @@ class FakeKernelRepository : id.azureenterprise.cassy.kernel.data.KernelReposito
     override suspend fun getActiveShift(terminalId: String): Shift? = shifts.values.find { it.terminalId == terminalId && it.status == "OPEN" }
     override suspend fun getShiftById(id: String): Shift? = shifts[id]
     override suspend fun openShift(id: String, businessDayId: String, terminalId: String, openingCash: Double, openedBy: String): Shift {
-        val shift = Shift(id, businessDayId, terminalId, Clock.System.now(), openingCash, null, 0.0, openedBy, null, "OPEN")
+        val shift = Shift(id, businessDayId, terminalId, nextInstant(), openingCash, null, 0.0, openedBy, null, "OPEN")
         shifts[id] = shift
         return shift
     }
     override suspend fun closeShift(id: String, closingCash: Double, closedBy: String): Shift {
-        val shift = shifts[id]?.copy(closedAt = Clock.System.now(), closingCash = closingCash, closedBy = closedBy, status = "CLOSED") ?: error("No shift")
+        val shift = shifts[id]?.copy(closedAt = nextInstant(), closingCash = closingCash, closedBy = closedBy, status = "CLOSED") ?: error("No shift")
         shifts[id] = shift
         return shift
     }
@@ -66,6 +67,14 @@ class FakeKernelRepository : id.azureenterprise.cassy.kernel.data.KernelReposito
     }
     override suspend fun listShiftsByBusinessDay(businessDayId: String): List<Shift> {
         return shifts.values.filter { it.businessDayId == businessDayId }
+    }
+    override suspend fun listShiftsByBusinessDayLatestFirst(businessDayId: String): List<Shift> {
+        return shifts.values
+            .filter { it.businessDayId == businessDayId }
+            .sortedWith(
+                compareByDescending<Shift> { it.openedAt }
+                    .thenByDescending { it.id }
+            )
     }
     override suspend fun ensureDefaultReasonCodes() {
         if (reasonCodes.isEmpty()) {
@@ -235,4 +244,10 @@ class FakeKernelRepository : id.azureenterprise.cassy.kernel.data.KernelReposito
     }
     override suspend fun getMetadata(key: String): String? = metadata[key]
     override suspend fun upsertMetadata(key: String, value: String) { metadata[key] = value }
+
+    private fun nextInstant(): Instant {
+        val now = Clock.System.now().toEpochMilliseconds() + monotonicTick
+        monotonicTick += 1
+        return Instant.fromEpochMilliseconds(now)
+    }
 }

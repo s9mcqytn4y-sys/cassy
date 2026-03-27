@@ -19,6 +19,7 @@ koin = "4.0.2"
 sqlDelight = "2.0.2"
 detekt = "1.23.8"
 dependencyGuard = "0.5.0"
+commonsCsv = "1.12.0"
 
 [libraries]
 android-gradlePlugin = { group = "com.android.tools.build", name = "gradle", version.ref = "agp" }
@@ -55,6 +56,7 @@ koin-test = { module = "io.insert-koin:koin-test", version.ref = "koin" }
 sqldelight-runtime = { module = "app.cash.sqldelight:runtime", version.ref = "sqlDelight" }
 sqldelight-android-driver = { module = "app.cash.sqldelight:android-driver", version.ref = "sqlDelight" }
 sqldelight-sqlite-driver = { module = "app.cash.sqldelight:sqlite-driver", version.ref = "sqlDelight" }
+commons-csv = { module = "org.apache.commons:commons-csv", version.ref = "commonsCsv" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }

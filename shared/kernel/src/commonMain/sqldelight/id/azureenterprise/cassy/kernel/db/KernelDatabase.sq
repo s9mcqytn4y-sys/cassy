@@ -289,6 +289,11 @@ SELECT * FROM Shift WHERE id = ? LIMIT 1;
 listShiftsByBusinessDay:
 SELECT * FROM Shift WHERE businessDayId = ?;
 
+listShiftsByBusinessDayLatestFirst:
+SELECT * FROM Shift
+WHERE businessDayId = ?
+ORDER BY openedAt DESC;
+
 countOpenShiftsByBusinessDay:
 SELECT COUNT(*) FROM Shift WHERE businessDayId = ? AND status = 'OPEN';
 

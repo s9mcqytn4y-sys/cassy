@@ -1,17 +1,15 @@
-# Cassy Known Repo Gaps (Updated 2026-03-26)
+# Cassy Known Repo Gaps (Updated 2026-03-27)
 
 ## Risks that must stay visible
 
 - `:shared` masih menjadi legacy bridge dan belum sepenuhnya dievakuasi ke bounded context yang bersih.
 - Access/PIN saat ini adalah local baseline untuk foundation, bukan security-hardening final.
-- **Hosted CI Validation**: Status hosted runner hanya boleh dianggap valid bila ada run remote yang benar-benar selesai; validasi lokal saja tidak cukup.
-- **Sync/Replay**: Transport backend nyata dan persistence conflict masih belum ditutup penuh.
+- **Sync/Replay Future Lane**: Transport backend nyata dan persistence conflict masih belum dibuka, tetapi ini bukan lagi blocker untuk definisi R6 local-boundary.
 - **Android Checkout Lane**: Checkout finality dibuktikan di desktop-first lane; Android tetap parity/business-semantics lane dan belum menjadi owner UX finality.
 - **Cross-Context Atomicity**: Finalisasi kini punya bundle durable + replay test sehingga operator tidak melihat sale final sebelum `inventory` dan intent `kernel` selesai. Namun ini tetap bukan satu transaksi ACID fisik lintas tiga database.
 - **Void Execution**: Dashboard readiness untuk void sudah jujur, tetapi resolver execution lintas sales/cashflow/inventory/reporting belum dibuka.
 - **Approval Lane Depth**: Approval operasional dan inventory kini durable, tetapi masih light approval berbasis operator supervisor/owner aktif + reason code.
-- **Closing Report Export**: `ShiftCloseReport` sudah durable sebagai source-of-truth, tetapi export formal/PDF belum ada.
-- **Windows Hosted Evidence**: Workflow installer evidence sudah disiapkan, tetapi hosted run terbaru belum diverifikasi pada turn ini.
+- **Profiler Evidence**: Memory/performance belum punya profiler snapshot langsung; evidence saat ini masih static audit + runtime verification.
 
 ## Gaps recently reduced (Hardened)
 
@@ -27,4 +25,6 @@
 - **R1 / M6 Finalization Bundle**: `shared:sales` menyimpan bundle finalisasi durable, lalu crash/replay tests membuktikan recovery setelah gagal di sela inventory dan kernel tanpa efek ganda.
 - **R2 / Block 3 Final Gate**: Matrix verifikasi final sudah diulang pada 2026-03-26 dan gate teknis tetap hijau; blocker utama yang tersisa sekarang adalah void execution resolver.
 - **R5 Visibility & Reporting Lite**: Daily summary, shift summary, sync status, dan operational issue readback kini hidup di desktop-first lane.
+- **R5 Reporting Export**: Export bundle CSV/HTML untuk owner/supervisor kini hidup di desktop reporting dan lahir dari snapshot lokal yang sama.
 - **R6 Boundary Hardening**: Outbox read path status-aware, failed requeue, replay worker minimal, dan prune processed sudah hidup.
+- **Hosted Windows Evidence**: Mainline Evidence run `23622401164` sukses dengan artifact EXE, app bundle, MSI, installer evidence, diagnostics, dan manifest.

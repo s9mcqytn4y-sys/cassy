@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
+import java.nio.file.Files
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.test.*
 
@@ -191,6 +192,20 @@ class DesktopAppControllerTest {
         assertNotNull(controller.state.value.catalog.lastFinalizedSaleId)
     }
 
+    @Test
+    fun export_operational_report_writes_export_path_into_state(): Unit = runBlocking {
+        val fixture = desktopFixture()
+        fixture.loginAsSupervisor()
+        fixture.businessDayService.openNewDay()
+        fixture.openShift()
+
+        val controller = fixture.newController()
+        controller.load()
+        controller.exportOperationalReport()
+
+        assertNotNull(controller.state.value.operations.reportingExportPath)
+    }
+
     @Suppress("LongMethod")
     private fun desktopFixture(): DesktopFixture {
         val kernelDriver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
@@ -274,6 +289,10 @@ class DesktopAppControllerTest {
             NoopSyncReplayPort,
             Clock.System
         )
+        val reportingExporter = DesktopReportingExporter(
+            clock = Clock.System,
+            exportRootProvider = { Files.createTempDirectory("cassy-report-export-test") }
+        )
 
         val operationalControlService = OperationalControlService(
             accessService,
@@ -298,7 +317,8 @@ class DesktopAppControllerTest {
             hardwarePort = NoopHardwarePort,
             masterDataDatabase = masterDataDb,
             reportingQueryFacade = reportingQueryFacade,
-            syncReplayService = syncReplayService
+            syncReplayService = syncReplayService,
+            reportingExporter = reportingExporter
         )
     }
 
@@ -355,7 +375,8 @@ private data class DesktopFixture(
     val hardwarePort: CashierHardwarePort,
     val masterDataDatabase: MasterDataDatabase,
     val reportingQueryFacade: ReportingQueryFacade,
-    val syncReplayService: SyncReplayService
+    val syncReplayService: SyncReplayService,
+    val reportingExporter: DesktopReportingExporter
 ) {
     fun newController(): DesktopAppController = DesktopAppController(
         accessService = accessService,
@@ -370,7 +391,8 @@ private data class DesktopFixture(
         salesService = salesService,
         hardwarePort = hardwarePort,
         reportingQueryFacade = reportingQueryFacade,
-        syncReplayService = syncReplayService
+        syncReplayService = syncReplayService,
+        reportingExporter = reportingExporter
     )
 }
 

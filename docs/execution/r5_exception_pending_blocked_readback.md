@@ -37,4 +37,11 @@ Model `OperationalIssue` adalah carrier utama untuk readback ini:
 - **Readback**: pesan spesifik dari hardware port.
 
 ## UI Implementation
-Desktop reporting summary dan daftar issue adalah permukaan utama readback saat ini. User tidak perlu menebak kenapa state dianggap blocked atau pending.
+Desktop reporting summary, panel shift relevan, dan daftar issue adalah permukaan utama readback saat ini. User tidak perlu menebak kenapa state dianggap blocked atau pending.
+
+## Export Readback Contract
+- Export bundle desktop menyalin readback yang sama ke file CSV/HTML.
+- `daily-summary.csv` adalah snapshot harian.
+- `shift-summary.csv` adalah shift aktif atau shift terbaru yang relevan untuk business day.
+- `operational-issues.csv` mempertahankan severity, type, status, actor, timestamp, reason code, dan source id.
+- `README.html` adalah overview owner-friendly, bukan sumber truth baru.

@@ -40,7 +40,8 @@ class DesktopAppController(
     private val salesService: SalesService,
     private val hardwarePort: CashierHardwarePort,
     private val reportingQueryFacade: ReportingQueryFacade,
-    private val syncReplayService: SyncReplayService
+    private val syncReplayService: SyncReplayService,
+    private val reportingExporter: DesktopReportingExporter
 ) {
     private val _state = MutableStateFlow(DesktopAppState())
     val state: StateFlow<DesktopAppState> = _state.asStateFlow()
@@ -84,6 +85,40 @@ class DesktopAppController(
             }
         }
         refreshStage(banner)
+    }
+
+    suspend fun exportOperationalReport() {
+        mutateBusy(true)
+        val reportingSummary = state.value.operations.reportingSummary
+            ?: return pushBanner(UiBanner(UiTone.Warning, "Ringkasan operasional belum tersedia untuk diekspor"))
+        val shiftSummary = state.value.operations.reportingShiftSummary
+        runCatching {
+            reportingExporter.export(
+                OperationalReportBundle(
+                    shell = state.value.shell,
+                    dailySummary = reportingSummary,
+                    shiftSummary = shiftSummary,
+                    exportedBy = state.value.shell.operatorName
+                )
+            )
+        }.onSuccess { result ->
+            _state.update {
+                it.copy(
+                    isBusy = false,
+                    operations = it.operations.copy(
+                        reportingExportPath = result.exportDirectory.toAbsolutePath().toString(),
+                        reportingExportRuleNote = result.ruleNote,
+                        reportingExportedAt = result.exportedAt
+                    ),
+                    banner = UiBanner(
+                        UiTone.Success,
+                        "Laporan operasional diekspor ke ${result.exportDirectory.toAbsolutePath()}"
+                    )
+                )
+            }
+        }.onFailure { error ->
+            pushBanner(UiBanner(UiTone.Danger, error.message ?: "Export laporan operasional gagal"))
+        }
     }
 
     fun updateBootstrapField(field: BootstrapField, value: String) {
@@ -935,9 +970,12 @@ class DesktopAppController(
         }
 
         // R5 Reporting Aggregation
-        val reportingState = if (businessDay != null) {
-            reportingQueryFacade.getDailySummary(businessDay.id)
-        } else null
+        val reportingState = businessDay?.let { reportingQueryFacade.getDailySummary(it.id) }
+        val reportingShiftState = when {
+            activeShift != null -> reportingQueryFacade.getShiftSummary(activeShift.id)
+            businessDay != null -> reportingQueryFacade.getLatestShiftSummary(businessDay.id)
+            else -> null
+        }
 
         var resolvedBanner = banner
         if (stage == DesktopStage.Catalog) {
@@ -1005,7 +1043,13 @@ class DesktopAppController(
                     closeShiftReview = closeShiftReview,
                     pendingApprovals = pendingApprovals,
                     dashboard = operationalSnapshot,
-                    reportingSummary = reportingState
+                    reportingSummary = reportingState,
+                    reportingShiftSummary = reportingShiftState,
+                    reportingExportPath = it.operations.reportingExportPath,
+                    reportingExportRuleNote = it.operations.reportingExportRuleNote.ifBlank {
+                        "Export mengikuti snapshot lokal desktop. Data yang keluar harus dibaca sebagai operational truth terminal saat ini."
+                    },
+                    reportingExportedAt = it.operations.reportingExportedAt
                 ),
                 catalog = it.catalog.copy(
                     products = catalogProducts,
@@ -1214,7 +1258,11 @@ data class OperationsState(
         pendingApprovalCount = 0,
         decisions = emptyList()
     ),
-    val reportingSummary: DailySummary? = null
+    val reportingSummary: DailySummary? = null,
+    val reportingShiftSummary: ShiftSummary? = null,
+    val reportingExportPath: String? = null,
+    val reportingExportRuleNote: String = "Export mengikuti snapshot lokal desktop. Data yang keluar harus dibaca sebagai operational truth terminal saat ini.",
+    val reportingExportedAt: kotlinx.datetime.Instant? = null
 )
 
 data class ReasonOption(

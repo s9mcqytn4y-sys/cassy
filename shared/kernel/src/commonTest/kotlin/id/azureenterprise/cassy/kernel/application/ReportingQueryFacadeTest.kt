@@ -106,6 +106,20 @@ class ReportingQueryFacadeTest {
     }
 
     @Test
+    fun `getLatestShiftSummary should prefer newest shift in business day`() = runTest {
+        val dayId = "DAY-LATEST"
+        kernelRepo.openBusinessDay(dayId)
+        kernelRepo.openShift("SHIFT-OLD", dayId, "TERM-1", 50_000.0, "Op 1")
+        kernelRepo.openShift("SHIFT-NEW", dayId, "TERM-1", 75_000.0, "Op 2")
+
+        val summary = facade.getLatestShiftSummary(dayId)
+
+        assertNotNull(summary)
+        assertEquals("SHIFT-NEW", summary.shiftId)
+        assertEquals("Op 2", summary.operatorName)
+    }
+
+    @Test
     fun `getSyncStatus should expose explicit sync error metadata`() = runTest {
         pendingEvents.clear()
         pendingEvents += id.azureenterprise.cassy.kernel.db.OutboxEvent(

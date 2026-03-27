@@ -173,6 +173,14 @@ class ReportingQueryFacade(
         )
     }
 
+    suspend fun getLatestShiftSummary(businessDayId: String): ShiftSummary? {
+        val latestShift = kernelRepository
+            .listShiftsByBusinessDayLatestFirst(businessDayId)
+            .firstOrNull()
+            ?: return null
+        return getShiftSummary(latestShift.id)
+    }
+
     /**
      * Aggregates issues for a specific Shift.
      */

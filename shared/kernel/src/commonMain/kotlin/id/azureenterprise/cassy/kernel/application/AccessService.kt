@@ -21,6 +21,7 @@ class AccessService(
     private val clock: Clock
 ) {
     suspend fun restoreContext(): AccessContext {
+        kernelRepository.ensureOperationalMetadataDefaults()
         val binding = kernelRepository.getTerminalBinding()
         val operators = kernelRepository.listActiveOperators()
         val activeSession = kernelRepository.getActiveAccessSession()

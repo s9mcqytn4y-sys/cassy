@@ -79,4 +79,13 @@ class AccessServiceTest {
             assertTrue(false, "Result should be WrongPin")
         }
     }
+
+    @Test
+    fun `restoreContext seeds operational metadata defaults`() = runTest {
+        service.restoreContext()
+
+        assertEquals("1", fakeRepo.getMetadata("report.export.schema_version"))
+        assertEquals("LOCAL_FIRST_SNAPSHOT", fakeRepo.getMetadata("report.export.policy"))
+        assertEquals("LOCAL_BOUNDARY_READY", fakeRepo.getMetadata("sync.replay.scope"))
+    }
 }
