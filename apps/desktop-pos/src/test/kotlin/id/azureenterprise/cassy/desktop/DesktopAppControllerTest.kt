@@ -89,12 +89,7 @@ class DesktopAppControllerTest {
         controller.login()
 
         val stage = controller.state.value.stage
-        assertTrue(
-            stage is DesktopStage.OpenDay ||
-                stage is DesktopStage.Catalog ||
-                stage is DesktopStage.StartShift,
-            "Stage was $stage"
-        )
+        assertEquals(DesktopStage.Workspace, stage)
         assertNotNull(controller.state.value.shell.operatorName)
     }
 
@@ -134,7 +129,7 @@ class DesktopAppControllerTest {
                     it.status == OperationStatus.COMPLETED
             }
         )
-        assertEquals(DesktopStage.Catalog, controller.state.value.stage)
+        assertEquals(DesktopStage.Workspace, controller.state.value.stage)
     }
 
     @Test

@@ -26,25 +26,26 @@ CREATE TABLE ProductBarcode (
 
 CREATE UNIQUE INDEX Product_sku_unique_idx ON Product(sku);
 CREATE INDEX Product_active_category_name_idx ON Product(isActive, categoryId, name);
+CREATE INDEX Product_active_name_sku_idx ON Product(isActive, name, sku);
 CREATE INDEX ProductBarcode_product_idx ON ProductBarcode(productId);
 
 -- Seed Data
-INSERT OR IGNORE INTO ProductCategory(id, name, color) VALUES ('cat_1', 'Electronics', '#FF5733');
-INSERT OR IGNORE INTO ProductCategory(id, name, color) VALUES ('cat_2', 'Groceries', '#33FF57');
-INSERT OR IGNORE INTO ProductCategory(id, name, color) VALUES ('cat_3', 'Apparel', '#3357FF');
-INSERT OR IGNORE INTO ProductCategory(id, name, color) VALUES ('cat_4', 'Office', '#1F7A8C');
+INSERT OR IGNORE INTO ProductCategory(id, name, color) VALUES ('cat_1', 'Minuman', '#1F7A8C');
+INSERT OR IGNORE INTO ProductCategory(id, name, color) VALUES ('cat_2', 'Sembako', '#4C956C');
+INSERT OR IGNORE INTO ProductCategory(id, name, color) VALUES ('cat_3', 'Perawatan', '#C98C2A');
+INSERT OR IGNORE INTO ProductCategory(id, name, color) VALUES ('cat_4', 'ATK', '#5B6CFF');
 
-INSERT OR IGNORE INTO Product(id, categoryId, name, price, sku, imageUrl) VALUES ('p_1', 'cat_1', 'Laptop', 1200.0, 'SKU-LAP-001', NULL);
-INSERT OR IGNORE INTO Product(id, categoryId, name, price, sku, imageUrl) VALUES ('p_2', 'cat_1', 'Smartphone', 800.0, 'SKU-PHO-002', NULL);
-INSERT OR IGNORE INTO Product(id, categoryId, name, price, sku, imageUrl) VALUES ('p_3', 'cat_2', 'Air Mineral 600ml', 0.6, 'SKU-DRI-003', NULL);
-INSERT OR IGNORE INTO Product(id, categoryId, name, price, sku, imageUrl) VALUES ('p_4', 'cat_2', 'Kopi Sachet', 0.25, 'SKU-DRI-004', NULL);
-INSERT OR IGNORE INTO Product(id, categoryId, name, price, sku, imageUrl) VALUES ('p_5', 'cat_4', 'Notebook A5', 1.75, 'SKU-OFC-005', NULL);
-INSERT OR IGNORE INTO Product(id, categoryId, name, price, sku, imageUrl) VALUES ('p_6', 'cat_3', 'Kaos Polo', 12.5, 'SKU-APP-006', NULL);
+INSERT OR IGNORE INTO Product(id, categoryId, name, price, sku, imageUrl) VALUES ('p_1', 'cat_1', 'Air Mineral 600ml', 3500.0, 'MIN-AIR-600', NULL);
+INSERT OR IGNORE INTO Product(id, categoryId, name, price, sku, imageUrl) VALUES ('p_2', 'cat_1', 'Teh Botol 450ml', 5000.0, 'MIN-TEH-450', NULL);
+INSERT OR IGNORE INTO Product(id, categoryId, name, price, sku, imageUrl) VALUES ('p_3', 'cat_2', 'Mi Instan Goreng', 3200.0, 'SEM-MIE-001', NULL);
+INSERT OR IGNORE INTO Product(id, categoryId, name, price, sku, imageUrl) VALUES ('p_4', 'cat_2', 'Gula Pasir 1kg', 18500.0, 'SEM-GULA-1K', NULL);
+INSERT OR IGNORE INTO Product(id, categoryId, name, price, sku, imageUrl) VALUES ('p_5', 'cat_3', 'Sabun Cuci Tangan', 14500.0, 'RAW-SABUN-01', NULL);
+INSERT OR IGNORE INTO Product(id, categoryId, name, price, sku, imageUrl) VALUES ('p_6', 'cat_4', 'Buku Nota Kecil', 6500.0, 'ATK-NOTA-01', NULL);
 
-INSERT OR IGNORE INTO ProductBarcode(barcode, productId, type) VALUES ('8996001600033', 'p_3', 'GLOBAL');
-INSERT OR IGNORE INTO ProductBarcode(barcode, productId, type) VALUES ('8996001600040', 'p_4', 'GLOBAL');
-INSERT OR IGNORE INTO ProductBarcode(barcode, productId, type) VALUES ('8996001600057', 'p_5', 'GLOBAL');
-INSERT OR IGNORE INTO ProductBarcode(barcode, productId, type) VALUES ('8996001600064', 'p_6', 'GLOBAL');
+INSERT OR IGNORE INTO ProductBarcode(barcode, productId, type) VALUES ('8996001600033', 'p_1', 'GLOBAL');
+INSERT OR IGNORE INTO ProductBarcode(barcode, productId, type) VALUES ('8996001600040', 'p_2', 'GLOBAL');
+INSERT OR IGNORE INTO ProductBarcode(barcode, productId, type) VALUES ('8996001600057', 'p_3', 'GLOBAL');
+INSERT OR IGNORE INTO ProductBarcode(barcode, productId, type) VALUES ('8996001600064', 'p_4', 'GLOBAL');
 
 -- Queries
 insertProduct:

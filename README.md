@@ -2,7 +2,7 @@
 
 Desktop-first retail operating core untuk single outlet. Fokus V1 saat ini adalah cashier core yang usable, guided operations yang jujur, dan inventory basic yang explainable.
 
-Versi repo saat ini: `0.2.0-beta.1` dengan posture `Private Beta / Controlled Beta`.
+Versi repo saat ini: `0.2.0-beta.2` dengan posture `Private Beta / Controlled Beta`.
 
 ## Repo Truth & Milestone Status (2026-03-27)
 

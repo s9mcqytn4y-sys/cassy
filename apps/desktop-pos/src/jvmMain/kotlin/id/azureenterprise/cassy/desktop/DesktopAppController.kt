@@ -170,6 +170,15 @@ class DesktopAppController(
         _state.update { it.copy(login = it.login.copy(pin = pin.take(6), feedback = null)) }
     }
 
+    fun selectWorkspace(workspace: DesktopWorkspace) {
+        _state.update { current ->
+            val allowed = current.shell.availableWorkspaces
+            current.copy(
+                activeWorkspace = workspace.takeIf { it in allowed } ?: current.activeWorkspace
+            )
+        }
+    }
+
     suspend fun login() {
         val operatorId = state.value.login.selectedOperatorId
             ?: return pushBanner(UiBanner(UiTone.Warning, "Pilih operator terlebih dahulu"))
@@ -1031,12 +1040,17 @@ class DesktopAppController(
             emptyList()
         }
 
+        val availableWorkspaces = availableWorkspacesFor(
+            role = activeOperator?.role,
+            canAccessSalesHome = operationalSnapshot.canAccessSalesHome
+        )
+        val activeWorkspace = state.value.activeWorkspace
+            .takeIf { it in availableWorkspaces }
+            ?: DesktopWorkspace.Dashboard
         val stage = when {
             context.terminalBinding == null || context.operators.isEmpty() -> DesktopStage.Bootstrap
             context.activeSession == null -> DesktopStage.Login
-            businessDay == null -> DesktopStage.OpenDay
-            !operationalSnapshot.canAccessSalesHome -> DesktopStage.StartShift
-            else -> DesktopStage.Catalog
+            else -> DesktopStage.Workspace
         }
 
         // R5 Reporting Aggregation
@@ -1054,7 +1068,7 @@ class DesktopAppController(
         }
 
         var resolvedBanner = banner
-        if (stage == DesktopStage.Catalog) {
+        if (operationalSnapshot.canAccessSalesHome) {
             val recoveredCount = salesService.recoverIncompleteFinalizations().getOrDefault(0)
             if (recoveredCount > 0) {
                 resolvedBanner = UiBanner(
@@ -1067,7 +1081,7 @@ class DesktopAppController(
         val refreshedCashQuote = salesService.quoteCashTender(
             state.value.catalog.cashReceivedInput.toDoubleOrNull() ?: 0.0
         ).getOrNull()
-        val refreshedInventory = if (stage == DesktopStage.Catalog) {
+        val refreshedInventory = if (stage == DesktopStage.Workspace) {
             buildInventoryState(
                 previous = state.value.inventory,
                 products = inventoryProducts
@@ -1080,6 +1094,7 @@ class DesktopAppController(
             it.copy(
                 isBusy = false,
                 stage = stage,
+                activeWorkspace = activeWorkspace,
                 shell = DesktopShellState(
                     storeName = context.terminalBinding?.storeName,
                     terminalName = context.terminalBinding?.terminalName,
@@ -1087,7 +1102,9 @@ class DesktopAppController(
                     roleLabel = activeOperator?.role?.name,
                     dayStatus = businessDay?.status ?: "CLOSED",
                     shiftStatus = activeShift?.status ?: "LOCKED",
-                    nextActionLabel = operationalSnapshot.primaryAction?.toUiLabel()
+                    nextActionLabel = operationalSnapshot.primaryAction?.toUiLabel(),
+                    workspaceTitle = activeWorkspace.title,
+                    availableWorkspaces = availableWorkspaces
                 ),
                 login = it.login.copy(
                     operators = operators,
@@ -1298,6 +1315,7 @@ class DesktopAppController(
 
 data class DesktopAppState(
     val stage: DesktopStage = DesktopStage.Loading,
+    val activeWorkspace: DesktopWorkspace = DesktopWorkspace.Dashboard,
     val shell: DesktopShellState = DesktopShellState(),
     val bootstrap: BootstrapState = BootstrapState(),
     val login: LoginState = LoginState(),
@@ -1313,9 +1331,7 @@ sealed interface DesktopStage {
     data object Loading : DesktopStage
     data object Bootstrap : DesktopStage
     data object Login : DesktopStage
-    data object OpenDay : DesktopStage
-    data object StartShift : DesktopStage
-    data object Catalog : DesktopStage
+    data object Workspace : DesktopStage
     data class FatalError(val message: String) : DesktopStage
 }
 
@@ -1326,7 +1342,9 @@ data class DesktopShellState(
     val roleLabel: String? = null,
     val dayStatus: String = "CLOSED",
     val shiftStatus: String = "LOCKED",
-    val nextActionLabel: String? = null
+    val nextActionLabel: String? = null,
+    val workspaceTitle: String = DesktopWorkspace.Dashboard.title,
+    val availableWorkspaces: List<DesktopWorkspace> = listOf(DesktopWorkspace.Dashboard)
 )
 
 data class BootstrapState(

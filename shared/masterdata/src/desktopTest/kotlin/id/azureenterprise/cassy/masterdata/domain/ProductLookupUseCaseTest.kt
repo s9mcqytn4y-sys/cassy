@@ -19,7 +19,7 @@ class ProductLookupUseCaseTest {
             val useCase = ProductLookupUseCase(repository, BarcodeNormalizer())
 
             assertIs<ProductLookupResult.FoundSingle>(useCase.execute("8996001600033"))
-            assertIs<ProductLookupResult.FoundSingle>(useCase.execute("SKU-OFC-005"))
+            assertIs<ProductLookupResult.FoundSingle>(useCase.execute("ATK-NOTA-01"))
             assertIs<ProductLookupResult.InvalidInput>(useCase.execute(" "))
             assertIs<ProductLookupResult.NotFound>(useCase.execute("UNREGISTERED"))
         }

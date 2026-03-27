@@ -3,7 +3,9 @@ package id.azureenterprise.cassy.desktop
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -216,43 +218,41 @@ fun ShortcutHintBar(
  */
 @Composable
 fun CassySlimRail(
-    selectedStage: DesktopStage,
+    state: DesktopShellState,
+    selectedWorkspace: DesktopWorkspace,
+    stage: DesktopStage,
+    onSelectWorkspace: (DesktopWorkspace) -> Unit,
     onLogout: () -> Unit,
     onReload: () -> Unit
 ) {
     NavigationRail(
-        modifier = Modifier.width(72.dp),
+        modifier = Modifier.width(92.dp),
         containerColor = MaterialTheme.colorScheme.surfaceVariant,
         header = {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                // R5 UX Hardening: Use official brand logo in Slim Rail
                 Image(
                     painter = painterResource("logo.png"),
                     contentDescription = "Cassy Logo",
-                    modifier = Modifier.size(40.dp).padding(top = 12.dp)
+                    modifier = Modifier.size(54.dp).padding(top = 14.dp)
                 )
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Cassy",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(18.dp))
             }
         }
     ) {
-        RailItem(
-            selected = selectedStage is DesktopStage.Catalog,
-            icon = Icons.AutoMirrored.Filled.List,
-            label = "Kasir",
-            onClick = {}
-        )
-        RailItem(
-            selected = false,
-            icon = Icons.Default.DateRange,
-            label = "Riwayat",
-            onClick = {}
-        )
-        RailItem(
-            selected = false,
-            icon = Icons.Default.Settings,
-            label = "Sistem",
-            onClick = {}
-        )
+        state.availableWorkspaces.forEach { workspace ->
+            RailItem(
+                selected = stage == DesktopStage.Workspace && workspace == selectedWorkspace,
+                icon = workspace.toIcon(),
+                label = workspace.shortLabel,
+                onClick = { onSelectWorkspace(workspace) }
+            )
+        }
 
         Spacer(modifier = Modifier.weight(1f))
 
@@ -355,7 +355,7 @@ fun CassyTopBar(
     state: DesktopShellState,
     hardware: CashierHardwareSnapshot,
     syncStatus: SyncStatus? = null,
-    onShowReporting: () -> Unit = {}
+    onOpenCommand: () -> Unit = {}
 ) {
     val runtimeChannel = remember { System.getProperty("cassy.runtime.channel", "unknown") }
     val releaseVersion = remember { System.getProperty("cassy.release.version", "dev") }
@@ -389,7 +389,7 @@ fun CassyTopBar(
 
     Surface(
         tonalElevation = 1.dp,
-        modifier = Modifier.fillMaxWidth().height(56.dp),
+        modifier = Modifier.fillMaxWidth().height(64.dp),
         color = MaterialTheme.colorScheme.surface
     ) {
         Row(
@@ -397,54 +397,150 @@ fun CassyTopBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { onShowReporting() }) {
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = state.storeName ?: "Cassy Store",
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = " | ${state.terminalName ?: "T01"}",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                        )
-                        Icon(
-                            imageVector = Icons.Default.Info,
-                            contentDescription = "Show Reporting",
-                            modifier = Modifier.padding(start = 8.dp).size(16.dp),
-                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
-                        )
-                    }
-                    Text(
-                        text = "F1/F5 Sync | F7 Void | F8 Ringkasan | F9 Stok | F10 Kas | F11 Shift | F12 Hari",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = state.workspaceTitle,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "${state.storeName ?: "Toko belum aktif"} • ${state.terminalName ?: "Terminal belum terikat"}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
 
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 StatusIndicator(label = "Build", status = buildLabel, tone = buildTone)
                 state.nextActionLabel?.let {
                     StatusIndicator(label = "Next", status = it, tone = UiTone.Info)
                 }
                 StatusIndicator(label = "Sync", status = syncLabel, tone = syncTone)
-                StatusIndicator(label = "Print", status = hardware.printer.label, tone = hardwareTone(hardware.printer.status))
-                StatusIndicator(label = "Scan", status = hardware.scanner.label, tone = hardwareTone(hardware.scanner.status))
-                StatusIndicator(label = "Drawer", status = hardware.cashDrawer.label, tone = hardwareTone(hardware.cashDrawer.status))
-
                 VerticalDivider(modifier = Modifier.height(16.dp))
-
                 Text(
-                    text = state.operatorName ?: "No User",
+                    text = humanizeOperatorLabel(state.operatorName, state.roleLabel),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold
+                )
+                AssistChip(
+                    onClick = onOpenCommand,
+                    label = { Text("Ctrl+K") }
                 )
             }
         }
     }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun CassyBottomStatusStrip(
+    shell: DesktopShellState,
+    operations: OperationsState,
+    hardware: CashierHardwareSnapshot
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        FlowRow(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            AssistChip(
+                onClick = {},
+                enabled = false,
+                label = { Text(humanizeBusinessDayLabel(operations.businessDayLabel)) }
+            )
+            AssistChip(
+                onClick = {},
+                enabled = false,
+                label = { Text(humanizeShiftLabel(operations.shiftLabel)) }
+            )
+            AssistChip(
+                onClick = {},
+                enabled = false,
+                label = { Text("Printer ${hardware.printer.label}") }
+            )
+            AssistChip(
+                onClick = {},
+                enabled = false,
+                label = { Text("Scanner ${hardware.scanner.label}") }
+            )
+            shell.nextActionLabel?.let { next ->
+                AssistChip(
+                    onClick = {},
+                    enabled = false,
+                    label = { Text("Tindakan berikutnya: $next") }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun CassyCommandPalette(
+    availableWorkspaces: List<DesktopWorkspace>,
+    onDismiss: () -> Unit,
+    onSelectWorkspace: (DesktopWorkspace) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Command Palette", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "Pilih workspace utama. Fokus shortcut laptop tetap punya alias Ctrl-based.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                availableWorkspaces.forEach { workspace ->
+                    Surface(
+                        modifier = Modifier.fillMaxWidth().clickable { onSelectWorkspace(workspace) },
+                        shape = RoundedCornerShape(12.dp),
+                        tonalElevation = 1.dp
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(workspace.title, fontWeight = FontWeight.SemiBold)
+                            Text(workspace.shortLabel, style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { OutlinedButton(onClick = onDismiss) { Text("Tutup") } },
+        dismissButton = {}
+    )
+}
+
+@Composable
+fun CassyShortcutHelpDialog(
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Shortcut Keyboard", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Ctrl+K: command palette")
+                Text("Ctrl+/: bantuan shortcut")
+                Text("Ctrl+Shift+S: sistem / sync / dev tools")
+                Text("Ctrl+Shift+R: laporan")
+                Text("Ctrl+Shift+I: inventori")
+                Text("Ctrl+Shift+C: operasional")
+                Text("Ctrl+Shift+H: guided dashboard")
+                Text("F1/F5: replay sync")
+                Text("F7-F12: alias legacy ke workspace operasional terkait")
+                Text("Esc: tutup surface ringan")
+            }
+        },
+        confirmButton = { OutlinedButton(onClick = onDismiss) { Text("Tutup") } },
+        dismissButton = {}
+    )
 }
 
 @Composable
@@ -475,4 +571,14 @@ private fun hardwareTone(status: HardwareDeviceStatus): UiTone = when (status) {
     HardwareDeviceStatus.UNKNOWN -> UiTone.Warning
     HardwareDeviceStatus.WARNING -> UiTone.Warning
     HardwareDeviceStatus.UNAVAILABLE -> UiTone.Danger
+}
+
+private fun DesktopWorkspace.toIcon(): ImageVector = when (this) {
+    DesktopWorkspace.Dashboard -> Icons.Default.SpaceDashboard
+    DesktopWorkspace.Cashier -> Icons.Default.PointOfSale
+    DesktopWorkspace.History -> Icons.Default.History
+    DesktopWorkspace.Inventory -> Icons.Default.Inventory2
+    DesktopWorkspace.Operations -> Icons.Default.AdminPanelSettings
+    DesktopWorkspace.Reporting -> Icons.Default.Assessment
+    DesktopWorkspace.System -> Icons.Default.Settings
 }

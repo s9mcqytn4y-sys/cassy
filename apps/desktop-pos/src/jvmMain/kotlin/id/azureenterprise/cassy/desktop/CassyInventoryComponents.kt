@@ -47,211 +47,248 @@ fun InventoryTruthDialog(
     onDenyAction: (String) -> Unit,
     onDeferDiscrepancy: (String) -> Unit
 ) {
-    val selectedProduct = state.availableProducts.firstOrNull { it.id == state.selectedProductId }
-
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Inventory Truth Lite", fontWeight = FontWeight.Bold) },
         text = {
-            Column(
+            InventoryTruthDialogContent(
+                state = state,
+                onSelectProduct = onSelectProduct,
+                onCountQuantityChanged = onCountQuantityChanged,
+                onSubmitCount = onSubmitCount,
+                onAdjustmentDirectionChanged = onAdjustmentDirectionChanged,
+                onAdjustmentQuantityChanged = onAdjustmentQuantityChanged,
+                onAdjustmentReasonCodeChanged = onAdjustmentReasonCodeChanged,
+                onAdjustmentReasonDetailChanged = onAdjustmentReasonDetailChanged,
+                onApplyAdjustment = onApplyAdjustment,
+                onResolveDiscrepancy = onResolveDiscrepancy,
+                onMarkInvestigation = onMarkInvestigation,
+                onApproveAction = onApproveAction,
+                onDenyAction = onDenyAction,
+                onDeferDiscrepancy = onDeferDiscrepancy,
                 modifier = Modifier
                     .width(920.dp)
                     .heightIn(max = 640.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Surface(
-                    tonalElevation = 1.dp,
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("Current state vs explanation trail", fontWeight = FontWeight.Bold)
-                        Text("inventory_balance adalah current state. stock_ledger_entry adalah explanation trail dan tidak dipakai sebagai cache balance.")
-                        Text("Image I/O: ${state.imageIoStatus}")
-                        Text("Folder: ${state.inputImagesFolder}")
-                        Text("Image ref: ${state.selectedImageRef ?: "Belum ada file cocok / fallback hanya imageUrl"}")
-                        Text("Approval: ${state.approvalLimitationNote}")
-                        Text("Void contract: ${state.voidContractNote}")
-                    }
-                }
-
-                if (state.availableProducts.isEmpty()) {
-                    Text("Belum ada produk untuk diinspeksi.")
-                } else {
-                    Text("Pilih produk", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        state.availableProducts.chunked(3).forEach { rowProducts ->
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                rowProducts.forEach { product ->
-                                    FilterChip(
-                                        selected = state.selectedProductId == product.id,
-                                        onClick = { onSelectProduct(product.id) },
-                                        label = { Text("${product.name} (${product.sku})") }
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                selectedProduct?.let { product ->
-                    Surface(
-                        tonalElevation = 1.dp,
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("Current state", fontWeight = FontWeight.Bold)
-                            Text(product.name)
-                            Text("SKU: ${product.sku}")
-                            val balance = state.selectedReadback?.balance
-                            if (balance != null) {
-                                Text("Qty saat ini: ${balance.quantity}")
-                                Text("Rotation policy: ${balance.rotationPolicy.name}")
-                                Text("Last ledger: ${balance.lastLedgerEntryId ?: "-"}")
-                            } else {
-                                Text("Belum ada row inventory_balance final. Current state dibaca sebagai 0 sampai ada mutasi final.")
-                            }
-                        }
-                    }
-                }
-
-                Surface(
-                    tonalElevation = 1.dp,
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Stock opname count", fontWeight = FontWeight.Bold)
-                        InventoryQuantityInput(
-                            label = "Counted qty",
-                            value = state.countQuantityInput,
-                            onValueChange = onCountQuantityChanged,
-                            helperText = "Count menghasilkan discrepancy dulu. Tidak auto-adjust."
-                        )
-                        Button(onClick = onSubmitCount, modifier = Modifier.fillMaxWidth()) {
-                            Text("Rekam Count")
-                        }
-                    }
-                }
-
-                Surface(
-                    tonalElevation = 1.dp,
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Lightweight adjustment", fontWeight = FontWeight.Bold)
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            FilterChip(
-                                selected = state.adjustmentDirection == InventoryAdjustmentDirection.INCREASE,
-                                onClick = { onAdjustmentDirectionChanged(InventoryAdjustmentDirection.INCREASE) },
-                                label = { Text("Tambah") }
-                            )
-                            FilterChip(
-                                selected = state.adjustmentDirection == InventoryAdjustmentDirection.DECREASE,
-                                onClick = { onAdjustmentDirectionChanged(InventoryAdjustmentDirection.DECREASE) },
-                                label = { Text("Kurangi") }
-                            )
-                        }
-                        InventoryQuantityInput(
-                            label = "Qty adjustment",
-                            value = state.adjustmentQuantityInput,
-                            onValueChange = onAdjustmentQuantityChanged,
-                            helperText = "Mutasi final wajib punya reason code inventory."
-                        )
-                        InventoryReasonOptionGroup(
-                            options = state.adjustmentReasonOptions,
-                            selectedCode = state.adjustmentReasonCode,
-                            onSelected = onAdjustmentReasonCodeChanged
-                        )
-                        InventoryFormField(
-                            label = "Catatan adjustment / investigasi",
-                            value = state.adjustmentReasonDetail,
-                            onValueChange = onAdjustmentReasonDetailChanged
-                        )
-                        Text(
-                            "Status operasi: Reason wajib durable. Jika reason/policy meminta approval, jalur yang shipped saat ini adalah LIGHT_PIN.",
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                        Button(onClick = onApplyAdjustment, modifier = Modifier.fillMaxWidth()) {
-                            Text("Simpan Adjustment")
-                        }
-                    }
-                }
-
-                Surface(
-                    tonalElevation = 1.dp,
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Discrepancy review queue", fontWeight = FontWeight.Bold)
-                        if (state.unresolvedDiscrepancies.isEmpty()) {
-                            Text("Belum ada discrepancy unresolved.")
-                        } else {
-                            state.unresolvedDiscrepancies.forEach { review ->
-                                InventoryDiscrepancyRow(
-                                    review = review,
-                                    productLabel = state.availableProducts.firstOrNull { it.id == review.productId }?.name
-                                        ?: review.productId,
-                                    onResolve = onResolveDiscrepancy,
-                                    onMarkInvestigation = onMarkInvestigation,
-                                    onDefer = onDeferDiscrepancy
-                                )
-                            }
-                        }
-                    }
-                }
-
-                Surface(
-                    tonalElevation = 1.dp,
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Needs Approval", fontWeight = FontWeight.Bold)
-                        if (state.pendingApprovalActions.isEmpty()) {
-                            Text("Belum ada action inventory yang menunggu LIGHT_PIN.")
-                        } else {
-                            state.pendingApprovalActions.forEach { action ->
-                                InventoryPendingApprovalRow(
-                                    action = action,
-                                    productLabel = state.availableProducts.firstOrNull { it.id == action.productId }?.name
-                                        ?: action.productId,
-                                    onApprove = onApproveAction,
-                                    onDeny = onDenyAction
-                                )
-                            }
-                        }
-                    }
-                }
-
-                Surface(
-                    tonalElevation = 1.dp,
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Explanation trail", fontWeight = FontWeight.Bold)
-                        val selectedReadback = state.selectedReadback
-                        if (selectedReadback?.ledgerEntries.isNullOrEmpty()) {
-                            Text("Belum ada stock_ledger_entry untuk produk ini.")
-                        } else {
-                            selectedReadback.ledgerEntries.forEach { entry ->
-                                InventoryLedgerRow(entry)
-                            }
-                        }
-                    }
-                }
-            }
+                    .verticalScroll(rememberScrollState())
+            )
         },
         confirmButton = {
             OutlinedButton(onClick = onDismiss) { Text("Tutup") }
         },
         dismissButton = {}
     )
+}
+
+@Composable
+fun InventoryTruthDialogContent(
+    state: InventoryPanelState,
+    onSelectProduct: (String) -> Unit,
+    onCountQuantityChanged: (String) -> Unit,
+    onSubmitCount: () -> Unit,
+    onAdjustmentDirectionChanged: (InventoryAdjustmentDirection) -> Unit,
+    onAdjustmentQuantityChanged: (String) -> Unit,
+    onAdjustmentReasonCodeChanged: (String) -> Unit,
+    onAdjustmentReasonDetailChanged: (String) -> Unit,
+    onApplyAdjustment: () -> Unit,
+    onResolveDiscrepancy: (String) -> Unit,
+    onMarkInvestigation: (String) -> Unit,
+    onApproveAction: (String) -> Unit,
+    onDenyAction: (String) -> Unit,
+    onDeferDiscrepancy: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val selectedProduct = state.availableProducts.firstOrNull { it.id == state.selectedProductId }
+
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Surface(
+            tonalElevation = 1.dp,
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Current state vs explanation trail", fontWeight = FontWeight.Bold)
+                Text("inventory_balance adalah current state. stock_ledger_entry adalah explanation trail dan tidak dipakai sebagai cache balance.")
+                Text("Image I/O: ${state.imageIoStatus}")
+                Text("Folder: ${state.inputImagesFolder}")
+                Text("Image ref: ${state.selectedImageRef ?: "Belum ada file cocok / fallback hanya imageUrl"}")
+                Text("Approval: ${state.approvalLimitationNote}")
+                Text("Void contract: ${state.voidContractNote}")
+            }
+        }
+
+        if (state.availableProducts.isEmpty()) {
+            Text("Belum ada produk untuk diinspeksi.")
+        } else {
+            Text("Pilih produk", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                state.availableProducts.chunked(3).forEach { rowProducts ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        rowProducts.forEach { product ->
+                            FilterChip(
+                                selected = state.selectedProductId == product.id,
+                                onClick = { onSelectProduct(product.id) },
+                                label = { Text("${product.name} (${product.sku})") }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        selectedProduct?.let { product ->
+            Surface(
+                tonalElevation = 1.dp,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Current state", fontWeight = FontWeight.Bold)
+                    Text(product.name)
+                    Text("SKU: ${product.sku}")
+                    val balance = state.selectedReadback?.balance
+                    if (balance != null) {
+                        Text("Qty saat ini: ${balance.quantity}")
+                        Text("Rotation policy: ${balance.rotationPolicy.name}")
+                        Text("Last ledger: ${balance.lastLedgerEntryId ?: "-"}")
+                    } else {
+                        Text("Belum ada row inventory_balance final. Current state dibaca sebagai 0 sampai ada mutasi final.")
+                    }
+                }
+            }
+        }
+
+        Surface(
+            tonalElevation = 1.dp,
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Stock opname count", fontWeight = FontWeight.Bold)
+                InventoryQuantityInput(
+                    label = "Counted qty",
+                    value = state.countQuantityInput,
+                    onValueChange = onCountQuantityChanged,
+                    helperText = "Count menghasilkan discrepancy dulu. Tidak auto-adjust."
+                )
+                Button(onClick = onSubmitCount, modifier = Modifier.fillMaxWidth()) {
+                    Text("Rekam Count")
+                }
+            }
+        }
+
+        Surface(
+            tonalElevation = 1.dp,
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Lightweight adjustment", fontWeight = FontWeight.Bold)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = state.adjustmentDirection == InventoryAdjustmentDirection.INCREASE,
+                        onClick = { onAdjustmentDirectionChanged(InventoryAdjustmentDirection.INCREASE) },
+                        label = { Text("Tambah") }
+                    )
+                    FilterChip(
+                        selected = state.adjustmentDirection == InventoryAdjustmentDirection.DECREASE,
+                        onClick = { onAdjustmentDirectionChanged(InventoryAdjustmentDirection.DECREASE) },
+                        label = { Text("Kurangi") }
+                    )
+                }
+                InventoryQuantityInput(
+                    label = "Qty adjustment",
+                    value = state.adjustmentQuantityInput,
+                    onValueChange = onAdjustmentQuantityChanged,
+                    helperText = "Mutasi final wajib punya reason code inventory."
+                )
+                InventoryReasonOptionGroup(
+                    options = state.adjustmentReasonOptions,
+                    selectedCode = state.adjustmentReasonCode,
+                    onSelected = onAdjustmentReasonCodeChanged
+                )
+                InventoryFormField(
+                    label = "Catatan adjustment / investigasi",
+                    value = state.adjustmentReasonDetail,
+                    onValueChange = onAdjustmentReasonDetailChanged
+                )
+                Text(
+                    "Status operasi: Reason wajib durable. Jika reason/policy meminta approval, jalur yang shipped saat ini adalah LIGHT_PIN.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Button(onClick = onApplyAdjustment, modifier = Modifier.fillMaxWidth()) {
+                    Text("Simpan Adjustment")
+                }
+            }
+        }
+
+        Surface(
+            tonalElevation = 1.dp,
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Discrepancy review queue", fontWeight = FontWeight.Bold)
+                if (state.unresolvedDiscrepancies.isEmpty()) {
+                    Text("Belum ada discrepancy unresolved.")
+                } else {
+                    state.unresolvedDiscrepancies.forEach { review ->
+                        InventoryDiscrepancyRow(
+                            review = review,
+                            productLabel = state.availableProducts.firstOrNull { it.id == review.productId }?.name
+                                ?: review.productId,
+                            onResolve = onResolveDiscrepancy,
+                            onMarkInvestigation = onMarkInvestigation,
+                            onDefer = onDeferDiscrepancy
+                        )
+                    }
+                }
+            }
+        }
+
+        Surface(
+            tonalElevation = 1.dp,
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Needs Approval", fontWeight = FontWeight.Bold)
+                if (state.pendingApprovalActions.isEmpty()) {
+                    Text("Belum ada action inventory yang menunggu LIGHT_PIN.")
+                } else {
+                    state.pendingApprovalActions.forEach { action ->
+                        InventoryPendingApprovalRow(
+                            action = action,
+                            productLabel = state.availableProducts.firstOrNull { it.id == action.productId }?.name
+                                ?: action.productId,
+                            onApprove = onApproveAction,
+                            onDeny = onDenyAction
+                        )
+                    }
+                }
+            }
+        }
+
+        Surface(
+            tonalElevation = 1.dp,
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Explanation trail", fontWeight = FontWeight.Bold)
+                val selectedReadback = state.selectedReadback
+                if (selectedReadback?.ledgerEntries.isNullOrEmpty()) {
+                    Text("Belum ada stock_ledger_entry untuk produk ini.")
+                } else {
+                    selectedReadback.ledgerEntries.forEach { entry ->
+                        InventoryLedgerRow(entry)
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable

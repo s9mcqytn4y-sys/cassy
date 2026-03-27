@@ -22,8 +22,14 @@ import kotlin.system.exitProcess
 
 fun main(args: Array<String>) {
     val smokeMode = args.contains("--smoke-run")
+    val devResetMode = args.contains("--dev-reset-demo")
     if (smokeMode) {
         runHeadlessSmoke()
+        return
+    }
+    if (devResetMode) {
+        val deleted = resetDesktopDataForDevelopment()
+        println("CASSY_DEV_RESET_OK files=${deleted.size} root=${resolveDesktopDataRoot().absolutePath}")
         return
     }
 
@@ -43,32 +49,68 @@ fun main(args: Array<String>) {
                 val controller: DesktopAppController = koinInject()
                 val state by controller.state.collectAsState()
                 val scope = rememberCoroutineScope()
-
-                var showEndShiftDialog by remember { mutableStateOf(false) }
-                var showCloseDayDialog by remember { mutableStateOf(false) }
-                var showCashControlDialog by remember { mutableStateOf(false) }
-                var showInventoryDialog by remember { mutableStateOf(false) }
-                var showVoidDialog by remember { mutableStateOf(false) }
-                var showReportingDialog by remember { mutableStateOf(false) }
+                var showCommandPalette by remember { mutableStateOf(false) }
+                var showShortcutHelp by remember { mutableStateOf(false) }
 
                 LaunchedEffect(Unit) {
                     controller.load()
                 }
 
-                // PHASE 3: Keyboard Shortcut Mapping (F1-F12 + Numpad Ergonomics)
                 Box(
                     modifier = Modifier.fillMaxSize().onPreviewKeyEvent {
                         if (it.type == KeyEventType.KeyDown) {
                             when (it.key) {
                                 Key.F1, Key.F5 -> { scope.launch { controller.replaySyncAndReload() }; true }
-                                Key.F7 -> { showVoidDialog = true; true }
-                                Key.F12 -> { showCloseDayDialog = true; true }
-                                Key.F11 -> { showEndShiftDialog = true; true }
-                                Key.F10 -> { showCashControlDialog = true; true }
-                                Key.F9 -> { showInventoryDialog = true; true }
-                                Key.F8 -> { showReportingDialog = true; true }
+                                Key.F7 -> { controller.selectWorkspace(DesktopWorkspace.Operations); true }
+                                Key.F8 -> { controller.selectWorkspace(DesktopWorkspace.Reporting); true }
+                                Key.F9 -> { controller.selectWorkspace(DesktopWorkspace.Inventory); true }
+                                Key.F10 -> { controller.selectWorkspace(DesktopWorkspace.Operations); true }
+                                Key.F11 -> { controller.selectWorkspace(DesktopWorkspace.Operations); true }
+                                Key.F12 -> { controller.selectWorkspace(DesktopWorkspace.Operations); true }
+                                Key.K -> {
+                                    if (it.isCtrlPressed) {
+                                        showCommandPalette = !showCommandPalette
+                                        true
+                                    } else false
+                                }
+                                Key.Slash -> {
+                                    if (it.isCtrlPressed) {
+                                        showShortcutHelp = !showShortcutHelp
+                                        true
+                                    } else false
+                                }
+                                Key.S -> {
+                                    if (it.isCtrlPressed && it.isShiftPressed) {
+                                        controller.selectWorkspace(DesktopWorkspace.System)
+                                        true
+                                    } else false
+                                }
+                                Key.R -> {
+                                    if (it.isCtrlPressed && it.isShiftPressed) {
+                                        controller.selectWorkspace(DesktopWorkspace.Reporting)
+                                        true
+                                    } else false
+                                }
+                                Key.I -> {
+                                    if (it.isCtrlPressed && it.isShiftPressed) {
+                                        controller.selectWorkspace(DesktopWorkspace.Inventory)
+                                        true
+                                    } else false
+                                }
+                                Key.C -> {
+                                    if (it.isCtrlPressed && it.isShiftPressed) {
+                                        controller.selectWorkspace(DesktopWorkspace.Operations)
+                                        true
+                                    } else false
+                                }
+                                Key.H -> {
+                                    if (it.isCtrlPressed && it.isShiftPressed) {
+                                        controller.selectWorkspace(DesktopWorkspace.Dashboard)
+                                        true
+                                    } else false
+                                }
                                 Key.E -> {
-                                    if (it.isCtrlPressed && showReportingDialog) {
+                                    if (it.isCtrlPressed && state.activeWorkspace == DesktopWorkspace.Reporting) {
                                         scope.launch { controller.exportOperationalReport() }
                                         true
                                     } else {
@@ -76,11 +118,11 @@ fun main(args: Array<String>) {
                                     }
                                 }
                                 Key.Escape -> {
-                                    if (showVoidDialog) {
-                                        showVoidDialog = false
+                                    if (showCommandPalette) {
+                                        showCommandPalette = false
                                         true
-                                    } else if (showReportingDialog) {
-                                        showReportingDialog = false
+                                    } else if (showShortcutHelp) {
+                                        showShortcutHelp = false
                                         true
                                     } else {
                                         false
@@ -94,7 +136,10 @@ fun main(args: Array<String>) {
                     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                         Row(modifier = Modifier.fillMaxSize()) {
                             CassySlimRail(
-                                selectedStage = state.stage,
+                                state = state.shell,
+                                selectedWorkspace = state.activeWorkspace,
+                                stage = state.stage,
+                                onSelectWorkspace = controller::selectWorkspace,
                                 onReload = { scope.launch { controller.replaySyncAndReload() } },
                                 onLogout = { scope.launch { controller.logout() } }
                             )
@@ -104,7 +149,13 @@ fun main(args: Array<String>) {
                                     state = state.shell,
                                     hardware = state.hardware,
                                     syncStatus = state.operations.reportingSummary?.syncStatus,
-                                    onShowReporting = { showReportingDialog = true }
+                                    onOpenCommand = { showCommandPalette = true }
+                                )
+
+                                CassyBottomStatusStrip(
+                                    shell = state.shell,
+                                    operations = state.operations,
+                                    hardware = state.hardware
                                 )
 
                                 Box(modifier = Modifier.fillMaxSize()) {
@@ -121,48 +172,59 @@ fun main(args: Array<String>) {
                                             onPinChanged = controller::updatePin,
                                             onLogin = { scope.launch { controller.login() } }
                                         )
-                                        DesktopStage.OpenDay -> OpenDayStage(
+                                        DesktopStage.Workspace -> DesktopWorkspaceContent(
                                             state = state,
                                             onOpenDay = { scope.launch { controller.openBusinessDay() } },
-                                            onLogout = { scope.launch { controller.logout() } }
-                                        )
-                                        DesktopStage.StartShift -> StartShiftStage(
-                                            state = state,
                                             onOpeningCashChanged = controller::updateOpeningCashInput,
                                             onOpeningCashReasonChanged = controller::updateOpeningCashReasonInput,
-                                            onShortcutSelected = controller::updateOpeningCashInput,
-                                            onStartShift = { scope.launch { controller.startShift() } }
+                                            onStartShift = { scope.launch { controller.startShift() } },
+                                            onSearchChanged = { v -> scope.launch { controller.updateCatalogQuery(v) } },
+                                            onBarcodeChanged = controller::updateBarcodeInput,
+                                            onScanBarcode = { scope.launch { controller.scanBarcodeOrSku() } },
+                                            onAddProduct = { p -> scope.launch { controller.addProduct(p) } },
+                                            onCashReceivedChanged = controller::updateCashReceivedInput,
+                                            onIncrement = { p -> scope.launch { controller.incrementItem(p) } },
+                                            onDecrement = { p, q -> scope.launch { controller.decrementItem(p, q) } },
+                                            onCheckoutCash = { scope.launch { controller.checkoutCash() } },
+                                            onPrintLastReceipt = { scope.launch { controller.printLastReceipt() } },
+                                            onReprintLastReceipt = { scope.launch { controller.reprintLastReceipt() } },
+                                            onCancelSale = { scope.launch { controller.cancelCurrentSale() } },
+                                            onSelectInventoryProduct = { productId -> scope.launch { controller.selectInventoryProduct(productId) } },
+                                            onInventoryCountChanged = controller::updateInventoryCountQuantityInput,
+                                            onSubmitInventoryCount = { scope.launch { controller.submitInventoryCount() } },
+                                            onInventoryAdjustmentDirectionChanged = controller::updateInventoryAdjustmentDirection,
+                                            onInventoryAdjustmentQuantityChanged = controller::updateInventoryAdjustmentQuantityInput,
+                                            onInventoryAdjustmentReasonChanged = controller::updateInventoryAdjustmentReasonCode,
+                                            onInventoryAdjustmentDetailChanged = controller::updateInventoryAdjustmentReasonDetail,
+                                            onApplyInventoryAdjustment = { scope.launch { controller.applyInventoryAdjustment() } },
+                                            onResolveInventoryDiscrepancy = { id -> scope.launch { controller.resolveInventoryDiscrepancy(id) } },
+                                            onMarkInventoryInvestigation = { id -> scope.launch { controller.markInventoryDiscrepancyInvestigation(id) } },
+                                            onApproveInventoryAction = { id -> scope.launch { controller.approveInventoryAction(id) } },
+                                            onDenyInventoryAction = { id -> scope.launch { controller.denyInventoryAction(id) } },
+                                            onDeferInventoryDiscrepancy = controller::deferInventoryDiscrepancy,
+                                            onCashMovementTypeSelected = controller::updateCashMovementType,
+                                            onCashMovementAmountChanged = controller::updateCashMovementAmountInput,
+                                            onCashReasonCodeChanged = controller::updateCashMovementReasonCode,
+                                            onCashReasonDetailChanged = controller::updateCashMovementReasonDetail,
+                                            onSubmitCashMovement = { scope.launch { controller.submitCashMovement() } },
+                                            onApproveCashMovement = { id -> scope.launch { controller.approveCashMovement(id) } },
+                                            onDenyCashMovement = { id -> scope.launch { controller.denyCashMovement(id) } },
+                                            onSelectVoidSale = controller::selectVoidSale,
+                                            onVoidReasonCodeChanged = controller::updateVoidReasonCode,
+                                            onVoidReasonDetailChanged = controller::updateVoidReasonDetail,
+                                            onVoidInventoryFollowUpChanged = controller::updateVoidInventoryFollowUpNote,
+                                            onExecuteVoid = { scope.launch { controller.executeVoidSale() } },
+                                            onClosingCashChanged = controller::updateClosingCashInput,
+                                            onCloseShiftReasonCodeChanged = controller::updateCloseShiftReasonCode,
+                                            onCloseShiftReasonDetailChanged = controller::updateCloseShiftReasonDetail,
+                                            onCloseShift = { scope.launch { controller.endShift() } },
+                                            onApproveCloseShift = { id -> scope.launch { controller.approveCloseShift(id) } },
+                                            onDenyCloseShift = { id -> scope.launch { controller.denyCloseShift(id) } },
+                                            onCloseBusinessDay = { scope.launch { controller.closeBusinessDay() } },
+                                            onSync = { scope.launch { controller.replaySyncAndReload() } },
+                                            onExportReport = { scope.launch { controller.exportOperationalReport() } },
+                                            onSelectWorkspace = controller::selectWorkspace
                                         )
-                                        DesktopStage.Catalog -> {
-                                            Row(modifier = Modifier.fillMaxSize()) {
-                                                CassyCatalogView(
-                                                    state = state.catalog,
-                                                    onSearchChanged = { v -> scope.launch { controller.updateCatalogQuery(v) } },
-                                                    onBarcodeChanged = controller::updateBarcodeInput,
-                                                    onScanBarcode = { scope.launch { controller.scanBarcodeOrSku() } },
-                                                    onAddProduct = { p -> scope.launch { controller.addProduct(p) } },
-                                                    modifier = Modifier.weight(1f)
-                                                )
-                                                CassyCartPanel(
-                                                    state = state.catalog,
-                                                    operations = state.operations,
-                                                    inventory = state.inventory,
-                                                    onCashReceivedChanged = controller::updateCashReceivedInput,
-                                                    onIncrement = { p -> scope.launch { controller.incrementItem(p) } },
-                                                    onDecrement = { p, q -> scope.launch { controller.decrementItem(p, q) } },
-                                                    onCheckoutCash = { scope.launch { controller.checkoutCash() } },
-                                                    onPrintLastReceipt = { scope.launch { controller.printLastReceipt() } },
-                                                    onReprintLastReceipt = { scope.launch { controller.reprintLastReceipt() } },
-                                                    onCancelSale = { scope.launch { controller.cancelCurrentSale() } },
-                                                    onVoidSale = { showVoidDialog = true },
-                                                    onShowReporting = { showReportingDialog = true },
-                                                    onInventoryControl = { showInventoryDialog = true },
-                                                    onCashControl = { showCashControlDialog = true },
-                                                    onEndShift = { showEndShiftDialog = true },
-                                                    onClosingDay = { showCloseDayDialog = true }
-                                                )
-                                            }
-                                        }
                                         is DesktopStage.FatalError -> FatalStage(
                                             message = stage.message,
                                             onRetry = { scope.launch { controller.load() } }
@@ -183,109 +245,20 @@ fun main(args: Array<String>) {
                             }
                         }
                     }
-
-                    // 3. SAFETY GATES: Human-friendly warnings
-                    if (showCashControlDialog) {
-                        CashControlDialog(
-                            state = state.operations,
-                            onDismiss = { showCashControlDialog = false },
-                            onTypeSelected = controller::updateCashMovementType,
-                            onAmountChanged = controller::updateCashMovementAmountInput,
-                            onReasonCodeChanged = controller::updateCashMovementReasonCode,
-                            onReasonDetailChanged = controller::updateCashMovementReasonDetail,
-                            onSubmit = {
-                                showCashControlDialog = false
-                                scope.launch { controller.submitCashMovement() }
-                            },
-                            onApprove = { id -> scope.launch { controller.approveCashMovement(id) } },
-                            onDeny = { id -> scope.launch { controller.denyCashMovement(id) } }
+                    if (showCommandPalette) {
+                        CassyCommandPalette(
+                            availableWorkspaces = state.shell.availableWorkspaces,
+                            onDismiss = { showCommandPalette = false },
+                            onSelectWorkspace = {
+                                controller.selectWorkspace(it)
+                                showCommandPalette = false
+                            }
                         )
                     }
 
-                    if (showInventoryDialog) {
-                        InventoryTruthDialog(
-                            state = state.inventory,
-                            onDismiss = { showInventoryDialog = false },
-                            onSelectProduct = { productId ->
-                                scope.launch { controller.selectInventoryProduct(productId) }
-                            },
-                            onCountQuantityChanged = controller::updateInventoryCountQuantityInput,
-                            onSubmitCount = {
-                                scope.launch { controller.submitInventoryCount() }
-                            },
-                            onAdjustmentDirectionChanged = controller::updateInventoryAdjustmentDirection,
-                            onAdjustmentQuantityChanged = controller::updateInventoryAdjustmentQuantityInput,
-                            onAdjustmentReasonCodeChanged = controller::updateInventoryAdjustmentReasonCode,
-                            onAdjustmentReasonDetailChanged = controller::updateInventoryAdjustmentReasonDetail,
-                            onApplyAdjustment = {
-                                scope.launch { controller.applyInventoryAdjustment() }
-                            },
-                            onResolveDiscrepancy = { reviewId ->
-                                scope.launch { controller.resolveInventoryDiscrepancy(reviewId) }
-                            },
-                            onMarkInvestigation = { reviewId ->
-                                scope.launch { controller.markInventoryDiscrepancyInvestigation(reviewId) }
-                            },
-                            onApproveAction = { actionId ->
-                                scope.launch { controller.approveInventoryAction(actionId) }
-                            },
-                            onDenyAction = { actionId ->
-                                scope.launch { controller.denyInventoryAction(actionId) }
-                            },
-                            onDeferDiscrepancy = controller::deferInventoryDiscrepancy
-                        )
-                    }
-
-                    if (showEndShiftDialog) {
-                        CloseShiftWizardDialog(
-                            state = state.operations,
-                            onDismiss = { showEndShiftDialog = false },
-                            onClosingCashChanged = controller::updateClosingCashInput,
-                            onReasonCodeChanged = controller::updateCloseShiftReasonCode,
-                            onReasonDetailChanged = controller::updateCloseShiftReasonDetail,
-                            onSubmit = {
-                                showEndShiftDialog = false
-                                scope.launch { controller.endShift() }
-                            },
-                            onApprove = { id -> scope.launch { controller.approveCloseShift(id) } },
-                            onDeny = { id -> scope.launch { controller.denyCloseShift(id) } }
-                        )
-                    }
-
-                    if (showCloseDayDialog) {
-                        CloseDayReviewDialog(
-                            operations = state.operations,
-                            onConfirm = {
-                                showCloseDayDialog = false
-                                scope.launch { controller.closeBusinessDay() }
-                            },
-                            onDismiss = { showCloseDayDialog = false }
-                        )
-                    }
-
-                    if (showReportingDialog) {
-                        ReportingSummaryDialog(
-                            state = state.operations,
-                            onDismiss = { showReportingDialog = false },
-                            onExport = { scope.launch { controller.exportOperationalReport() } },
-                            isBusy = state.isBusy
-                        )
-                    }
-
-                    if (showVoidDialog) {
-                        VoidSaleDialog(
-                            voidState = state.operations.voidSale,
-                            recentSales = state.catalog.recentSales,
-                            onDismiss = { showVoidDialog = false },
-                            onSelectSale = controller::selectVoidSale,
-                            onReasonCodeChanged = controller::updateVoidReasonCode,
-                            onReasonDetailChanged = controller::updateVoidReasonDetail,
-                            onInventoryFollowUpChanged = controller::updateVoidInventoryFollowUpNote,
-                            onConfirm = {
-                                showVoidDialog = false
-                                scope.launch { controller.executeVoidSale() }
-                            },
-                            isBusy = state.isBusy
+                    if (showShortcutHelp) {
+                        CassyShortcutHelpDialog(
+                            onDismiss = { showShortcutHelp = false }
                         )
                     }
                 }
@@ -353,12 +326,12 @@ private suspend fun runBetaSmokeScenario(controller: DesktopAppController): Stri
     controller.login()
     delay(400)
 
-    if (controller.state.value.stage == DesktopStage.OpenDay) {
+    if (controller.state.value.stage == DesktopStage.Workspace) {
         controller.openBusinessDay()
         delay(400)
     }
 
-    if (controller.state.value.stage == DesktopStage.StartShift) {
+    if (controller.state.value.stage == DesktopStage.Workspace) {
         controller.updateOpeningCashInput("100000")
         controller.startShift()
         delay(400)

@@ -1,0 +1,2 @@
+CREATE INDEX IF NOT EXISTS Product_active_name_sku_idx
+ON Product(isActive, name, sku);
