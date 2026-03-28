@@ -11,6 +11,7 @@ class FakeKernelRepository : id.azureenterprise.cassy.kernel.data.KernelReposito
     clock = Clock.System
 ) {
     private var terminalBinding: TerminalBinding? = null
+    private val storeProfiles = mutableMapOf<String, StoreProfile>()
     private var monotonicTick = 0L
     private val operators = mutableMapOf<String, OperatorAccount>()
     private var activeSession: AccessSession? = null
@@ -27,6 +28,8 @@ class FakeKernelRepository : id.azureenterprise.cassy.kernel.data.KernelReposito
     override suspend fun isBusinessDayOpen(): Boolean = activeBusinessDay?.status == "OPEN"
     override suspend fun getTerminalBinding(): TerminalBinding? = terminalBinding
     override suspend fun upsertTerminalBinding(binding: TerminalBinding) { terminalBinding = binding }
+    override suspend fun getStoreProfile(storeId: String): StoreProfile? = storeProfiles[storeId]
+    override suspend fun upsertStoreProfile(profile: StoreProfile) { storeProfiles[profile.storeId] = profile }
     override suspend fun listActiveOperators(): List<OperatorAccount> = operators.values.filter { it.isActive }
     override suspend fun getOperatorById(id: String): OperatorAccount? = operators[id]
     override suspend fun upsertOperator(operator: OperatorAccount) { operators[operator.id] = operator }

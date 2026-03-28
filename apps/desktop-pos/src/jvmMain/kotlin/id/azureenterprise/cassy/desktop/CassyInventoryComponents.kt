@@ -49,7 +49,7 @@ fun InventoryTruthDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Inventory Truth Lite", fontWeight = FontWeight.Bold) },
+        title = { Text("Ringkasan stok saat ini", fontWeight = FontWeight.Bold) },
         text = {
             InventoryTruthDialogContent(
                 state = state,
@@ -105,17 +105,17 @@ fun InventoryTruthDialogContent(
     ) {
         Surface(
             tonalElevation = 1.dp,
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(10.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Current state vs explanation trail", fontWeight = FontWeight.Bold)
-                Text("inventory_balance adalah current state. stock_ledger_entry adalah explanation trail dan tidak dipakai sebagai cache balance.")
+                Text("Kondisi stok dan jejak perubahan", fontWeight = FontWeight.Bold)
+                Text("Saldo stok menunjukkan kondisi saat ini. Riwayat perubahan dipakai untuk menjelaskan kenapa stok berubah.")
                 Text("Image I/O: ${state.imageIoStatus}")
                 Text("Folder: ${state.inputImagesFolder}")
-                Text("Image ref: ${state.selectedImageRef ?: "Belum ada file cocok / fallback hanya imageUrl"}")
-                Text("Approval: ${state.approvalLimitationNote}")
-                Text("Void contract: ${state.voidContractNote}")
+                Text("Referensi gambar: ${state.selectedImageRef ?: "Belum ada file lokal yang cocok"}")
+                Text("Persetujuan: ${state.approvalLimitationNote}")
+                Text("Catatan pembatalan transaksi: ${state.voidContractNote}")
             }
         }
 
@@ -141,7 +141,7 @@ fun InventoryTruthDialogContent(
         selectedProduct?.let { product ->
             Surface(
                 tonalElevation = 1.dp,
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(10.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -162,13 +162,13 @@ fun InventoryTruthDialogContent(
 
         Surface(
             tonalElevation = 1.dp,
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(10.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Stock opname count", fontWeight = FontWeight.Bold)
+                Text("Hitung stok fisik", fontWeight = FontWeight.Bold)
                 InventoryQuantityInput(
-                    label = "Counted qty",
+                    label = "Jumlah terhitung",
                     value = state.countQuantityInput,
                     onValueChange = onCountQuantityChanged,
                     helperText = "Count menghasilkan discrepancy dulu. Tidak auto-adjust."
@@ -181,11 +181,11 @@ fun InventoryTruthDialogContent(
 
         Surface(
             tonalElevation = 1.dp,
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(10.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Lightweight adjustment", fontWeight = FontWeight.Bold)
+                Text("Penyesuaian stok terkontrol", fontWeight = FontWeight.Bold)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(
                         selected = state.adjustmentDirection == InventoryAdjustmentDirection.INCREASE,
@@ -215,7 +215,7 @@ fun InventoryTruthDialogContent(
                     onValueChange = onAdjustmentReasonDetailChanged
                 )
                 Text(
-                    "Status operasi: Reason wajib durable. Jika reason/policy meminta approval, jalur yang shipped saat ini adalah LIGHT_PIN.",
+                    "Status operasional: alasan wajib tersimpan rapi. Jika perlu persetujuan, jalur yang tersedia saat ini adalah verifikasi PIN supervisor.",
                     style = MaterialTheme.typography.bodySmall
                 )
                 Button(onClick = onApplyAdjustment, modifier = Modifier.fillMaxWidth()) {
@@ -226,13 +226,13 @@ fun InventoryTruthDialogContent(
 
         Surface(
             tonalElevation = 1.dp,
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(10.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Discrepancy review queue", fontWeight = FontWeight.Bold)
+                Text("Daftar selisih stok", fontWeight = FontWeight.Bold)
                 if (state.unresolvedDiscrepancies.isEmpty()) {
-                    Text("Belum ada discrepancy unresolved.")
+                    Text("Belum ada selisih stok yang menunggu tindak lanjut.")
                 } else {
                     state.unresolvedDiscrepancies.forEach { review ->
                         InventoryDiscrepancyRow(
@@ -250,13 +250,13 @@ fun InventoryTruthDialogContent(
 
         Surface(
             tonalElevation = 1.dp,
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(10.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Needs Approval", fontWeight = FontWeight.Bold)
+                Text("Menunggu persetujuan", fontWeight = FontWeight.Bold)
                 if (state.pendingApprovalActions.isEmpty()) {
-                    Text("Belum ada action inventory yang menunggu LIGHT_PIN.")
+                    Text("Belum ada tindakan inventori yang menunggu verifikasi PIN supervisor.")
                 } else {
                     state.pendingApprovalActions.forEach { action ->
                         InventoryPendingApprovalRow(
@@ -273,14 +273,14 @@ fun InventoryTruthDialogContent(
 
         Surface(
             tonalElevation = 1.dp,
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(10.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Explanation trail", fontWeight = FontWeight.Bold)
+                Text("Jejak perubahan stok", fontWeight = FontWeight.Bold)
                 val selectedReadback = state.selectedReadback
                 if (selectedReadback?.ledgerEntries.isNullOrEmpty()) {
-                    Text("Belum ada stock_ledger_entry untuk produk ini.")
+                    Text("Belum ada riwayat perubahan stok untuk produk ini.")
                 } else {
                     selectedReadback.ledgerEntries.forEach { entry ->
                         InventoryLedgerRow(entry)
@@ -412,7 +412,7 @@ private fun InventoryFormField(
             onValueChange = onValueChange,
             modifier = Modifier.fillMaxWidth(),
             minLines = 2,
-            shape = RoundedCornerShape(12.dp)
+            shape = RoundedCornerShape(10.dp)
         )
     }
 }
@@ -431,7 +431,7 @@ private fun InventoryQuantityInput(
             onValueChange = onValueChange,
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            shape = RoundedCornerShape(12.dp)
+            shape = RoundedCornerShape(10.dp)
         )
         Text(
             text = helperText,

@@ -62,7 +62,7 @@ class BusinessDayServiceTest {
     }
 
     @Test
-    fun `evaluate open day blocks cashier and allows supervisor`() = runTest {
+    fun `evaluate open day allows cashier and supervisor`() = runTest {
         accessService.bootstrapStore(
             BootstrapStoreRequest("S1", "T1", "Kasir", "111111", "Sup", "222222")
         )
@@ -71,14 +71,15 @@ class BusinessDayServiceTest {
 
         val cashierDecision = service.evaluateOpenDay()
 
-        assertTrue(cashierDecision.message.contains("Supervisor"))
+        assertEquals("Buka Hari Bisnis", cashierDecision.title)
+        assertEquals("Buka Hari Bisnis", cashierDecision.actionLabel)
 
         accessService.logout()
         val supervisor = accessService.restoreContext().operators.find { it.role == OperatorRole.SUPERVISOR }!!
         accessService.login(supervisor.id, "222222")
         val supervisorDecision = service.evaluateOpenDay()
 
-        assertEquals("Buka Business Day", supervisorDecision.title)
-        assertEquals("Buka Business Day", supervisorDecision.actionLabel)
+        assertEquals("Buka Hari Bisnis", supervisorDecision.title)
+        assertEquals("Buka Hari Bisnis", supervisorDecision.actionLabel)
     }
 }

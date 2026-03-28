@@ -20,6 +20,7 @@ sqlDelight = "2.0.2"
 detekt = "1.23.8"
 dependencyGuard = "0.5.0"
 commonsCsv = "1.12.0"
+slf4j = "1.7.36"
 
 [libraries]
 android-gradlePlugin = { group = "com.android.tools.build", name = "gradle", version.ref = "agp" }
@@ -57,6 +58,7 @@ sqldelight-runtime = { module = "app.cash.sqldelight:runtime", version.ref = "sq
 sqldelight-android-driver = { module = "app.cash.sqldelight:android-driver", version.ref = "sqlDelight" }
 sqldelight-sqlite-driver = { module = "app.cash.sqldelight:sqlite-driver", version.ref = "sqlDelight" }
 commons-csv = { module = "org.apache.commons:commons-csv", version.ref = "commonsCsv" }
+slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4j" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }

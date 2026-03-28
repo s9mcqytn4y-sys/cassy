@@ -37,6 +37,7 @@ data class OperatorAccount(
     val employeeCode: String,
     val displayName: String,
     val role: OperatorRole,
+    val avatarPath: String? = null,
     val pinHash: String,
     val pinSalt: String,
     val failedAttempts: Int,
@@ -69,8 +70,33 @@ data class BootstrapStoreRequest(
     val cashierName: String,
     val cashierPin: String,
     val supervisorName: String,
-    val supervisorPin: String
+    val supervisorPin: String,
+    val cashierAvatarPath: String? = null,
+    val supervisorAvatarPath: String? = null
 )
+
+enum class BootstrapStoreField {
+    STORE_NAME,
+    TERMINAL_NAME,
+    CASHIER_NAME,
+    CASHIER_PIN,
+    CASHIER_AVATAR,
+    SUPERVISOR_NAME,
+    SUPERVISOR_PIN,
+    SUPERVISOR_AVATAR
+}
+
+data class BootstrapStoreFieldIssue(
+    val field: BootstrapStoreField,
+    val message: String
+)
+
+data class BootstrapStoreValidationResult(
+    val normalizedRequest: BootstrapStoreRequest,
+    val issues: List<BootstrapStoreFieldIssue>
+) {
+    val isValid: Boolean get() = issues.isEmpty()
+}
 
 sealed interface LoginResult {
     data class Success(
@@ -94,6 +120,7 @@ sealed interface LoginResult {
 
 fun OperatorRole.supports(capability: AccessCapability): Boolean = when (this) {
     OperatorRole.CASHIER -> capability in setOf(
+        AccessCapability.OPEN_DAY,
         AccessCapability.START_SHIFT,
         AccessCapability.END_SHIFT,
         AccessCapability.RECORD_CASH_MOVEMENT,

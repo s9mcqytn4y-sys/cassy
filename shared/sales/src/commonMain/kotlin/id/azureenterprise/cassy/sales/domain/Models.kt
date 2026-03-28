@@ -162,14 +162,18 @@ data class ReceiptSnapshotDocument(
     val saleId: String,
     val localNumber: String,
     val storeName: String = "",
+    val businessAddress: String? = null,
+    val businessPhone: String? = null,
     val shiftId: String,
     val terminalId: String,
     val terminalName: String? = null,
+    val cashierName: String? = null,
     val finalizedAtEpochMs: Long,
     val template: ReceiptTemplateSnapshot = ReceiptTemplateSnapshot(),
     val payment: ReceiptPaymentSnapshot,
     val totals: BasketTotals,
     val items: List<ReceiptItemSnapshot>,
+    val receiptNote: String? = null,
     val footerLines: List<String> = listOf("Terima kasih")
 )
 

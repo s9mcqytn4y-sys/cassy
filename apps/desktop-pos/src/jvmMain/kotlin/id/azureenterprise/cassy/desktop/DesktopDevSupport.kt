@@ -41,4 +41,4 @@ fun resetDesktopDataForDevelopment(): List<File> {
 }
 
 fun devResetCommandHint(): String =
-    ".\\gradlew :apps:desktop-pos:run --args=\"--dev-reset-demo\" -Dcassy.dev.reset.enabled=true"
+    "powershell -ExecutionPolicy Bypass -File tooling/scripts/Invoke-DesktopSandbox.ps1 -ResetDemo"

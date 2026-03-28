@@ -253,6 +253,7 @@ class DesktopAppControllerTest {
             Clock.System
         )
         val accessService = AccessService(kernelRepo, PinHasher(), Clock.System)
+        val storeProfileService = StoreProfileService(kernelRepo, Clock.System)
         val businessDayService = BusinessDayService(kernelRepo, accessService)
         val shiftService = ShiftService(kernelRepo, accessService, OpeningCashPolicy())
         val cashControlService = CashControlService(kernelRepo, accessService, CashMovementPolicy())
@@ -350,7 +351,8 @@ class DesktopAppControllerTest {
             masterDataDatabase = masterDataDb,
             reportingQueryFacade = reportingQueryFacade,
             syncReplayService = syncReplayService,
-            reportingExporter = reportingExporter
+            reportingExporter = reportingExporter,
+            storeProfileService = storeProfileService
         )
     }
 
@@ -409,7 +411,8 @@ private data class DesktopFixture(
     val masterDataDatabase: MasterDataDatabase,
     val reportingQueryFacade: ReportingQueryFacade,
     val syncReplayService: SyncReplayService,
-    val reportingExporter: DesktopReportingExporter
+    val reportingExporter: DesktopReportingExporter,
+    val storeProfileService: StoreProfileService
 ) {
     fun newController(): DesktopAppController = DesktopAppController(
         accessService = accessService,
@@ -426,7 +429,10 @@ private data class DesktopFixture(
         hardwarePort = hardwarePort,
         reportingQueryFacade = reportingQueryFacade,
         syncReplayService = syncReplayService,
-        reportingExporter = reportingExporter
+        reportingExporter = reportingExporter,
+        bootstrapAvatarStore = NoopBootstrapAvatarStore,
+        storeProfileService = storeProfileService,
+        storeProfileLogoStore = NoopStoreProfileLogoStore
     )
 }
 
@@ -491,4 +497,14 @@ private object NoopHardwarePort : CashierHardwarePort {
 
 private object NoopOperationalHardwarePort : id.azureenterprise.cassy.kernel.application.OperationalHardwarePort {
     override suspend fun getHardwareIssues(): List<OperationalIssue> = emptyList()
+}
+
+private object NoopBootstrapAvatarStore : BootstrapAvatarStore {
+    override fun chooseAndImport(role: OperatorRole, existingPath: String?): Result<String?> = Result.success(null)
+    override fun deleteManaged(path: String?) = Unit
+}
+
+private object NoopStoreProfileLogoStore : StoreProfileLogoStore {
+    override fun chooseAndImport(storeId: String, existingPath: String?): Result<String?> = Result.success(null)
+    override fun deleteManaged(path: String?) = Unit
 }

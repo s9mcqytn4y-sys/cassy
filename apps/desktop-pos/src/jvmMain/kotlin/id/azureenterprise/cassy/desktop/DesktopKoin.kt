@@ -12,6 +12,7 @@ import id.azureenterprise.cassy.kernel.application.OperationalHardwarePort
 import id.azureenterprise.cassy.kernel.application.ShiftService
 import id.azureenterprise.cassy.kernel.application.ShiftClosingService
 import id.azureenterprise.cassy.kernel.application.ReportingQueryFacade
+import id.azureenterprise.cassy.kernel.application.StoreProfileService
 import id.azureenterprise.cassy.kernel.application.SyncReplayService
 import id.azureenterprise.cassy.kernel.di.databaseModule
 import id.azureenterprise.cassy.kernel.di.kernelModule
@@ -43,6 +44,8 @@ fun startDesktopKoin() {
             inventoryModule,
             inventoryDatabaseModule,
             module {
+                single<BootstrapAvatarStore> { DesktopBootstrapAvatarStore() }
+                single<StoreProfileLogoStore> { DesktopStoreProfileLogoStore() }
                 single<OperationalSalesPort> { DesktopOperationalSalesPort(get()) }
                 single<CashierHardwarePort> { DesktopNoopCashierHardwarePort() }
                 single<OperationalHardwarePort> { DesktopOperationalHardwarePort(get()) }
@@ -63,7 +66,10 @@ fun startDesktopKoin() {
                         hardwarePort = get<CashierHardwarePort>(),
                         reportingQueryFacade = get<ReportingQueryFacade>(),
                         syncReplayService = get<SyncReplayService>(),
-                        reportingExporter = get<DesktopReportingExporter>()
+                        reportingExporter = get<DesktopReportingExporter>(),
+                        bootstrapAvatarStore = get<BootstrapAvatarStore>(),
+                        storeProfileService = get<StoreProfileService>(),
+                        storeProfileLogoStore = get<StoreProfileLogoStore>()
                     )
                 }
             }
@@ -87,12 +93,15 @@ private class DesktopOperationalHardwarePort(
         val snapshot = hardwarePort.getSnapshot()
         val issues = mutableListOf<OperationalIssue>()
 
-        if (snapshot.printer.status == HardwareDeviceStatus.UNAVAILABLE) {
+        if (snapshot.printer.status == HardwareDeviceStatus.BLOCKED ||
+            snapshot.printer.status == HardwareDeviceStatus.DISCONNECTED ||
+            snapshot.printer.status == HardwareDeviceStatus.ABNORMAL
+        ) {
             issues.add(OperationalIssue(
                 type = OperationalIssueType.HARDWARE_UNAVAILABLE,
                 severity = IssueSeverity.WARNING,
-                label = "Printer Tidak Tersedia",
-                description = snapshot.printer.detailMessage ?: "Kabel atau koneksi printer terputus.",
+                label = "Printer Belum Siap",
+                description = snapshot.printer.detailMessage ?: "Cek sambungan printer atau lanjutkan transaksi dengan preview struk.",
                 status = "OFFLINE"
             ))
         }

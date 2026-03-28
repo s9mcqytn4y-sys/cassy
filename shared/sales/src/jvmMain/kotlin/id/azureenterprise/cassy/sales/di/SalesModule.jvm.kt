@@ -118,11 +118,18 @@ private class KernelSalesKernelPort(
         val binding = kernelRepository.getTerminalBinding() ?: return null
         if (!kernelRepository.isBusinessDayOpen()) return null
         val shift = kernelRepository.getActiveShift(binding.terminalId) ?: return null
+        val activeSession = kernelRepository.getActiveAccessSession()
+        val activeOperator = activeSession?.let { kernelRepository.getOperatorById(it.operatorId) }
+        val storeProfile = kernelRepository.getStoreProfile(binding.storeId)
         return SalesOperationalContext(
-            storeName = binding.storeName,
+            storeName = storeProfile?.businessName ?: binding.storeName,
             terminalId = binding.terminalId,
             terminalName = binding.terminalName,
-            shiftId = shift.id
+            shiftId = shift.id,
+            operatorName = activeOperator?.displayName,
+            businessAddress = storeProfile?.address,
+            businessPhone = storeProfile?.let { "${it.phoneCountryCode} ${it.phoneNumber}" },
+            receiptNote = storeProfile?.receiptNote
         )
     }
 

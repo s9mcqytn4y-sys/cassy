@@ -60,7 +60,7 @@ fun OperationalIssueCard(
 
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(10.dp),
         colors = CardDefaults.cardColors(
             containerColor = backgroundColor,
             contentColor = contentColor

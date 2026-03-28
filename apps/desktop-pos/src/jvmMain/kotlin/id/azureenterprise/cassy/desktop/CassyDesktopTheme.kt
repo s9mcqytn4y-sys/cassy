@@ -1,48 +1,48 @@
 package id.azureenterprise.cassy.desktop
 
-import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 
-private val CassyLightColors = lightColorScheme(
-    primary = Color(0xFF0F6C78),
-    onPrimary = Color(0xFFF7FCFD),
-    primaryContainer = Color(0xFFD7EEF2),
-    onPrimaryContainer = Color(0xFF08353B),
-    secondary = Color(0xFF2F7EA1),
+private val CassyOperationalColors = lightColorScheme(
+    primary = Color(0xFF1E6F67),
+    onPrimary = Color(0xFFFFFFFF),
+    primaryContainer = Color(0xFFD6ECE7),
+    onPrimaryContainer = Color(0xFF113F3A),
+    secondary = Color(0xFF2F6EA6),
     onSecondary = Color(0xFFFFFFFF),
-    surface = Color(0xFFF7F8F6),
-    surfaceVariant = Color(0xFFE8EEEA),
-    background = Color(0xFFF1F4F1),
-    onBackground = Color(0xFF17212B),
-    onSurface = Color(0xFF17212B),
-    outline = Color(0xFFA9B9B7),
-    error = Color(0xFFB42318)
+    secondaryContainer = Color(0xFFD9E7F5),
+    onSecondaryContainer = Color(0xFF193956),
+    tertiary = Color(0xFF9A6A14),
+    onTertiary = Color(0xFFFFFFFF),
+    surface = Color(0xFFFFFFFF),
+    surfaceVariant = Color(0xFFF1F4F6),
+    background = Color(0xFFF5F7F8),
+    onBackground = Color(0xFF1F2937),
+    onSurface = Color(0xFF1F2937),
+    onSurfaceVariant = Color(0xFF5B6675),
+    outline = Color(0xFFD4DCE3),
+    error = Color(0xFFB8403A),
+    errorContainer = Color(0xFFF8DEDB)
 )
 
-private val CassyDarkColors = darkColorScheme(
-    primary = Color(0xFF63B2BE),
-    onPrimary = Color(0xFF042A30),
-    primaryContainer = Color(0xFF0D4E58),
-    onPrimaryContainer = Color(0xFFD7EEF2),
-    secondary = Color(0xFF79B4D0),
-    onSecondary = Color(0xFF0B2430),
-    surface = Color(0xFF101716),
-    surfaceVariant = Color(0xFF182321),
-    background = Color(0xFF0D1312),
-    onBackground = Color(0xFFE7EEEA),
-    onSurface = Color(0xFFE7EEEA),
-    outline = Color(0xFF48615E),
-    error = Color(0xFFF16E62)
+private val CassyOperationalShapes = Shapes(
+    extraSmall = RoundedCornerShape(6.dp),
+    small = RoundedCornerShape(8.dp),
+    medium = RoundedCornerShape(10.dp),
+    large = RoundedCornerShape(12.dp),
+    extraLarge = RoundedCornerShape(14.dp)
 )
 
 @Composable
 fun CassyDesktopTheme(content: @Composable () -> Unit) {
     MaterialTheme(
-        colorScheme = if (isSystemInDarkTheme()) CassyDarkColors else CassyLightColors,
+        colorScheme = CassyOperationalColors,
+        shapes = CassyOperationalShapes,
         content = content
     )
 }

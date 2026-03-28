@@ -1,15 +1,15 @@
 package id.azureenterprise.cassy.desktop
 
+import id.azureenterprise.cassy.kernel.domain.AccessCapability
 import id.azureenterprise.cassy.kernel.domain.OperatorRole
 import id.azureenterprise.cassy.kernel.domain.supports
-import id.azureenterprise.cassy.kernel.domain.AccessCapability
 import id.azureenterprise.cassy.sales.domain.SaleHistoryEntry
 
 enum class DesktopWorkspace(
     val title: String,
     val shortLabel: String
 ) {
-    Dashboard(title = "Guided Operations", shortLabel = "Dashboard"),
+    Dashboard(title = "Operasional Harian", shortLabel = "Beranda"),
     Cashier(title = "Kasir", shortLabel = "Kasir"),
     History(title = "Riwayat Transaksi", shortLabel = "Riwayat"),
     Inventory(title = "Inventori", shortLabel = "Inventori"),
@@ -22,20 +22,20 @@ enum class DesktopInventoryRoute(
     val title: String,
     val shortLabel: String
 ) {
-    StockOverview(title = "Stock Truth", shortLabel = "Stock"),
-    MasterData(title = "Master Data", shortLabel = "Master Data")
+    StockOverview(title = "Ringkasan Stok", shortLabel = "Stok"),
+    MasterData(title = "Data Produk", shortLabel = "Produk")
 }
 
 enum class DesktopOperationsRoute(
     val title: String,
     val shortLabel: String
 ) {
-    CashControl(title = "Cash Control", shortLabel = "Kas"),
-    VoidSale(title = "Void Sale", shortLabel = "Void"),
-    CloseShift(title = "Close Shift", shortLabel = "Shift"),
-    CloseDay(title = "Close Day", shortLabel = "Hari"),
-    SyncCenter(title = "Sync Center", shortLabel = "Sync"),
-    Diagnostics(title = "Diagnostics", shortLabel = "Diagnostik")
+    CashControl(title = "Kontrol Kas", shortLabel = "Kas"),
+    VoidSale(title = "Void Transaksi", shortLabel = "Void"),
+    CloseShift(title = "Tutup Shift", shortLabel = "Shift"),
+    CloseDay(title = "Tutup Hari", shortLabel = "Hari"),
+    SyncCenter(title = "Sinkronisasi", shortLabel = "Sinkron"),
+    Diagnostics(title = "Diagnostik", shortLabel = "Cek")
 }
 
 fun availableWorkspacesFor(
@@ -44,15 +44,14 @@ fun availableWorkspacesFor(
 ): List<DesktopWorkspace> {
     if (role == null) return listOf(DesktopWorkspace.Dashboard)
 
-    val workspaces = mutableListOf(
-        DesktopWorkspace.Dashboard,
-        DesktopWorkspace.History,
-        DesktopWorkspace.Inventory,
-        DesktopWorkspace.Operations
-    )
-    if (canAccessSalesHome && role.supports(AccessCapability.ACCESS_CATALOG)) {
-        workspaces.add(1, DesktopWorkspace.Cashier)
+    val workspaces = mutableListOf<DesktopWorkspace>()
+    if (canAccessSalesHome && role in setOf(OperatorRole.CASHIER, OperatorRole.OWNER) && role.supports(AccessCapability.ACCESS_CATALOG)) {
+        workspaces += DesktopWorkspace.Cashier
     }
+    workspaces += DesktopWorkspace.Dashboard
+    workspaces += DesktopWorkspace.History
+    workspaces += DesktopWorkspace.Inventory
+    workspaces += DesktopWorkspace.Operations
     if (role != OperatorRole.CASHIER) {
         workspaces += DesktopWorkspace.Reporting
         workspaces += DesktopWorkspace.System
@@ -61,28 +60,28 @@ fun availableWorkspacesFor(
 }
 
 fun humanizeShiftLabel(rawId: String?): String =
-    humanizeEntityLabel(rawId, "Shift")
+    if (rawId.isNullOrBlank()) "Shift belum dibuka" else "Shift aktif"
 
 fun humanizeBusinessDayLabel(rawId: String?): String =
-    humanizeEntityLabel(rawId, "Hari")
+    if (rawId.isNullOrBlank()) "Hari bisnis belum dibuka" else "Hari bisnis aktif"
 
 fun humanizeApprovalLabel(rawId: String?): String =
-    humanizeEntityLabel(rawId, "Approval")
+    if (rawId.isNullOrBlank()) "Menunggu review" else "Perlu keputusan"
 
 fun humanizeInventoryReviewLabel(rawId: String?): String =
-    humanizeEntityLabel(rawId, "Review Stok")
+    if (rawId.isNullOrBlank()) "Belum ada review stok" else "Perlu tindak lanjut stok"
 
 fun humanizeTerminalLabel(name: String?, rawId: String?): String {
     return when {
         !name.isNullOrBlank() -> name
-        !rawId.isNullOrBlank() -> humanizeEntityLabel(rawId, "Terminal")
-        else -> "Terminal belum terikat"
+        !rawId.isNullOrBlank() -> "Perangkat kasir aktif"
+        else -> "Perangkat kasir belum terhubung"
     }
 }
 
 fun humanizeOperatorLabel(name: String?, role: String?): String {
     return when {
-        !name.isNullOrBlank() && !role.isNullOrBlank() -> "$name • ${role.lowercase().replaceFirstChar(Char::titlecase)}"
+        !name.isNullOrBlank() && !role.isNullOrBlank() -> "$name - ${role.lowercase().replaceFirstChar(Char::titlecase)}"
         !name.isNullOrBlank() -> name
         !role.isNullOrBlank() -> role.lowercase().replaceFirstChar(Char::titlecase)
         else -> "Operator belum aktif"
@@ -90,10 +89,4 @@ fun humanizeOperatorLabel(name: String?, role: String?): String {
 }
 
 fun humanizeSaleReference(entry: SaleHistoryEntry): String =
-    entry.localNumber.ifBlank { humanizeEntityLabel(entry.saleId, "Penjualan") }
-
-private fun humanizeEntityLabel(rawId: String?, prefix: String): String {
-    if (rawId.isNullOrBlank()) return "$prefix belum tersedia"
-    val compact = rawId.substringAfterLast('_').takeLast(6).uppercase()
-    return "$prefix $compact"
-}
+    entry.localNumber.ifBlank { "Transaksi final" }

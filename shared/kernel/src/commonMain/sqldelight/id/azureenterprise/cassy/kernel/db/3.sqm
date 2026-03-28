@@ -1,0 +1,15 @@
+CREATE TABLE IF NOT EXISTS StoreProfile (
+    id TEXT NOT NULL PRIMARY KEY,
+    storeId TEXT NOT NULL UNIQUE,
+    businessName TEXT NOT NULL,
+    businessAddress TEXT NOT NULL,
+    phoneCountryCode TEXT NOT NULL,
+    phoneNumber TEXT NOT NULL,
+    receiptNote TEXT,
+    logoAssetPath TEXT,
+    createdAt INTEGER NOT NULL,
+    updatedAt INTEGER NOT NULL,
+    revision INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS StoreProfile_storeId_idx ON StoreProfile(storeId);

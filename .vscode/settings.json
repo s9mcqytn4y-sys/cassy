@@ -6,13 +6,14 @@
         120
     ],
     "java.compile.nullAnalysis.mode": "automatic",
-    "java.configuration.updateBuildConfiguration": "interactive",
+    "java.configuration.updateBuildConfiguration": "automatic",
     "java.import.gradle.java.home": "C:\\Program Files\\Java\\jdk-17",
     "java.jdt.ls.java.home": "C:\\Program Files\\Java\\jdk-17",
     "search.exclude": {
         "**/.gradle": true,
         "**/build": true,
         "**/.kotlin": true,
+        "**/.sandbox": true,
         "**/.idea/caches": true,
         "**/.idea/workspace.xml": true
     },
@@ -20,6 +21,7 @@
         "**/.gradle/**": true,
         "**/build/**": true,
         "**/.kotlin/**": true,
+        "**/.sandbox/**": true,
         "**/.idea/caches/**": true
     },
     "java.configuration.runtimes": [

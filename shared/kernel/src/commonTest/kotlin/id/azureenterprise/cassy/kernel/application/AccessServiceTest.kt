@@ -88,4 +88,44 @@ class AccessServiceTest {
         assertEquals("LOCAL_FIRST_SNAPSHOT", fakeRepo.getMetadata("report.export.policy"))
         assertEquals("LOCAL_BOUNDARY_READY", fakeRepo.getMetadata("sync.replay.scope"))
     }
+
+    @Test
+    fun `validate bootstrap normalizes names and checks required fields`() = runTest {
+        val validation = service.validateBootstrapRequest(
+            BootstrapStoreRequest(
+                storeName = "  Toko   Uji  ",
+                terminalName = "  Kasir-01 ",
+                cashierName = "",
+                cashierPin = "12a45",
+                supervisorName = "  Bayu  ",
+                supervisorPin = "222222"
+            )
+        )
+
+        assertEquals("Toko Uji", validation.normalizedRequest.storeName)
+        assertEquals("Kasir-01", validation.normalizedRequest.terminalName)
+        assertEquals("Bayu", validation.normalizedRequest.supervisorName)
+        assertTrue(validation.issues.any { it.field == BootstrapStoreField.CASHIER_NAME })
+        assertTrue(validation.issues.any { it.field == BootstrapStoreField.CASHIER_PIN })
+    }
+
+    @Test
+    fun `bootstrap persists avatar path for operator`() = runTest {
+        val avatarPath = "C:/sandbox/operator-avatars/cashier-initial.png"
+        val result = service.bootstrapStore(
+            BootstrapStoreRequest(
+                storeName = "Store Avatar",
+                terminalName = "T01",
+                cashierName = "Alice",
+                cashierPin = "111111",
+                supervisorName = "Bob",
+                supervisorPin = "222222",
+                cashierAvatarPath = avatarPath
+            )
+        )
+
+        assertTrue(result.isSuccess)
+        val cashier = service.restoreContext().operators.first { it.role == OperatorRole.CASHIER }
+        assertEquals(avatarPath, cashier.avatarPath)
+    }
 }

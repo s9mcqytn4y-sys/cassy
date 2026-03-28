@@ -10,5 +10,9 @@ data class SalesOperationalContext(
     val storeName: String,
     val terminalId: String,
     val terminalName: String? = null,
-    val shiftId: String
+    val shiftId: String,
+    val operatorName: String? = null,
+    val businessAddress: String? = null,
+    val businessPhone: String? = null,
+    val receiptNote: String? = null
 )

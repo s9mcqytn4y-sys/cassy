@@ -6,9 +6,11 @@ import id.azureenterprise.cassy.sales.domain.ReceiptPrintStatus
 
 enum class HardwareDeviceStatus {
     READY,
-    UNKNOWN,
-    WARNING,
-    UNAVAILABLE
+    DISCONNECTED,
+    UNSTABLE,
+    ABNORMAL,
+    BLOCKED,
+    FALLBACK
 }
 
 data class HardwareDeviceState(
@@ -19,19 +21,19 @@ data class HardwareDeviceState(
 
 data class CashierHardwareSnapshot(
     val printer: HardwareDeviceState = HardwareDeviceState(
-        status = HardwareDeviceStatus.UNKNOWN,
-        label = "Unknown",
-        detailMessage = "Status printer terbatas"
+        status = HardwareDeviceStatus.DISCONNECTED,
+        label = "Belum terhubung",
+        detailMessage = "Struk tetap bisa dipreview dan dicetak ulang setelah printer siap."
     ),
     val scanner: HardwareDeviceState = HardwareDeviceState(
-        status = HardwareDeviceStatus.UNKNOWN,
-        label = "Unknown",
-        detailMessage = "Status scanner terbatas"
+        status = HardwareDeviceStatus.FALLBACK,
+        label = "Input manual aktif",
+        detailMessage = "Scan belum tersedia. Cari barang lewat SKU atau nama produk."
     ),
     val cashDrawer: HardwareDeviceState = HardwareDeviceState(
-        status = HardwareDeviceStatus.UNKNOWN,
-        label = "Unknown",
-        detailMessage = "Status cash drawer terbatas"
+        status = HardwareDeviceStatus.FALLBACK,
+        label = "Mode cadangan",
+        detailMessage = "Transaksi tunai tetap bisa lanjut dengan catatan audit manual bila perlu."
     )
 )
 
@@ -73,7 +75,7 @@ class DesktopNoopCashierHardwarePort : CashierHardwarePort {
             snapshot = snapshot,
             printState = ReceiptPrintState(
                 status = ReceiptPrintStatus.FAILED,
-                detailMessage = "Printer belum terhubung. Struk final tetap aman dan bisa dicetak ulang nanti."
+                detailMessage = "Printer belum terhubung. Struk final aman dan bisa dicetak ulang nanti."
             )
         )
     }

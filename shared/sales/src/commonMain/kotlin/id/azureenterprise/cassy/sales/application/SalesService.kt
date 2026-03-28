@@ -34,6 +34,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.datetime.Clock
+import kotlinx.datetime.Instant
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
@@ -341,7 +344,7 @@ class SalesService(
             ReceiptPrintPayload(
                 saleId = saleId,
                 snapshot = finalizedSale.receiptSnapshot,
-                renderedContent = renderReceipt(persistedReceipt.snapshot),
+                renderedContent = renderReceipt(persistedReceipt.snapshot, isReprint = isReprint),
                 templateId = persistedReceipt.snapshot.template.templateId,
                 paperWidthMm = persistedReceipt.snapshot.template.paperWidthMm,
                 printState = ReceiptPrintState(
@@ -547,13 +550,21 @@ class SalesService(
         providerReference: String?
     ): PreparedSaleFinalizationBundle {
         val contextualInfo = kernelPort.getOperationalContext()
+        val footerLines = buildList {
+            contextualInfo?.receiptNote?.takeIf { it.isNotBlank() }?.let(::add)
+            add("Terima kasih telah berbelanja")
+            add("Simpan struk ini sebagai bukti transaksi")
+        }
         val receiptSnapshot = ReceiptSnapshotDocument(
             saleId = pendingSale.sale.id,
             localNumber = pendingSale.sale.localNumber,
             storeName = contextualInfo?.storeName ?: "",
+            businessAddress = contextualInfo?.businessAddress,
+            businessPhone = contextualInfo?.businessPhone,
             shiftId = pendingSale.sale.shiftId,
             terminalId = pendingSale.sale.terminalId,
             terminalName = contextualInfo?.terminalName,
+            cashierName = contextualInfo?.operatorName,
             finalizedAtEpochMs = clock.now().toEpochMilliseconds(),
             template = ReceiptTemplateSnapshot(),
             payment = ReceiptPaymentSnapshot(
@@ -574,7 +585,8 @@ class SalesService(
                     discountAmount = item.discountAmount
                 )
             },
-            footerLines = listOf("Terima kasih", "Simpan struk ini sebagai bukti pembayaran")
+            receiptNote = contextualInfo?.receiptNote,
+            footerLines = footerLines
         )
         return PreparedSaleFinalizationBundle(
             saleId = pendingSale.sale.id,
@@ -670,28 +682,126 @@ class SalesService(
         finalTotal = pendingSale.sale.finalAmount
     )
 
-    private fun renderReceipt(receiptSnapshot: ReceiptSnapshotDocument): String {
+    private fun renderReceipt(receiptSnapshot: ReceiptSnapshotDocument, isReprint: Boolean = false): String {
+        val lineWidth = receiptSnapshot.template.lineWidth.coerceAtLeast(24)
         val lines = buildList {
-            add(receiptSnapshot.storeName.ifBlank { "Cassy POS" })
-            add("No. Struk: ${receiptSnapshot.localNumber}")
-            add("Terminal: ${receiptSnapshot.terminalName ?: receiptSnapshot.terminalId}")
-            add("Waktu: ${receiptSnapshot.finalizedAtEpochMs}")
-            add("Pembayaran: ${receiptSnapshot.payment.method} (${receiptSnapshot.payment.state.status})")
-            add("")
-            receiptSnapshot.items.forEach { item ->
-                add("${item.productName} x${item.quantity} = ${item.lineTotal}")
+            add(centerText(receiptSnapshot.storeName.ifBlank { "Cassy POS" }, lineWidth))
+            receiptSnapshot.businessAddress?.takeIf { it.isNotBlank() }?.let { address ->
+                wrapLine(address, lineWidth).forEach { add(centerText(it, lineWidth)) }
             }
-            add("")
-            add("Subtotal: ${receiptSnapshot.totals.subtotal}")
-            add("Pajak: ${receiptSnapshot.totals.taxTotal}")
-            add("Diskon: ${receiptSnapshot.totals.discountTotal}")
-            add("Total: ${receiptSnapshot.totals.finalTotal}")
+            receiptSnapshot.businessPhone?.takeIf { it.isNotBlank() }?.let { phone ->
+                add(centerText(phone, lineWidth))
+            }
+            add(horizontalRule(lineWidth))
+            if (isReprint) {
+                add(centerText("STRUK CETAK ULANG", lineWidth))
+                add(horizontalRule(lineWidth))
+            }
+            add(pairLine("No. transaksi", receiptSnapshot.localNumber, lineWidth))
+            add(pairLine("Tanggal", formatReceiptTimestamp(receiptSnapshot.finalizedAtEpochMs), lineWidth))
+            add(pairLine("Kasir", receiptSnapshot.cashierName ?: "-", lineWidth))
+            add(pairLine("Perangkat", receiptSnapshot.terminalName ?: "Kasir aktif", lineWidth))
+            add(horizontalRule(lineWidth))
+            receiptSnapshot.items.forEach { item ->
+                wrapLine(item.productName, lineWidth).forEach(::add)
+                add(
+                    pairLine(
+                        "${formatQuantity(item.quantity)} x ${formatCurrency(item.unitPrice)}",
+                        formatCurrency(item.lineTotal),
+                        lineWidth
+                    )
+                )
+            }
+            add(horizontalRule(lineWidth))
+            add(pairLine("Subtotal", formatCurrency(receiptSnapshot.totals.subtotal), lineWidth))
+            if (receiptSnapshot.totals.discountTotal > 0.0) {
+                add(pairLine("Diskon", formatCurrency(receiptSnapshot.totals.discountTotal), lineWidth))
+            }
+            if (receiptSnapshot.totals.taxTotal > 0.0) {
+                add(pairLine("Pajak", formatCurrency(receiptSnapshot.totals.taxTotal), lineWidth))
+            }
+            add(pairLine("Total", formatCurrency(receiptSnapshot.totals.finalTotal), lineWidth))
+            add(horizontalRule(lineWidth))
+            add(pairLine("Pembayaran", paymentMethodLabel(receiptSnapshot.payment.method), lineWidth))
+            add(pairLine("Nominal tercatat", formatCurrency(receiptSnapshot.payment.amount), lineWidth))
             if (receiptSnapshot.footerLines.isNotEmpty()) {
-                add("")
-                receiptSnapshot.footerLines.forEach(::add)
+                add(horizontalRule(lineWidth))
+                receiptSnapshot.footerLines
+                    .filter { it.isNotBlank() }
+                    .forEach { footer -> wrapLine(footer, lineWidth).forEach(::add) }
             }
         }
         return lines.joinToString(separator = "\n")
+    }
+
+    private fun formatReceiptTimestamp(epochMs: Long): String {
+        val local = Instant.fromEpochMilliseconds(epochMs).toLocalDateTime(TimeZone.currentSystemDefault())
+        return buildString {
+            append(local.date.year)
+            append("-")
+            append(local.date.monthNumber.toString().padStart(2, '0'))
+            append("-")
+            append(local.date.dayOfMonth.toString().padStart(2, '0'))
+            append(" ")
+            append(local.hour.toString().padStart(2, '0'))
+            append(":")
+            append(local.minute.toString().padStart(2, '0'))
+        }
+    }
+
+    private fun formatCurrency(amount: Double): String = "Rp ${amount.toLong()}"
+
+    private fun formatQuantity(quantity: Double): String {
+        val whole = quantity.toLong()
+        return if (quantity == whole.toDouble()) whole.toString() else quantity.toString()
+    }
+
+    private fun paymentMethodLabel(method: String): String = when (method.uppercase()) {
+        "CASH" -> "Tunai"
+        "CARD" -> "Kartu"
+        "QRIS" -> "QRIS"
+        else -> method
+    }
+
+    private fun horizontalRule(lineWidth: Int): String = "-".repeat(lineWidth)
+
+    private fun centerText(text: String, lineWidth: Int): String {
+        val trimmed = text.trim()
+        if (trimmed.length >= lineWidth) return trimmed
+        val leftPadding = (lineWidth - trimmed.length) / 2
+        return " ".repeat(leftPadding) + trimmed
+    }
+
+    private fun pairLine(label: String, value: String, lineWidth: Int): String {
+        val left = label.trim()
+        val right = value.trim()
+        val gap = lineWidth - left.length - right.length
+        return if (gap >= 1) {
+            left + " ".repeat(gap) + right
+        } else {
+            "$left\n$right"
+        }
+    }
+
+    private fun wrapLine(text: String, lineWidth: Int): List<String> {
+        val trimmed = text.trim()
+        if (trimmed.length <= lineWidth) return listOf(trimmed)
+        val words = trimmed.split(" ")
+        val lines = mutableListOf<String>()
+        var current = ""
+        words.forEach { word ->
+            val candidate = if (current.isEmpty()) word else "$current $word"
+            if (candidate.length <= lineWidth) {
+                current = candidate
+            } else {
+                if (current.isNotEmpty()) lines += current
+                current = word
+            }
+        }
+        if (current.isNotEmpty()) {
+            lines += current
+        }
+        return lines
     }
 
     companion object {

@@ -42,7 +42,7 @@ class OperationalControlServiceTest {
     }
 
     @Test
-    fun `dashboard blocks sales home and points to open day first`() = runTest {
+    fun `dashboard points cashier to open day first`() = runTest {
         val fixture = fixture()
         fixture.bootstrapAndLogin(OperatorRole.CASHIER)
 
@@ -52,7 +52,7 @@ class OperationalControlServiceTest {
         assertEquals(OperationType.OPEN_BUSINESS_DAY, snapshot.primaryAction)
         assertTrue(snapshot.salesHomeBlocker?.contains("Business day harus aktif") == true)
         assertEquals(
-            OperationStatus.BLOCKED,
+            OperationStatus.READY,
             snapshot.decisions.first { it.type == OperationType.OPEN_BUSINESS_DAY }.status
         )
     }

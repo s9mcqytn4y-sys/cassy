@@ -92,7 +92,7 @@ fun CassyCurrencyInput(
             keyboardActions = KeyboardActions(onDone = { onImeAction() }),
             isError = isError,
             singleLine = true,
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(8.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = MaterialTheme.colorScheme.primary,
                 unfocusedBorderColor = MaterialTheme.colorScheme.outline
@@ -123,6 +123,7 @@ fun SemanticTextField(
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier.fillMaxWidth(),
     helperText: String? = null,
+    errorText: String? = null,
     placeholder: String? = null,
     leadingIcon: ImageVector? = null,
     keyboardType: KeyboardType = KeyboardType.Text,
@@ -142,7 +143,8 @@ fun SemanticTextField(
             onValueChange = onValueChange,
             modifier = Modifier.fillMaxWidth(),
             singleLine = singleLine,
-            shape = RoundedCornerShape(14.dp),
+            shape = RoundedCornerShape(8.dp),
+            isError = errorText != null,
             placeholder = placeholder?.let { { Text(it) } },
             leadingIcon = leadingIcon?.let { icon ->
                 { Icon(imageVector = icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
@@ -159,7 +161,13 @@ fun SemanticTextField(
             ),
             visualTransformation = visualTransformation
         )
-        helperText?.let {
+        errorText?.let {
+            Text(
+                text = it,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error
+            )
+        } ?: helperText?.let {
             Text(
                 text = it,
                 style = MaterialTheme.typography.bodySmall,
@@ -176,6 +184,7 @@ fun SemanticPinField(
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier.fillMaxWidth(),
     helperText: String? = null,
+    errorText: String? = null,
     onImeAction: () -> Unit = {}
 ) {
     SemanticTextField(
@@ -184,6 +193,7 @@ fun SemanticPinField(
         onValueChange = { newValue -> onValueChange(newValue.filter(Char::isDigit).take(6)) },
         modifier = modifier,
         helperText = helperText,
+        errorText = errorText,
         placeholder = "6 digit PIN",
         leadingIcon = Icons.Default.Lock,
         keyboardType = KeyboardType.NumberPassword,
@@ -199,7 +209,7 @@ fun ShortcutHintBar(
     modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         hints.forEach { hint ->
@@ -226,32 +236,55 @@ fun CassySlimRail(
     onReload: () -> Unit
 ) {
     NavigationRail(
-        modifier = Modifier.width(92.dp),
-        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+        modifier = Modifier.width(132.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
         header = {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.padding(top = 12.dp)
+            ) {
                 Image(
-                    painter = painterResource("logo.png"),
+                    painter = painterResource(CASSY_BRAND_ICON_RESOURCE),
                     contentDescription = "Cassy Logo",
-                    modifier = Modifier.size(54.dp).padding(top = 14.dp)
+                    modifier = Modifier.size(88.dp)
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
                 Text(
-                    text = "Cassy",
-                    style = MaterialTheme.typography.labelMedium,
+                    text = "Cassy POS",
+                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
+                Text(
+                    text = "Cepat di kasir. Rapi di operasional.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer
+                ) {
+                    Text(
+                        text = "Single outlet",
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
                 Spacer(modifier = Modifier.height(18.dp))
             }
         }
     ) {
-        state.availableWorkspaces.forEach { workspace ->
-            RailItem(
-                selected = stage == DesktopStage.Workspace && workspace == selectedWorkspace,
-                icon = workspace.toIcon(),
-                label = workspace.shortLabel,
-                onClick = { onSelectWorkspace(workspace) }
-            )
+        if (stage == DesktopStage.Workspace) {
+            state.availableWorkspaces.forEach { workspace ->
+                RailItem(
+                    selected = workspace == selectedWorkspace,
+                    icon = workspace.toIcon(),
+                    label = workspace.shortLabel,
+                    onClick = { onSelectWorkspace(workspace) }
+                )
+            }
         }
 
         Spacer(modifier = Modifier.weight(1f))
@@ -259,7 +292,7 @@ fun CassySlimRail(
         RailItem(
             selected = false,
             icon = Icons.Default.Refresh,
-            label = "Sync",
+            label = "Sinkron",
             onClick = onReload
         )
         RailItem(
@@ -291,7 +324,7 @@ private fun RailItem(
                 tint = if (selected) MaterialTheme.colorScheme.primary else if (tone == UiTone.Danger) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
             )
         },
-        label = { Text(label, fontSize = 10.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal) },
+        label = { Text(label, fontSize = 11.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal) },
         colors = NavigationRailItemDefaults.colors(
             selectedIconColor = MaterialTheme.colorScheme.primary,
             indicatorColor = MaterialTheme.colorScheme.primaryContainer
@@ -312,7 +345,7 @@ fun CassyDenseProductRow(
             .fillMaxWidth()
             .height(64.dp)
             .clickable { onClick() },
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(10.dp),
         tonalElevation = 1.dp
     ) {
         Row(
@@ -360,23 +393,22 @@ fun CassyTopBar(
     val runtimeChannel = remember { System.getProperty("cassy.runtime.channel", "unknown") }
     val releaseVersion = remember { System.getProperty("cassy.release.version", "dev") }
     val buildLabel = remember(runtimeChannel, releaseVersion) {
-        if (runtimeChannel == "packaged-release-candidate") "RC $releaseVersion" else "DEV $releaseVersion"
+        if (runtimeChannel == "packaged-release-candidate") "Rilis $releaseVersion" else "Versi $releaseVersion"
     }
-    val buildTone = if (runtimeChannel == "packaged-release-candidate") UiTone.Info else UiTone.Warning
 
     val syncLabel = syncStatus?.let {
         when (it.level) {
-            SyncLevel.HEALTHY -> "Online"
-            SyncLevel.PENDING -> "Sync (${it.pendingCount})"
-            SyncLevel.DELAYED -> "Delayed (${it.pendingCount})"
-            SyncLevel.STALLED -> "Stalled!"
+            SyncLevel.HEALTHY -> "Normal"
+            SyncLevel.PENDING -> "Menunggu (${it.pendingCount})"
+            SyncLevel.DELAYED -> "Tertunda (${it.pendingCount})"
+            SyncLevel.STALLED -> "Macet"
             SyncLevel.ERROR -> when {
-                it.failedCount > 0 -> "Error (${it.failedCount})"
-                it.pendingCount > 0 -> "Error (${it.pendingCount})"
-                else -> "Sync Error"
+                it.failedCount > 0 -> "Bermasalah (${it.failedCount})"
+                it.pendingCount > 0 -> "Bermasalah (${it.pendingCount})"
+                else -> "Bermasalah"
             }
         }
-    } ?: "Offline"
+    } ?: "Lokal"
 
     val syncTone = syncStatus?.let {
         when (it.level) {
@@ -398,11 +430,7 @@ fun CassyTopBar(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    text = state.workspaceTitle,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
+                Text(text = state.workspaceTitle, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Text(
                     text = "${state.storeName ?: "Toko belum aktif"} • ${state.terminalName ?: "Terminal belum terikat"}",
                     style = MaterialTheme.typography.bodySmall,
@@ -411,11 +439,11 @@ fun CassyTopBar(
             }
 
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                StatusIndicator(label = "Build", status = buildLabel, tone = buildTone)
+                Text(buildLabel, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 state.nextActionLabel?.let {
-                    StatusIndicator(label = "Next", status = it, tone = UiTone.Info)
+                    StatusIndicator(label = "Aksi", status = it, tone = UiTone.Info)
                 }
-                StatusIndicator(label = "Sync", status = syncLabel, tone = syncTone)
+                StatusIndicator(label = "Sinkronisasi", status = syncLabel, tone = syncTone)
                 VerticalDivider(modifier = Modifier.height(16.dp))
                 Text(
                     text = humanizeOperatorLabel(state.operatorName, state.roleLabel),
@@ -424,7 +452,7 @@ fun CassyTopBar(
                 )
                 AssistChip(
                     onClick = onOpenCommand,
-                    label = { Text("Ctrl+K") }
+                    label = { Text("Cari Aksi") }
                 )
             }
         }
@@ -516,11 +544,11 @@ fun CassyCommandPalette(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Command Palette", fontWeight = FontWeight.Bold) },
+        title = { Text("Pusat Perintah", fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    "Pilih workspace utama. Fokus shortcut laptop tetap punya alias Ctrl-based.",
+                    "Pilih area kerja utama. Pintasan laptop tetap punya alias Ctrl-based.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -553,10 +581,10 @@ fun CassyShortcutHelpDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Shortcut Keyboard", fontWeight = FontWeight.Bold) },
+        title = { Text("Bantuan Pintasan", fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Ctrl+K: command palette")
+                Text("Ctrl+K: pusat perintah")
                 Text("Ctrl+/: bantuan shortcut")
                 Text("Ctrl+Shift+S: sync center")
                 Text("Ctrl+Shift+R: laporan")
@@ -659,7 +687,7 @@ fun CassyStepUpAuthDialog(
 fun StatusIndicator(label: String, status: String, tone: UiTone) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         Box(modifier = Modifier.size(6.dp).background(toneColor(tone), CircleShape))
-        Text(text = status, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium)
+        Text(text = "$label: $status", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium)
     }
 }
 
@@ -672,17 +700,26 @@ fun toneColor(tone: UiTone): Color = when (tone) {
 
 @Composable
 fun toneContainerColor(tone: UiTone): Color = when (tone) {
-    UiTone.Info -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.88f)
-    UiTone.Success -> Color(0xFFE2F6E9)
-    UiTone.Warning -> Color(0xFFFBEBC8)
-    UiTone.Danger -> MaterialTheme.colorScheme.errorContainer
+    UiTone.Info -> Color(0xFFD5EBF4)
+    UiTone.Success -> Color(0xFFD9F0DF)
+    UiTone.Warning -> Color(0xFFF3DEB0)
+    UiTone.Danger -> Color(0xFFF2D3D0)
+}
+
+fun toneContentColor(tone: UiTone): Color = when (tone) {
+    UiTone.Info -> Color(0xFF163D4E)
+    UiTone.Success -> Color(0xFF1C4028)
+    UiTone.Warning -> Color(0xFF5C3A00)
+    UiTone.Danger -> Color(0xFF5A1713)
 }
 
 private fun hardwareTone(status: HardwareDeviceStatus): UiTone = when (status) {
     HardwareDeviceStatus.READY -> UiTone.Success
-    HardwareDeviceStatus.UNKNOWN -> UiTone.Warning
-    HardwareDeviceStatus.WARNING -> UiTone.Warning
-    HardwareDeviceStatus.UNAVAILABLE -> UiTone.Danger
+    HardwareDeviceStatus.FALLBACK -> UiTone.Info
+    HardwareDeviceStatus.DISCONNECTED,
+    HardwareDeviceStatus.UNSTABLE -> UiTone.Warning
+    HardwareDeviceStatus.ABNORMAL,
+    HardwareDeviceStatus.BLOCKED -> UiTone.Danger
 }
 
 private fun DesktopWorkspace.toIcon(): ImageVector = when (this) {

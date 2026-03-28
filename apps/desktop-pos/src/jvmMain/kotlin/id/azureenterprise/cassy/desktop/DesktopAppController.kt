@@ -46,7 +46,10 @@ class DesktopAppController(
     private val hardwarePort: CashierHardwarePort,
     private val reportingQueryFacade: ReportingQueryFacade,
     private val syncReplayService: SyncReplayService,
-    private val reportingExporter: DesktopReportingExporter
+    private val reportingExporter: DesktopReportingExporter,
+    private val bootstrapAvatarStore: BootstrapAvatarStore,
+    private val storeProfileService: StoreProfileService,
+    private val storeProfileLogoStore: StoreProfileLogoStore
 ) {
     private val _state = MutableStateFlow(DesktopAppState())
     val state: StateFlow<DesktopAppState> = _state.asStateFlow()
@@ -128,36 +131,167 @@ class DesktopAppController(
 
     fun updateBootstrapField(field: BootstrapField, value: String) {
         _state.update {
+            val updatedBootstrap = when (field) {
+                BootstrapField.StoreName -> it.bootstrap.copy(storeName = value)
+                BootstrapField.TerminalName -> it.bootstrap.copy(terminalName = value)
+                BootstrapField.CashierName -> it.bootstrap.copy(cashierName = value)
+                BootstrapField.CashierPin -> it.bootstrap.copy(cashierPin = value.take(6))
+                BootstrapField.CashierAvatar -> it.bootstrap
+                BootstrapField.SupervisorName -> it.bootstrap.copy(supervisorName = value)
+                BootstrapField.SupervisorPin -> it.bootstrap.copy(supervisorPin = value.take(6))
+                BootstrapField.SupervisorAvatar -> it.bootstrap
+            }.copy(
+                touchedFields = it.bootstrap.touchedFields + field
+            )
             it.copy(
-                bootstrap = when (field) {
-                    BootstrapField.StoreName -> it.bootstrap.copy(storeName = value)
-                    BootstrapField.TerminalName -> it.bootstrap.copy(terminalName = value)
-                    BootstrapField.CashierName -> it.bootstrap.copy(cashierName = value)
-                    BootstrapField.CashierPin -> it.bootstrap.copy(cashierPin = value.take(6))
-                    BootstrapField.SupervisorName -> it.bootstrap.copy(supervisorName = value)
-                    BootstrapField.SupervisorPin -> it.bootstrap.copy(supervisorPin = value.take(6))
+                bootstrap = applyBootstrapValidation(updatedBootstrap)
+            )
+        }
+    }
+
+    fun selectBootstrapAvatar(field: BootstrapField) {
+        val role = when (field) {
+            BootstrapField.CashierAvatar -> OperatorRole.CASHIER
+            BootstrapField.SupervisorAvatar -> OperatorRole.SUPERVISOR
+            else -> return
+        }
+        val existingPath = when (field) {
+            BootstrapField.CashierAvatar -> state.value.bootstrap.cashierAvatarPath
+            BootstrapField.SupervisorAvatar -> state.value.bootstrap.supervisorAvatarPath
+            else -> null
+        }
+        bootstrapAvatarStore.chooseAndImport(role, existingPath)
+            .onSuccess { importedPath ->
+                if (importedPath == null) return
+                _state.update {
+                    val updatedBootstrap = when (field) {
+                        BootstrapField.CashierAvatar -> it.bootstrap.copy(cashierAvatarPath = importedPath)
+                        BootstrapField.SupervisorAvatar -> it.bootstrap.copy(supervisorAvatarPath = importedPath)
+                        else -> it.bootstrap
+                    }.copy(
+                        touchedFields = it.bootstrap.touchedFields + field
+                    )
+                    it.copy(
+                        bootstrap = applyBootstrapValidation(updatedBootstrap),
+                        banner = UiBanner(UiTone.Success, "Foto profil lokal dipilih")
+                    )
                 }
+            }
+            .onFailure { error ->
+                pushBanner(UiBanner(UiTone.Warning, error.message ?: "Foto profil tidak bisa dipakai"))
+            }
+    }
+
+    fun clearBootstrapAvatar(field: BootstrapField) {
+        _state.update {
+            when (field) {
+                BootstrapField.CashierAvatar -> bootstrapAvatarStore.deleteManaged(it.bootstrap.cashierAvatarPath)
+                BootstrapField.SupervisorAvatar -> bootstrapAvatarStore.deleteManaged(it.bootstrap.supervisorAvatarPath)
+                else -> return@update it
+            }
+            val updatedBootstrap = when (field) {
+                BootstrapField.CashierAvatar -> it.bootstrap.copy(cashierAvatarPath = null)
+                BootstrapField.SupervisorAvatar -> it.bootstrap.copy(supervisorAvatarPath = null)
+                else -> it.bootstrap
+            }.copy(
+                touchedFields = it.bootstrap.touchedFields + field
+            )
+            it.copy(
+                bootstrap = applyBootstrapValidation(updatedBootstrap),
+                banner = UiBanner(UiTone.Info, "Foto profil dihapus")
             )
         }
     }
 
     suspend fun bootstrapStore() {
         mutateBusy(true)
-        val form = state.value.bootstrap
-        val result = accessService.bootstrapStore(
-            BootstrapStoreRequest(
-                storeName = form.storeName,
-                terminalName = form.terminalName,
-                cashierName = form.cashierName,
-                cashierPin = form.cashierPin,
-                supervisorName = form.supervisorName,
-                supervisorPin = form.supervisorPin
-            )
+        val validatedBootstrap = applyBootstrapValidation(
+            state.value.bootstrap.copy(submitAttempted = true)
         )
+        _state.update { it.copy(bootstrap = validatedBootstrap) }
+        if (validatedBootstrap.fieldErrors.isNotEmpty()) {
+            mutateBusy(false)
+            pushBanner(UiBanner(UiTone.Warning, "Periksa lagi field yang belum valid"))
+            return
+        }
+        val result = accessService.bootstrapStore(validatedBootstrap.toBootstrapStoreRequest())
         refreshStage(
             result.fold(
-                onSuccess = { UiBanner(UiTone.Success, "Bootstrap store selesai. Login dengan PIN operator.") },
+                onSuccess = { UiBanner(UiTone.Success, "Pengaturan awal selesai. Login dengan PIN operator.") },
                 onFailure = { UiBanner(UiTone.Danger, it.message ?: "Bootstrap store gagal") }
+            )
+        )
+    }
+
+    fun updateStoreProfileField(field: StoreProfileUiField, value: String) {
+        _state.update {
+            val updated = when (field) {
+                StoreProfileUiField.BusinessName -> it.storeProfile.copy(businessName = value)
+                StoreProfileUiField.Address -> it.storeProfile.copy(address = value)
+                StoreProfileUiField.PhoneCountryCode -> it.storeProfile.copy(phoneCountryCode = value)
+                StoreProfileUiField.PhoneNumber -> it.storeProfile.copy(phoneNumber = value)
+                StoreProfileUiField.ReceiptNote -> it.storeProfile.copy(receiptNote = value)
+                StoreProfileUiField.LogoPath -> it.storeProfile
+            }.copy(
+                touchedFields = it.storeProfile.touchedFields + field
+            )
+            it.copy(storeProfile = applyStoreProfileValidation(updated))
+        }
+    }
+
+    fun selectStoreProfileLogo() {
+        val storeId = state.value.shell.storeId
+            ?: return pushBanner(UiBanner(UiTone.Warning, "Profil usaha belum bisa diubah sebelum toko terdaftar"))
+        storeProfileLogoStore.chooseAndImport(storeId, state.value.storeProfile.logoPath)
+            .onSuccess { importedPath ->
+                if (importedPath == null) return
+                _state.update {
+                    val updated = it.storeProfile.copy(
+                        logoPath = importedPath,
+                        touchedFields = it.storeProfile.touchedFields + StoreProfileUiField.LogoPath
+                    )
+                    it.copy(
+                        storeProfile = applyStoreProfileValidation(updated),
+                        banner = UiBanner(UiTone.Success, "Logo usaha lokal dipilih")
+                    )
+                }
+            }
+            .onFailure { error ->
+                pushBanner(UiBanner(UiTone.Warning, error.message ?: "Logo usaha tidak bisa dipakai"))
+            }
+    }
+
+    fun clearStoreProfileLogo() {
+        _state.update {
+            storeProfileLogoStore.deleteManaged(it.storeProfile.logoPath)
+            val updated = it.storeProfile.copy(
+                logoPath = null,
+                touchedFields = it.storeProfile.touchedFields + StoreProfileUiField.LogoPath
+            )
+            it.copy(
+                storeProfile = applyStoreProfileValidation(updated),
+                banner = UiBanner(UiTone.Info, "Logo usaha dihapus")
+            )
+        }
+    }
+
+    suspend fun saveStoreProfile() {
+        mutateBusy(true)
+        val validated = applyStoreProfileValidation(
+            state.value.storeProfile.copy(submitAttempted = true)
+        )
+        _state.update { it.copy(storeProfile = validated) }
+        if (validated.fieldErrors.isNotEmpty()) {
+            mutateBusy(false)
+            pushBanner(UiBanner(UiTone.Warning, "Periksa lagi field profil usaha yang belum valid"))
+            return
+        }
+
+        val result = storeProfileService.save(validated.toDraft())
+        refreshStage(
+            result.fold(
+                onSuccess = { UiBanner(UiTone.Success, "Profil usaha berhasil disimpan") },
+                onFailure = { UiBanner(UiTone.Danger, it.message ?: "Profil usaha gagal disimpan") }
             )
         )
     }
@@ -174,6 +308,7 @@ class DesktopAppController(
 
     fun selectWorkspace(workspace: DesktopWorkspace) {
         _state.update { current ->
+            if (current.stage != DesktopStage.Workspace) return@update current
             val allowed = current.shell.availableWorkspaces
             val resolved = workspace.takeIf { it in allowed } ?: current.activeWorkspace
             current.copy(
@@ -255,8 +390,8 @@ class DesktopAppController(
         mutateBusy(true)
         val result = businessDayService.openNewDay()
         refreshStage(result.fold(
-            onSuccess = { UiBanner(UiTone.Success, "Business day ${it.id} dibuka") },
-            onFailure = { UiBanner(UiTone.Danger, it.message ?: "Open day gagal") }
+            onSuccess = { UiBanner(UiTone.Success, "Hari bisnis ${it.id} berhasil dibuka") },
+            onFailure = { UiBanner(UiTone.Danger, it.message ?: "Buka hari bisnis gagal") }
         ))
     }
 
@@ -319,8 +454,8 @@ class DesktopAppController(
         mutateBusy(true)
         val result = businessDayService.closeCurrentDay()
         refreshStage(result.fold(
-            onSuccess = { UiBanner(UiTone.Success, "Business day ${it.id} ditutup") },
-            onFailure = { UiBanner(UiTone.Danger, it.message ?: "Close day gagal") }
+            onSuccess = { UiBanner(UiTone.Success, "Hari bisnis ${it.id} berhasil ditutup") },
+            onFailure = { UiBanner(UiTone.Danger, it.message ?: "Tutup hari gagal") }
         ))
     }
 
@@ -415,8 +550,11 @@ class DesktopAppController(
     suspend fun addProduct(product: Product) {
         mutateBusy(true)
         val result = salesService.addProduct(product)
+        _state.update {
+            it.copy(catalog = it.catalog.copy(reviewConfirmed = false))
+        }
         refreshStage(result.fold(
-            onSuccess = { UiBanner(UiTone.Success, "${product.name} ditambahkan") },
+            onSuccess = { UiBanner(UiTone.Success, "${product.name} ditambahkan ke keranjang") },
             onFailure = { UiBanner(UiTone.Danger, it.message ?: "Gagal menambah item") }
         ))
     }
@@ -428,8 +566,11 @@ class DesktopAppController(
     suspend fun decrementItem(product: Product, currentQuantity: Double) {
         mutateBusy(true)
         val result = salesService.setQuantity(product.id, currentQuantity - 1)
+        _state.update {
+            it.copy(catalog = it.catalog.copy(reviewConfirmed = false))
+        }
         refreshStage(result.fold(
-            onSuccess = { UiBanner(UiTone.Info, "${product.name} diperbarui") },
+            onSuccess = { UiBanner(UiTone.Info, "${product.name} diperbarui di keranjang") },
             onFailure = { UiBanner(UiTone.Danger, it.message ?: "Gagal memperbarui item") }
         ))
     }
@@ -474,6 +615,13 @@ class DesktopAppController(
                                     recentSales = loadRecentSaleHistory(),
                                     cashReceivedInput = "",
                                     cashTenderQuote = null,
+                                    reviewConfirmed = false,
+                                    memberNumberInput = "",
+                                    memberNameInput = "",
+                                    memberSkipped = false,
+                                    donationOffered = false,
+                                    donationSkipped = false,
+                                    donationAmountInput = "",
                                     receiptPreview = ReceiptPreviewState(
                                         saleId = saleId,
                                         localNumber = finalizedSale.receiptSnapshot.localNumber,
@@ -593,12 +741,101 @@ class DesktopAppController(
     suspend fun cancelCurrentSale() {
         mutateBusy(true)
         val result = salesService.cancelActiveSale()
+        _state.update {
+            it.copy(
+                catalog = it.catalog.copy(
+                    reviewConfirmed = false,
+                    memberNumberInput = "",
+                    memberNameInput = "",
+                    memberSkipped = false,
+                    donationOffered = false,
+                    donationSkipped = false,
+                    donationAmountInput = ""
+                )
+            )
+        }
         refreshStage(
             result.fold(
                 onSuccess = { UiBanner(UiTone.Info, "Pesanan draft dibatalkan. Struk final sebelumnya tetap aman.") },
                 onFailure = { UiBanner(UiTone.Danger, it.message ?: "Gagal membatalkan pesanan") }
             )
         )
+    }
+
+    fun confirmCartReview() {
+        _state.update {
+            it.copy(catalog = it.catalog.copy(reviewConfirmed = it.catalog.basket.items.isNotEmpty()))
+        }
+    }
+
+    fun updateMemberNumberInput(value: String) {
+        _state.update {
+            it.copy(
+                catalog = it.catalog.copy(
+                    memberNumberInput = value.filter(Char::isDigit).take(16),
+                    memberSkipped = false
+                )
+            )
+        }
+    }
+
+    fun updateMemberNameInput(value: String) {
+        _state.update {
+            it.copy(
+                catalog = it.catalog.copy(
+                    memberNameInput = value.take(48),
+                    memberSkipped = false
+                )
+            )
+        }
+    }
+
+    fun skipMemberStep() {
+        _state.update {
+            it.copy(
+                catalog = it.catalog.copy(
+                    memberNumberInput = "",
+                    memberNameInput = "",
+                    memberSkipped = true
+                )
+            )
+        }
+    }
+
+    fun offerDonation(value: Boolean) {
+        _state.update {
+            it.copy(
+                catalog = it.catalog.copy(
+                    donationOffered = value,
+                    donationSkipped = !value,
+                    donationAmountInput = if (value) it.catalog.donationAmountInput else ""
+                )
+            )
+        }
+    }
+
+    fun updateDonationAmountInput(value: String) {
+        _state.update {
+            it.copy(
+                catalog = it.catalog.copy(
+                    donationAmountInput = value.filter(Char::isDigit).take(6),
+                    donationOffered = true,
+                    donationSkipped = false
+                )
+            )
+        }
+    }
+
+    fun skipDonationStep() {
+        _state.update {
+            it.copy(
+                catalog = it.catalog.copy(
+                    donationOffered = false,
+                    donationSkipped = true,
+                    donationAmountInput = ""
+                )
+            )
+        }
     }
 
     fun updateOpeningCashInput(value: String) {
@@ -667,8 +904,8 @@ class DesktopAppController(
         val direct = accessService.requireCapability(AccessCapability.APPROVE_CASH_MOVEMENT_EXCEPTION).getOrNull()
         if (direct == null) {
             return openStepUpFlow(
-                title = "Approval Cash Control",
-                detail = "Supervisor/owner perlu memasukkan PIN untuk menyetujui kontrol kas ini.",
+                title = "Setujui Kontrol Kas",
+                detail = "Supervisor atau owner perlu memasukkan PIN untuk menyetujui kontrol kas ini.",
                 capability = AccessCapability.APPROVE_CASH_MOVEMENT_EXCEPTION,
                 action = StepUpAction.APPROVE_CASH_MOVEMENT,
                 targetId = requestId,
@@ -689,8 +926,8 @@ class DesktopAppController(
         val direct = accessService.requireCapability(AccessCapability.APPROVE_CASH_MOVEMENT_EXCEPTION).getOrNull()
         if (direct == null) {
             return openStepUpFlow(
-                title = "Tolak Approval Cash Control",
-                detail = "Supervisor/owner perlu memasukkan PIN untuk menolak approval cash control.",
+                title = "Tolak Kontrol Kas",
+                detail = "Supervisor atau owner perlu memasukkan PIN untuk menolak kontrol kas ini.",
                 capability = AccessCapability.APPROVE_CASH_MOVEMENT_EXCEPTION,
                 action = StepUpAction.DENY_CASH_MOVEMENT,
                 targetId = requestId,
@@ -723,12 +960,12 @@ class DesktopAppController(
         val direct = accessService.requireCapability(AccessCapability.APPROVE_SHIFT_CLOSE_EXCEPTION).getOrNull()
         if (direct == null) {
             return openStepUpFlow(
-                title = "Approval Close Shift",
-                detail = "Supervisor/owner perlu memasukkan PIN untuk menutup shift dengan approval.",
+                title = "Setujui Tutup Shift",
+                detail = "Supervisor atau owner perlu memasukkan PIN untuk menyetujui tutup shift.",
                 capability = AccessCapability.APPROVE_SHIFT_CLOSE_EXCEPTION,
                 action = StepUpAction.APPROVE_CLOSE_SHIFT,
                 targetId = requestId,
-                decisionNote = "Approved by desktop step-up"
+                decisionNote = "Disetujui via step-up desktop"
             )
         }
         mutateBusy(true)
@@ -745,8 +982,8 @@ class DesktopAppController(
         val direct = accessService.requireCapability(AccessCapability.APPROVE_SHIFT_CLOSE_EXCEPTION).getOrNull()
         if (direct == null) {
             return openStepUpFlow(
-                title = "Tolak Close Shift",
-                detail = "Supervisor/owner perlu memasukkan PIN untuk menolak approval close shift.",
+                title = "Tolak Tutup Shift",
+                detail = "Supervisor atau owner perlu memasukkan PIN untuk menolak approval tutup shift.",
                 capability = AccessCapability.APPROVE_SHIFT_CLOSE_EXCEPTION,
                 action = StepUpAction.DENY_CLOSE_SHIFT,
                 targetId = requestId,
@@ -818,7 +1055,7 @@ class DesktopAppController(
                     )
                 },
                 onFailure = {
-                    UiBanner(UiTone.Danger, it.message ?: "Void sale gagal dieksekusi")
+                    UiBanner(UiTone.Danger, it.message ?: "Pembatalan transaksi final gagal dijalankan")
                 }
             )
         )
@@ -1129,7 +1366,7 @@ class DesktopAppController(
                         UiTone.Success
                     },
                     message = if (result.approvalApplied) {
-                        "Adjustment inventory dicatat setelah LIGHT_PIN approval. Balance sekarang ${result.mutation.balance.quantity}."
+                        "Penyesuaian stok dicatat setelah verifikasi PIN supervisor. Saldo sekarang ${result.mutation.balance.quantity}."
                     } else {
                         "Adjustment inventory dicatat. Balance sekarang ${result.mutation.balance.quantity}."
                     }
@@ -1165,7 +1402,7 @@ class DesktopAppController(
                 UiBanner(
                     if (result.approvalApplied) UiTone.Warning else UiTone.Success,
                     if (result.approvalApplied) {
-                        "Discrepancy diselesaikan setelah LIGHT_PIN approval."
+                        "Selisih stok diselesaikan setelah verifikasi PIN supervisor."
                     } else {
                         "Discrepancy diselesaikan with adjustment eksplisit."
                     }
@@ -1398,7 +1635,35 @@ class DesktopAppController(
         )
         val pendingApprovals = cashControlService.listPendingApprovals() + shiftClosingService.listPendingApprovals()
         val activeOperator = context.activeOperator
-        val operators = context.operators.map { OperatorOption(it.id, it.displayName, it.role.name) }
+        val storeProfileDraft = context.terminalBinding?.let {
+            storeProfileService.loadDraft().getOrNull()
+        }
+        val validatedStoreProfile = storeProfileDraft?.let { draft ->
+            val previous = state.value.storeProfile
+            applyStoreProfileValidation(
+                previous.copy(
+                    businessName = draft.businessName,
+                    address = draft.address,
+                    phoneCountryCode = draft.phoneCountryCode,
+                    phoneNumber = draft.phoneNumber,
+                    receiptNote = draft.receiptNote,
+                    logoPath = draft.logoPath
+                )
+            )
+        } ?: StoreProfileState()
+        val operators = context.operators.map {
+            OperatorOption(
+                id = it.id,
+                displayName = it.displayName,
+                roleLabel = it.role.name,
+                avatarPath = it.avatarPath,
+                capabilitySummary = when (it.role) {
+                    OperatorRole.CASHIER -> "Menjalankan transaksi, buka hari bisnis, buka shift, dan kontrol kas harian"
+                    OperatorRole.SUPERVISOR -> "Memantau hasil, memberi approval penting, dan menangani pemulihan bila ada masalah"
+                    OperatorRole.OWNER -> "Akses penuh"
+                }
+            )
+        }
         val catalogProducts = if (operationalSnapshot.canAccessSalesHome) {
             loadProducts(state.value.catalog.searchQuery)
         } else {
@@ -1473,7 +1738,9 @@ class DesktopAppController(
                 stage = stage,
                 activeWorkspace = activeWorkspace,
                 shell = DesktopShellState(
-                    storeName = context.terminalBinding?.storeName,
+                    storeId = context.terminalBinding?.storeId,
+                    storeName = validatedStoreProfile.businessName.ifBlank { context.terminalBinding?.storeName.orEmpty() }
+                        .ifBlank { context.terminalBinding?.storeName },
                     terminalName = context.terminalBinding?.terminalName,
                     operatorName = activeOperator?.displayName,
                     roleLabel = activeOperator?.role?.name,
@@ -1489,12 +1756,22 @@ class DesktopAppController(
                     pin = if (stage == DesktopStage.Login) it.login.pin else "",
                     feedback = if (stage == DesktopStage.Login) it.login.feedback else null
                 ),
+                bootstrap = if (stage == DesktopStage.Bootstrap) {
+                    applyBootstrapValidation(it.bootstrap)
+                } else {
+                    BootstrapState()
+                },
+                storeProfile = if (stage == DesktopStage.Workspace) {
+                    validatedStoreProfile
+                } else {
+                    StoreProfileState()
+                },
                 operations = OperationsState(
                     canOpenDay = activeOperator?.role?.supports(AccessCapability.OPEN_DAY) == true,
                     blockingMessage = when {
                         context.activeSession == null -> "Login operator diperlukan"
                         businessDay == null && activeOperator?.role?.supports(AccessCapability.OPEN_DAY) != true ->
-                            "Supervisor diperlukan untuk membuka business day"
+                            "Operator aktif belum bisa membuka hari bisnis"
                         else -> operationalSnapshot.salesHomeBlocker
                     },
                     businessDayLabel = operationalSnapshot.businessDayId,
@@ -1571,7 +1848,7 @@ class DesktopAppController(
         val imageResolution = selectedProduct?.let(::resolveProductImage)
             ?: ProductImageResolution(
                 ref = null,
-                status = "Folder input_images aktif. Pilih produk untuk melihat image binding."
+                status = "Folder gambar lokal aktif. Pilih produk untuk melihat kecocokan file."
             )
         return previous.copy(
             availableProducts = products,
@@ -1584,8 +1861,8 @@ class DesktopAppController(
             inputImagesFolder = File("input_images").absolutePath,
             selectedImageRef = imageResolution.ref,
             imageIoStatus = imageResolution.status,
-            voidContractNote = "Void inventory hanya classification contract. Jalur ambigu wajib diblok atau diinvestigasi manual.",
-            approvalLimitationNote = "Approval inventory yang shipped saat ini hanya LIGHT_PIN. SECOND_PIN dan DUAL_AUTH masih future hook."
+            voidContractNote = "Pembatalan inventori masih perlu investigasi manual bila kasusnya ambigu.",
+            approvalLimitationNote = "Persetujuan inventori saat ini memakai verifikasi PIN supervisor."
         )
     }
 
@@ -1681,14 +1958,14 @@ class DesktopAppController(
         product.imageUrl?.takeIf(String::isNotBlank)?.let { imageUrl ->
             return ProductImageResolution(
                 ref = imageUrl,
-                status = "Compat imageUrl aktif. Appendix input_images tetap future-safe, belum mengganti source lama."
+                status = "Referensi gambar lama masih dipakai. Folder gambar lokal tersedia sebagai jalur aman berikutnya."
             )
         }
         val inputDir = File("input_images")
         if (!inputDir.exists()) {
             return ProductImageResolution(
                 ref = null,
-                status = "Folder input_images belum ada di runtime lokal."
+                status = "Folder gambar lokal belum ada di runtime desktop ini."
             )
         }
         val matched = inputDir.walkTopDown()
@@ -1700,12 +1977,12 @@ class DesktopAppController(
         return if (matched != null) {
             ProductImageResolution(
                 ref = matched.relativeTo(File(".")).path,
-                status = "input_images dipakai as source I/O image lokal for ${product.sku}."
+                status = "Folder gambar lokal dipakai sebagai sumber file untuk ${product.sku}."
             )
         } else {
             ProductImageResolution(
                 ref = null,
-                status = "input_images aktif tetapi belum ada file yang cocok for ${product.sku}."
+                status = "Folder gambar lokal aktif, tetapi belum ada file yang cocok untuk ${product.sku}."
             )
         }
     }
@@ -1729,6 +2006,26 @@ class DesktopAppController(
 
     private fun pushBanner(banner: UiBanner) {
         _state.update { it.copy(isBusy = false, banner = banner) }
+    }
+
+    private fun applyBootstrapValidation(bootstrap: BootstrapState): BootstrapState {
+        val validation = accessService.validateBootstrapRequest(bootstrap.toBootstrapStoreRequest())
+        return bootstrap.copy(
+            fieldErrors = validation.issues.associate { it.field.toUiField() to it.message }
+        )
+    }
+
+    private fun applyStoreProfileValidation(storeProfile: StoreProfileState): StoreProfileState {
+        val validation = runCatching {
+            storeProfileService.validate(storeProfile.toDraft())
+        }.getOrElse {
+            return storeProfile.copy(
+                fieldErrors = emptyMap()
+            )
+        }
+        return storeProfile.copy(
+            fieldErrors = validation.issues.associate { it.field.toUiField() to it.message }
+        )
     }
 
     private suspend fun loadRecentSaleHistory(): List<SaleHistoryEntry> {
@@ -1760,7 +2057,7 @@ class DesktopAppController(
             selectedSale.paymentMethod != "CASH" ->
                 "Void desktop V1 hanya mengeksekusi penjualan CASH. CARD/QRIS tetap perlu reversal/refund eksternal."
             else ->
-                "Void sale cash siap dijalankan. Refund kas akan dicatat, stok tetap perlu follow-up manual."
+                "Pembatalan transaksi tunai siap dijalankan. Refund kas akan dicatat, stok tetap perlu tindak lanjut manual."
         }
         val inventoryImpact = if (draft.inventoryFollowUpNote.isBlank()) {
             "MANUAL_INVESTIGATION_REQUIRED"
@@ -1787,6 +2084,7 @@ data class DesktopAppState(
     val shell: DesktopShellState = DesktopShellState(),
     val bootstrap: BootstrapState = BootstrapState(),
     val login: LoginState = LoginState(),
+    val storeProfile: StoreProfileState = StoreProfileState(),
     val operations: OperationsState = OperationsState(),
     val catalog: DesktopCatalogState = DesktopCatalogState(),
     val inventory: InventoryPanelState = InventoryPanelState(),
@@ -1806,6 +2104,7 @@ sealed interface DesktopStage {
 }
 
 data class DesktopShellState(
+    val storeId: String? = null,
     val storeName: String? = null,
     val terminalName: String? = null,
     val operatorName: String? = null,
@@ -1822,8 +2121,13 @@ data class BootstrapState(
     val terminalName: String = "",
     val cashierName: String = "",
     val cashierPin: String = "",
+    val cashierAvatarPath: String? = null,
     val supervisorName: String = "",
-    val supervisorPin: String = ""
+    val supervisorPin: String = "",
+    val supervisorAvatarPath: String? = null,
+    val fieldErrors: Map<BootstrapField, String> = emptyMap(),
+    val touchedFields: Set<BootstrapField> = emptySet(),
+    val submitAttempted: Boolean = false
 )
 
 enum class BootstrapField {
@@ -1831,8 +2135,10 @@ enum class BootstrapField {
     TerminalName,
     CashierName,
     CashierPin,
+    CashierAvatar,
     SupervisorName,
-    SupervisorPin
+    SupervisorPin,
+    SupervisorAvatar
 }
 
 data class LoginState(
@@ -1842,10 +2148,33 @@ data class LoginState(
     val feedback: String? = null
 )
 
+data class StoreProfileState(
+    val businessName: String = "",
+    val address: String = "",
+    val phoneCountryCode: String = DEFAULT_PHONE_COUNTRY_CODE,
+    val phoneNumber: String = "",
+    val receiptNote: String = "",
+    val logoPath: String? = null,
+    val fieldErrors: Map<StoreProfileUiField, String> = emptyMap(),
+    val touchedFields: Set<StoreProfileUiField> = emptySet(),
+    val submitAttempted: Boolean = false
+)
+
+enum class StoreProfileUiField {
+    BusinessName,
+    Address,
+    PhoneCountryCode,
+    PhoneNumber,
+    ReceiptNote,
+    LogoPath
+}
+
 data class OperatorOption(
     val id: String,
     val displayName: String,
-    val roleLabel: String
+    val roleLabel: String,
+    val avatarPath: String? = null,
+    val capabilitySummary: String = ""
 )
 
 data class OperationsState(
@@ -1909,6 +2238,13 @@ data class DesktopCatalogState(
     val barcodeInput: String = "",
     val products: List<Product> = emptyList(),
     val basket: Basket = Basket(),
+    val reviewConfirmed: Boolean = false,
+    val memberNumberInput: String = "",
+    val memberNameInput: String = "",
+    val memberSkipped: Boolean = false,
+    val donationOffered: Boolean = false,
+    val donationSkipped: Boolean = false,
+    val donationAmountInput: String = "",
     val cashReceivedInput: String = "",
     val cashTenderQuote: CashTenderQuote? = null,
     val lastFinalizedSaleId: String? = null,
@@ -1941,9 +2277,9 @@ data class InventoryPanelState(
     val adjustmentReasonOptions: List<ReasonOption> = emptyList(),
     val inputImagesFolder: String = "input_images",
     val selectedImageRef: String? = null,
-    val imageIoStatus: String = "Folder input_images belum dipakai.",
-    val voidContractNote: String = "Void inventory masih contract-only.",
-    val approvalLimitationNote: String = "Approval inventory hanya LIGHT_PIN."
+    val imageIoStatus: String = "Folder gambar lokal belum dipakai.",
+    val voidContractNote: String = "Pembatalan inventori masih perlu review manual.",
+    val approvalLimitationNote: String = "Persetujuan inventori memakai verifikasi PIN supervisor."
 )
 
 data class MasterDataPanelState(
@@ -2026,16 +2362,16 @@ private data class ProductImageResolution(
 )
 
 private fun OperationType.toUiLabel(): String = when (this) {
-    OperationType.OPEN_BUSINESS_DAY -> "Buka Business Day"
+    OperationType.OPEN_BUSINESS_DAY -> "Buka hari bisnis"
     OperationType.START_SHIFT -> "Buka Shift"
-    OperationType.CASH_IN -> "Cash In"
-    OperationType.CASH_OUT -> "Cash Out"
-    OperationType.SAFE_DROP -> "Safe Drop"
+    OperationType.CASH_IN -> "Catat uang masuk"
+    OperationType.CASH_OUT -> "Catat uang keluar"
+    OperationType.SAFE_DROP -> "Simpan uang ke brankas"
     OperationType.CLOSE_SHIFT -> "Tutup Shift"
     OperationType.CLOSE_BUSINESS_DAY -> "Tutup Hari"
-    OperationType.VOID_SALE -> "Review Void"
-    OperationType.STOCK_ADJUSTMENT -> "Adjustment Stok"
-    OperationType.RESOLVE_STOCK_DISCREPANCY -> "Resolusi Discrepancy"
+    OperationType.VOID_SALE -> "Review void transaksi"
+    OperationType.STOCK_ADJUSTMENT -> "Sesuaikan stok"
+    OperationType.RESOLVE_STOCK_DISCREPANCY -> "Tindak lanjuti selisih stok"
 }
 
 private fun CashMovementType.toReasonCategory(): ReasonCategory = when (this) {
@@ -2058,4 +2394,48 @@ private fun String.toDecimalInput(): String {
         }
     }
     return if (sanitized.startsWith(".")) "0$sanitized" else sanitized
+}
+
+private fun BootstrapState.toBootstrapStoreRequest(): BootstrapStoreRequest {
+    return BootstrapStoreRequest(
+        storeName = storeName,
+        terminalName = terminalName,
+        cashierName = cashierName,
+        cashierPin = cashierPin,
+        supervisorName = supervisorName,
+        supervisorPin = supervisorPin,
+        cashierAvatarPath = cashierAvatarPath,
+        supervisorAvatarPath = supervisorAvatarPath
+    )
+}
+
+private fun BootstrapStoreField.toUiField(): BootstrapField = when (this) {
+    BootstrapStoreField.STORE_NAME -> BootstrapField.StoreName
+    BootstrapStoreField.TERMINAL_NAME -> BootstrapField.TerminalName
+    BootstrapStoreField.CASHIER_NAME -> BootstrapField.CashierName
+    BootstrapStoreField.CASHIER_PIN -> BootstrapField.CashierPin
+    BootstrapStoreField.CASHIER_AVATAR -> BootstrapField.CashierAvatar
+    BootstrapStoreField.SUPERVISOR_NAME -> BootstrapField.SupervisorName
+    BootstrapStoreField.SUPERVISOR_PIN -> BootstrapField.SupervisorPin
+    BootstrapStoreField.SUPERVISOR_AVATAR -> BootstrapField.SupervisorAvatar
+}
+
+private fun StoreProfileField.toUiField(): StoreProfileUiField = when (this) {
+    StoreProfileField.BUSINESS_NAME -> StoreProfileUiField.BusinessName
+    StoreProfileField.ADDRESS -> StoreProfileUiField.Address
+    StoreProfileField.PHONE_COUNTRY_CODE -> StoreProfileUiField.PhoneCountryCode
+    StoreProfileField.PHONE_NUMBER -> StoreProfileUiField.PhoneNumber
+    StoreProfileField.RECEIPT_NOTE -> StoreProfileUiField.ReceiptNote
+    StoreProfileField.LOGO_PATH -> StoreProfileUiField.LogoPath
+}
+
+private fun StoreProfileState.toDraft(): StoreProfileDraft {
+    return StoreProfileDraft(
+        businessName = businessName,
+        address = address,
+        phoneCountryCode = phoneCountryCode,
+        phoneNumber = phoneNumber,
+        receiptNote = receiptNote,
+        logoPath = logoPath
+    )
 }

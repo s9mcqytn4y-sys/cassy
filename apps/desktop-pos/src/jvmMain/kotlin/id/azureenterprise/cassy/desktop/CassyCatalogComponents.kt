@@ -1,6 +1,7 @@
 package id.azureenterprise.cassy.desktop
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -33,51 +34,69 @@ import id.azureenterprise.cassy.sales.domain.BasketItem
  * CassyCatalogView: High-density product listing area.
  * Hardened R5: Improved information hierarchy and input prominence.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun CassyCatalogView(
     state: DesktopCatalogState,
+    milestone: CashierMilestone,
     onSearchChanged: (String) -> Unit,
     onBarcodeChanged: (String) -> Unit,
     onScanBarcode: () -> Unit,
     onAddProduct: (Product) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(modifier = modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(modifier = modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         // Search & Barcode Header (Above the fold)
         Surface(
             tonalElevation = 2.dp,
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(10.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(
                 modifier = Modifier.padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                ShortcutHintBar(
-                    hints = listOf("Enter Scan", "F7 Void", "F8 Ringkasan", "F10 Kas"),
-                    modifier = Modifier.fillMaxWidth()
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ShortcutHintBar(
+                        hints = listOf("Enter Scan", "F7 Void", "F8 Ringkasan", "F10 Kas")
+                    )
+                }
+                Text(
+                    text = when (milestone) {
+                        CashierMilestone.ScanBarang -> "Langkah 1 aktif. Scan barang tetap jadi jalur tercepat."
+                        CashierMilestone.ReviewKeranjang -> "Barang sudah masuk. Cek jumlah dan total sebelum lanjut."
+                        CashierMilestone.Member -> "Keranjang sudah dicek. Tambahkan member atau lewati."
+                        CashierMilestone.Pembayaran -> "Langsung terima pembayaran dan cek kembalian."
+                        CashierMilestone.Selesai -> "Transaksi selesai. Siap mulai transaksi berikutnya."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                SemanticTextField(
+                    label = "Cari Barang",
+                    value = state.searchQuery,
+                    onValueChange = onSearchChanged,
+                    placeholder = "Nama barang atau SKU",
+                    helperText = "Pakai saat barcode tidak terbaca atau ada kode bentrok.",
+                    modifier = Modifier.fillMaxWidth(),
+                    leadingIcon = Icons.Default.Search,
+                    imeAction = ImeAction.Search
                 )
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.Top
                 ) {
                     SemanticTextField(
-                        label = "Cari Produk",
-                        value = state.searchQuery,
-                        onValueChange = onSearchChanged,
-                        placeholder = "Nama produk / SKU parsial",
-                        helperText = "Gunakan saat barcode tidak tersedia atau terjadi collision.",
-                        modifier = Modifier.weight(1f),
-                        leadingIcon = Icons.Default.Search,
-                        imeAction = ImeAction.Search
-                    )
-                    SemanticTextField(
-                        label = "Barcode / SKU",
+                        label = "Scan Barcode / SKU",
                         value = state.barcodeInput,
                         onValueChange = onBarcodeChanged,
                         placeholder = "Scan atau ketik kode",
-                        helperText = "Tekan Enter atau tombol Input untuk menambahkan item.",
-                        modifier = Modifier.width(240.dp),
+                        helperText = "Enter untuk memasukkan barang ke keranjang aktif.",
+                        modifier = Modifier.weight(1f),
                         leadingIcon = Icons.Default.ShoppingCart,
                         keyboardType = KeyboardType.Ascii,
                         imeAction = ImeAction.Done,
@@ -85,11 +104,11 @@ fun CassyCatalogView(
                     )
                     Button(
                         onClick = onScanBarcode,
-                        modifier = Modifier.padding(top = 30.dp).height(56.dp).width(120.dp),
+                        modifier = Modifier.padding(top = 30.dp).width(132.dp).height(56.dp),
                         shape = RoundedCornerShape(10.dp),
                         elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
                     ) {
-                        Text("INPUT", fontWeight = FontWeight.Black)
+                        Text("Masukkan", fontWeight = FontWeight.Black)
                     }
                 }
             }
@@ -99,7 +118,7 @@ fun CassyCatalogView(
         state.lookupFeedback?.let { feedback ->
             Surface(
                 color = toneColor(feedback.tone).copy(alpha = 0.12f),
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(10.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -114,40 +133,61 @@ fun CassyCatalogView(
                         modifier = Modifier.size(20.dp)
                     )
                     Text(
-                        text = feedback.message,
+                        text = feedback.message.ifBlank { "Pesan status tidak tersedia. Ulangi scan atau periksa data barang." },
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = toneContentColor(feedback.tone),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
         }
 
         // Product List with Sticky Header vibe
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                "Katalog Produk",
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Black,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                modifier = Modifier.padding(bottom = 8.dp, start = 4.dp)
-            )
-
-            if (state.products.isEmpty() && state.searchQuery.isNotEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(
-                        "Produk tidak ditemukan untuk \"${state.searchQuery}\"",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
-                    )
-                }
-            } else {
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(bottom = 16.dp)
+        Surface(
+            tonalElevation = 1.dp,
+            shape = RoundedCornerShape(10.dp),
+            modifier = Modifier.fillMaxWidth().weight(1f)
+        ) {
+            Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    items(state.products) { product ->
-                        CassyDenseProductRow(product = product, onClick = { onAddProduct(product) })
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            "Daftar Barang",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Black,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
+                        )
+                        Text(
+                            "${state.products.size} barang siap dipilih",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+
+                if (state.products.isEmpty() && state.searchQuery.isNotEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(
+                            "Barang tidak ditemukan untuk \"${state.searchQuery}\"",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(bottom = 16.dp)
+                    ) {
+                        items(state.products) { product ->
+                            CassyDenseProductRow(product = product, onClick = { onAddProduct(product) })
+                        }
                     }
                 }
             }
@@ -239,7 +279,7 @@ fun CassyCartPanel(
             // Totals & Input
             Surface(
                 tonalElevation = 1.dp,
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(10.dp),
                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -267,7 +307,7 @@ fun CassyCartPanel(
                 val isSufficient = quote.isSufficient
                 Surface(
                     color = if (isSufficient) toneColor(UiTone.Success).copy(alpha = 0.1f) else toneColor(UiTone.Danger).copy(alpha = 0.1f),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(10.dp),
                     border = if (isSufficient) null else BorderStroke(1.dp, toneColor(UiTone.Danger).copy(alpha = 0.5f)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -295,7 +335,7 @@ fun CassyCartPanel(
                 onClick = onCheckoutCash,
                 enabled = state.basket.items.isNotEmpty() && state.cashTenderQuote?.isSufficient == true,
                 modifier = Modifier.fillMaxWidth().height(56.dp),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(10.dp)
             ) {
                 Text("FINALISASI TRANSAKSI", fontWeight = FontWeight.Black)
             }
@@ -307,7 +347,7 @@ fun CassyCartPanel(
                     onClick = onCancelSale,
                     enabled = state.basket.items.isNotEmpty(),
                     modifier = Modifier.weight(1f).height(48.dp),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(10.dp)
                 ) {
                     Text("Batal")
                 }
@@ -316,7 +356,7 @@ fun CassyCartPanel(
                     Button(
                         onClick = onPrintLastReceipt,
                         modifier = Modifier.weight(1f).height(48.dp),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(10.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
                     ) {
                         Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -377,7 +417,7 @@ fun CassyCartItemRow(
 ) {
     Surface(
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(10.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(

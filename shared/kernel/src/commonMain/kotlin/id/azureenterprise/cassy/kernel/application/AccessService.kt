@@ -4,6 +4,9 @@ import id.azureenterprise.cassy.kernel.data.KernelRepository
 import id.azureenterprise.cassy.kernel.domain.AccessContext
 import id.azureenterprise.cassy.kernel.domain.AccessSession
 import id.azureenterprise.cassy.kernel.domain.BootstrapStoreRequest
+import id.azureenterprise.cassy.kernel.domain.BootstrapStoreField
+import id.azureenterprise.cassy.kernel.domain.BootstrapStoreFieldIssue
+import id.azureenterprise.cassy.kernel.domain.BootstrapStoreValidationResult
 import id.azureenterprise.cassy.kernel.domain.LoginResult
 import id.azureenterprise.cassy.kernel.domain.OperatorAccount
 import id.azureenterprise.cassy.kernel.domain.OperatorRole
@@ -20,6 +23,57 @@ class AccessService(
     private val pinHasher: PinHasher,
     private val clock: Clock
 ) {
+    fun validateBootstrapRequest(request: BootstrapStoreRequest): BootstrapStoreValidationResult {
+        val normalizedRequest = BootstrapStoreRequest(
+            storeName = normalizeSingleLine(request.storeName),
+            terminalName = normalizeSingleLine(request.terminalName),
+            cashierName = normalizeSingleLine(request.cashierName),
+            cashierPin = request.cashierPin.filter(Char::isDigit).take(6),
+            supervisorName = normalizeSingleLine(request.supervisorName),
+            supervisorPin = request.supervisorPin.filter(Char::isDigit).take(6),
+            cashierAvatarPath = request.cashierAvatarPath?.trim()?.takeIf { it.isNotEmpty() },
+            supervisorAvatarPath = request.supervisorAvatarPath?.trim()?.takeIf { it.isNotEmpty() }
+        )
+
+        val issues = buildList {
+            validateName(
+                value = normalizedRequest.storeName,
+                field = BootstrapStoreField.STORE_NAME,
+                emptyMessage = "Nama toko wajib diisi",
+                maxLength = MAX_STORE_NAME_LENGTH
+            ).let(::addAll)
+            validateName(
+                value = normalizedRequest.terminalName,
+                field = BootstrapStoreField.TERMINAL_NAME,
+                emptyMessage = "Nama terminal wajib diisi",
+                maxLength = MAX_TERMINAL_NAME_LENGTH
+            ).let(::addAll)
+            validateName(
+                value = normalizedRequest.cashierName,
+                field = BootstrapStoreField.CASHIER_NAME,
+                emptyMessage = "Nama kasir wajib diisi",
+                maxLength = MAX_OPERATOR_NAME_LENGTH
+            ).let(::addAll)
+            validateName(
+                value = normalizedRequest.supervisorName,
+                field = BootstrapStoreField.SUPERVISOR_NAME,
+                emptyMessage = "Nama supervisor wajib diisi",
+                maxLength = MAX_OPERATOR_NAME_LENGTH
+            ).let(::addAll)
+            validatePin(normalizedRequest.cashierPin)?.let {
+                add(BootstrapStoreFieldIssue(BootstrapStoreField.CASHIER_PIN, it))
+            }
+            validatePin(normalizedRequest.supervisorPin)?.let {
+                add(BootstrapStoreFieldIssue(BootstrapStoreField.SUPERVISOR_PIN, it))
+            }
+        }
+
+        return BootstrapStoreValidationResult(
+            normalizedRequest = normalizedRequest,
+            issues = issues
+        )
+    }
+
     suspend fun restoreContext(): AccessContext {
         kernelRepository.ensureOperationalMetadataDefaults()
         val binding = kernelRepository.getTerminalBinding()
@@ -40,39 +94,39 @@ class AccessService(
     }
 
     suspend fun bootstrapStore(request: BootstrapStoreRequest): Result<TerminalBinding> {
-        if (request.storeName.isBlank()) return Result.failure(IllegalArgumentException("Nama toko wajib diisi"))
-        if (request.terminalName.isBlank()) return Result.failure(IllegalArgumentException("Nama terminal wajib diisi"))
-        if (request.cashierName.isBlank()) return Result.failure(IllegalArgumentException("Nama kasir wajib diisi"))
-        if (request.supervisorName.isBlank()) return Result.failure(IllegalArgumentException("Nama supervisor wajib diisi"))
-
-        validatePin(request.cashierPin)?.let { return Result.failure(IllegalArgumentException(it)) }
-        validatePin(request.supervisorPin)?.let { return Result.failure(IllegalArgumentException(it)) }
+        val validation = validateBootstrapRequest(request)
+        if (!validation.isValid) {
+            return Result.failure(IllegalArgumentException(validation.issues.first().message))
+        }
 
         if (!needsBootstrap()) {
             return Result.failure(IllegalStateException("Store sudah di-bootstrap"))
         }
 
+        val normalized = validation.normalizedRequest
         val boundAt = clock.now()
         val binding = TerminalBinding(
             storeId = IdGenerator.nextId("store"),
-            storeName = request.storeName.trim(),
+            storeName = normalized.storeName,
             terminalId = IdGenerator.nextId("terminal"),
-            terminalName = request.terminalName.trim(),
+            terminalName = normalized.terminalName,
             boundAt = boundAt
         )
         kernelRepository.upsertTerminalBinding(binding)
 
         seedOperator(
             employeeCode = "cashier",
-            displayName = request.cashierName.trim(),
+            displayName = normalized.cashierName,
             role = OperatorRole.CASHIER,
-            pin = request.cashierPin
+            pin = normalized.cashierPin,
+            avatarPath = normalized.cashierAvatarPath
         )
         seedOperator(
             employeeCode = "supervisor",
-            displayName = request.supervisorName.trim(),
+            displayName = normalized.supervisorName,
             role = OperatorRole.SUPERVISOR,
-            pin = request.supervisorPin
+            pin = normalized.supervisorPin,
+            avatarPath = normalized.supervisorAvatarPath
         )
 
         kernelRepository.insertAudit(
@@ -225,7 +279,8 @@ class AccessService(
         employeeCode: String,
         displayName: String,
         role: OperatorRole,
-        pin: String
+        pin: String,
+        avatarPath: String?
     ) {
         val salt = IdGenerator.nextId("salt")
         kernelRepository.upsertOperator(
@@ -234,6 +289,7 @@ class AccessService(
                 employeeCode = employeeCode,
                 displayName = displayName,
                 role = role,
+                avatarPath = avatarPath,
                 pinHash = pinHasher.hash(pin, salt),
                 pinSalt = salt,
                 failedAttempts = 0,
@@ -252,7 +308,30 @@ class AccessService(
         }
     }
 
+    private fun validateName(
+        value: String,
+        field: BootstrapStoreField,
+        emptyMessage: String,
+        maxLength: Int
+    ): List<BootstrapStoreFieldIssue> {
+        return buildList {
+            when {
+                value.isBlank() -> add(BootstrapStoreFieldIssue(field, emptyMessage))
+                value.length > maxLength -> add(BootstrapStoreFieldIssue(field, "Maksimal $maxLength karakter"))
+            }
+        }
+    }
+
+    private fun normalizeSingleLine(value: String): String {
+        return value.trim()
+            .replace(WHITESPACE_REGEX, " ")
+    }
+
     private companion object {
+        val WHITESPACE_REGEX = Regex("\\s+")
+        const val MAX_STORE_NAME_LENGTH = 120
+        const val MAX_TERMINAL_NAME_LENGTH = 40
+        const val MAX_OPERATOR_NAME_LENGTH = 80
         const val MAX_FAILED_ATTEMPTS = 3
         const val LOCKOUT_DURATION_MS = 5 * 60 * 1000L
     }

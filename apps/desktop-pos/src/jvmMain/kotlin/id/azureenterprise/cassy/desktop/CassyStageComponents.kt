@@ -1,9 +1,11 @@
 package id.azureenterprise.cassy.desktop
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -47,70 +49,262 @@ fun FatalStage(message: String, onRetry: () -> Unit) {
 fun BootstrapStage(
     state: DesktopAppState,
     onFieldChanged: (BootstrapField, String) -> Unit,
+    onSelectAvatar: (BootstrapField) -> Unit,
+    onClearAvatar: (BootstrapField) -> Unit,
     onBootstrap: () -> Unit
 ) {
-    CenterPanel(
-        title = "Pengaturan Awal Toko",
-        subtitle = "Desktop ini menjadi terminal utama transaksi. Isi identitas toko dan dua peran minimum agar POS langsung operasional.",
-        contentWidth = 780.dp,
-        action = {
-            Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                ShortcutHintBar(hints = listOf("Tab Pindah Field", "Enter Simpan", "PIN 6 Digit"))
-                StageSectionCard(title = "Identitas Terminal") {
-                    SemanticTextField(
-                        label = "Nama Toko",
-                        value = state.bootstrap.storeName,
-                        onValueChange = { onFieldChanged(BootstrapField.StoreName, it) },
-                        helperText = "Nama yang muncul di struk dan reporting, misalnya Toko Berkah Jaya.",
-                        placeholder = "Nama toko",
-                        leadingIcon = Icons.Default.Storefront
-                    )
-                    SemanticTextField(
-                        label = "Nama Terminal",
-                        value = state.bootstrap.terminalName,
-                        onValueChange = { onFieldChanged(BootstrapField.TerminalName, it) },
-                        helperText = "Gunakan nama yang mudah dikenali saat review operasional, misalnya Kasir-01.",
-                        placeholder = "Kasir-01",
-                        leadingIcon = Icons.Default.PointOfSale
-                    )
+    val readinessItems = listOf(
+        BootstrapReadinessItem(
+            title = "Nama toko",
+            detail = "Nama yang muncul di struk dan laporan.",
+            isReady = state.bootstrap.storeName.isNotBlank()
+        ),
+        BootstrapReadinessItem(
+            title = "Nama terminal",
+            detail = "Penanda perangkat kasir utama.",
+            isReady = state.bootstrap.terminalName.isNotBlank()
+        ),
+        BootstrapReadinessItem(
+            title = "Kasir awal",
+            detail = "Nama kasir dan PIN 6 digit harus lengkap.",
+            isReady = state.bootstrap.cashierName.isNotBlank() && state.bootstrap.cashierPin.length == 6
+        ),
+        BootstrapReadinessItem(
+            title = "Supervisor awal",
+            detail = "Nama supervisor dan PIN 6 digit harus lengkap.",
+            isReady = state.bootstrap.supervisorName.isNotBlank() && state.bootstrap.supervisorPin.length == 6
+        )
+    )
+    val completedCount = readinessItems.count { it.isReady }
+
+    Box(modifier = Modifier.fillMaxSize().padding(horizontal = 28.dp, vertical = 24.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth().widthIn(max = 1460.dp).align(Alignment.TopCenter),
+            horizontalArrangement = Arrangement.spacedBy(20.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            Column(
+                modifier = Modifier.width(278.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(18.dp)
+            ) {
+                Surface(
+                    tonalElevation = 1.dp,
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text("Pengaturan awal toko", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                        Text(
+                            "Selesaikan data dasar ini sekali saja agar terminal bisa dipakai operasional harian tanpa kebingungan.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f)
+                        ) {
+                            Text(
+                                "$completedCount dari ${readinessItems.size} langkah selesai",
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                    }
                 }
-                StageSectionCard(title = "Akses Operator Awal") {
-                    SemanticTextField(
-                        label = "Nama Kasir",
-                        value = state.bootstrap.cashierName,
-                        onValueChange = { onFieldChanged(BootstrapField.CashierName, it) },
-                        helperText = "Kasir frontline untuk transaksi harian.",
-                        placeholder = "Nama kasir",
-                        leadingIcon = Icons.Default.Person
-                    )
-                    SemanticPinField(
-                        label = "PIN Kasir",
-                        value = state.bootstrap.cashierPin,
-                        onValueChange = { onFieldChanged(BootstrapField.CashierPin, it) },
-                        helperText = "Wajib 6 digit numerik."
-                    )
-                    SemanticTextField(
-                        label = "Nama Supervisor",
-                        value = state.bootstrap.supervisorName,
-                        onValueChange = { onFieldChanged(BootstrapField.SupervisorName, it) },
-                        helperText = "Supervisor dibutuhkan untuk open day dan approval operasional.",
-                        placeholder = "Nama supervisor",
-                        leadingIcon = Icons.Default.Badge
-                    )
-                    SemanticPinField(
-                        label = "PIN Supervisor",
-                        value = state.bootstrap.supervisorPin,
-                        onValueChange = { onFieldChanged(BootstrapField.SupervisorPin, it) },
-                        helperText = "Simpan hanya ke orang yang berwenang.",
-                        onImeAction = onBootstrap
-                    )
+
+                StageSectionCard(title = "Yang wajib selesai") {
+                    readinessItems.forEach { item ->
+                        BootstrapReadinessRow(item)
+                    }
                 }
-                Button(onClick = onBootstrap, enabled = !state.isBusy, modifier = Modifier.fillMaxWidth().height(50.dp)) {
-                    Text(if (state.isBusy) "Menyimpan..." else "Simpan Pengaturan Awal")
+
+                Surface(
+                    tonalElevation = 0.dp,
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f)
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text("Setelah disimpan", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                        Text("1. Layar akan pindah ke login operator lokal.", style = MaterialTheme.typography.bodySmall)
+                        Text("2. Kasir dapat membuka hari bisnis saat mulai operasional.", style = MaterialTheme.typography.bodySmall)
+                        Text("3. Kasir membuka shift setelah modal awal siap.", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+
+            Surface(
+                modifier = Modifier.weight(1f),
+                tonalElevation = 1.dp,
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(22.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(20.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text("Isi data terminal utama", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                            Text(
+                                "Fokus dulu ke identitas toko, lalu operator awal. Tidak perlu memikirkan hari bisnis, shift, atau perangkat di tahap ini.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            ShortcutHintBar(
+                                hints = listOf("Tab pindah field", "PIN 6 digit", "Enter simpan"),
+                                modifier = Modifier.padding(top = 2.dp)
+                            )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        StageSectionCard(
+                            title = "Identitas toko dan terminal",
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            SemanticTextField(
+                                label = "Nama Toko",
+                                value = state.bootstrap.storeName,
+                                onValueChange = { onFieldChanged(BootstrapField.StoreName, it) },
+                                helperText = "Nama ini akan muncul di struk dan laporan harian.",
+                                errorText = state.bootstrap.visibleError(BootstrapField.StoreName),
+                                placeholder = "Contoh: Toko Berkah Jaya",
+                                leadingIcon = Icons.Default.Storefront
+                            )
+                            SemanticTextField(
+                                label = "Nama Terminal",
+                                value = state.bootstrap.terminalName,
+                                onValueChange = { onFieldChanged(BootstrapField.TerminalName, it) },
+                                helperText = "Gunakan nama perangkat yang mudah dikenali, misalnya Kasir-01.",
+                                errorText = state.bootstrap.visibleError(BootstrapField.TerminalName),
+                                placeholder = "Contoh: Kasir-01",
+                                leadingIcon = Icons.Default.PointOfSale
+                            )
+                        }
+
+                        StageSectionCard(
+                            title = "Preview identitas",
+                            modifier = Modifier.width(296.dp)
+                        ) {
+                            BootstrapPreviewRow("Nama toko", state.bootstrap.storeName.ifBlank { "Belum diisi" })
+                            BootstrapPreviewRow("Nama terminal", state.bootstrap.terminalName.ifBlank { "Belum diisi" })
+                            BootstrapPreviewRow(
+                                "Nama kasir",
+                                state.bootstrap.cashierName.ifBlank { "Belum diisi" }
+                            )
+                            BootstrapPreviewRow(
+                                "Nama supervisor",
+                                state.bootstrap.supervisorName.ifBlank { "Belum diisi" }
+                            )
+                        }
+                    }
+
+                    StageSectionCard(title = "Operator awal") {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                            verticalAlignment = Alignment.Top
+                        ) {
+                            BootstrapRoleCard(
+                                title = "Kasir",
+                                detail = "Peran utama untuk transaksi, buka hari bisnis, buka shift, dan kontrol kas harian.",
+                                avatarPath = state.bootstrap.cashierAvatarPath,
+                                onSelectAvatar = { onSelectAvatar(BootstrapField.CashierAvatar) },
+                                onClearAvatar = { onClearAvatar(BootstrapField.CashierAvatar) },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                SemanticTextField(
+                                    label = "Nama Kasir",
+                                    value = state.bootstrap.cashierName,
+                                    onValueChange = { onFieldChanged(BootstrapField.CashierName, it) },
+                                    helperText = "Nama operator yang dipakai untuk transaksi harian.",
+                                    errorText = state.bootstrap.visibleError(BootstrapField.CashierName),
+                                    placeholder = "Contoh: Rani",
+                                    leadingIcon = Icons.Default.Person
+                                )
+                                SemanticPinField(
+                                    label = "PIN Kasir",
+                                    value = state.bootstrap.cashierPin,
+                                    onValueChange = { onFieldChanged(BootstrapField.CashierPin, it) },
+                                    helperText = "Wajib 6 digit numerik.",
+                                    errorText = state.bootstrap.visibleError(BootstrapField.CashierPin)
+                                )
+                            }
+
+                            BootstrapRoleCard(
+                                title = "Supervisor",
+                                detail = "Memantau hasil, memberi approval penting, dan menangani pemulihan bila ada masalah.",
+                                avatarPath = state.bootstrap.supervisorAvatarPath,
+                                onSelectAvatar = { onSelectAvatar(BootstrapField.SupervisorAvatar) },
+                                onClearAvatar = { onClearAvatar(BootstrapField.SupervisorAvatar) },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                SemanticTextField(
+                                    label = "Nama Supervisor",
+                                    value = state.bootstrap.supervisorName,
+                                    onValueChange = { onFieldChanged(BootstrapField.SupervisorName, it) },
+                                    helperText = "Supervisor dipakai untuk approval penting dan pemulihan operasional.",
+                                    errorText = state.bootstrap.visibleError(BootstrapField.SupervisorName),
+                                    placeholder = "Contoh: Bayu",
+                                    leadingIcon = Icons.Default.Badge
+                                )
+                                SemanticPinField(
+                                    label = "PIN Supervisor",
+                                    value = state.bootstrap.supervisorPin,
+                                    onValueChange = { onFieldChanged(BootstrapField.SupervisorPin, it) },
+                                    helperText = "Simpan hanya ke orang yang berwenang.",
+                                    errorText = state.bootstrap.visibleError(BootstrapField.SupervisorPin),
+                                    onImeAction = onBootstrap
+                                )
+                            }
+                        }
+                    }
+
+                    Surface(
+                        tonalElevation = 0.dp,
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text("Catatan operasional", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                            Text(
+                                "Logo toko, alamat, telepon, dan catatan struk belum wajib di tahap ini. Fokus dulu agar terminal bisa dipakai dan operator bisa masuk.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    Button(
+                        onClick = onBootstrap,
+                        enabled = !state.isBusy,
+                        modifier = Modifier.fillMaxWidth().height(52.dp)
+                    ) {
+                        Text(if (state.isBusy) "Menyimpan..." else "Simpan dan lanjut ke login")
+                    }
                 }
             }
         }
-    )
+    }
 }
 
 @Composable
@@ -120,55 +314,69 @@ fun LoginStage(
     onPinChanged: (String) -> Unit,
     onLogin: () -> Unit
 ) {
-    CenterPanel(
-        title = "Pilih Operator",
-        subtitle = "Masuk dengan PIN lokal. Pilih peran dulu agar hak akses dan blocker operasional langsung terlihat.",
-        contentWidth = 760.dp,
-        action = {
-            Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                ShortcutHintBar(hints = listOf("Klik Operator", "PIN 6 Digit", "Enter Masuk"))
-                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+    Box(modifier = Modifier.fillMaxSize().padding(horizontal = 36.dp, vertical = 28.dp)) {
+        Surface(
+            modifier = Modifier.fillMaxWidth().widthIn(max = 1120.dp).align(Alignment.TopCenter),
+            tonalElevation = 1.dp,
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.weight(1f)) {
+                        Text("Masuk operator", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                        Text(
+                            "Pilih operator yang aktif di terminal ini. Hak akses kasir dan supervisor dibedakan secara tegas.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    ShortcutHintBar(hints = listOf("Klik operator", "PIN 6 digit", "Enter masuk"))
+                }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
                     state.login.operators.forEach { option ->
                         val selected = state.login.selectedOperatorId == option.id
-                        ElevatedCard(
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(18.dp),
+                        LoginOperatorCard(
+                            option = option,
+                            selected = selected,
                             onClick = { onSelectOperator(option.id) },
-                            colors = if (selected) {
-                                CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-                            } else {
-                                CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                            }
-                        ) {
-                            Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text(option.displayName, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                                Text(option.roleLabel, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text(
-                                    if (selected) "Siap login" else "Pilih untuk mengaktifkan PIN",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = if (selected) toneColor(UiTone.Info) else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.64f),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        SemanticPinField(
+                            label = "PIN Operator",
+                            value = state.login.pin,
+                            onValueChange = onPinChanged,
+                            modifier = Modifier.fillMaxWidth(),
+                            helperText = "PIN diverifikasi lokal di perangkat ini.",
+                            errorText = state.login.feedback,
+                            onImeAction = onLogin
+                        )
+                        Button(onClick = onLogin, enabled = !state.isBusy, modifier = Modifier.fillMaxWidth().height(50.dp)) {
+                            Text(if (state.isBusy) "Memproses..." else "Masuk ke terminal")
                         }
                     }
                 }
-                SemanticPinField(
-                    label = "PIN Operator",
-                    value = state.login.pin,
-                    onValueChange = onPinChanged,
-                    modifier = Modifier.fillMaxWidth(),
-                    helperText = "PIN tidak dikirim ke backend. Validasi terjadi di local-first boundary desktop.",
-                    onImeAction = onLogin
-                )
-                state.login.feedback?.let {
-                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                }
-                Button(onClick = onLogin, enabled = !state.isBusy, modifier = Modifier.fillMaxWidth().height(50.dp)) {
-                    Text(if (state.isBusy) "Memproses..." else "Masuk ke Terminal")
-                }
             }
         }
-    )
+    }
 }
 
 @Composable
@@ -250,13 +458,13 @@ fun OperationalDashboardCard(
 ) {
     ElevatedCard(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp)
+        shape = RoundedCornerShape(10.dp)
     ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text("Control Tower", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text("Ringkasan kesiapan", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Text(snapshot.headline, style = MaterialTheme.typography.bodyMedium)
             if (snapshot.pendingApprovalCount > 0) {
                 Text(
@@ -371,7 +579,7 @@ fun CloseShiftWizardDialog(
                 review?.let {
                     Surface(
                         tonalElevation = 1.dp,
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -695,7 +903,7 @@ fun VoidSaleDialog(
 
                 StageSectionCard(title = "Alasan & Follow-up") {
                     ReasonOptionGroup(
-                        title = "Reason Code Void",
+                        title = "Alasan pembatalan",
                         options = voidState.reasonOptions,
                         selectedCode = voidState.reasonCode,
                         onSelected = onReasonCodeChanged
@@ -777,7 +985,7 @@ private fun PendingApprovalRow(
 }
 
 @Composable
-private fun OperationDecisionRow(decision: OperationDecision) {
+fun OperationDecisionRow(decision: OperationDecision) {
     val tone = when (decision.status) {
         OperationStatus.READY -> UiTone.Success
         OperationStatus.COMPLETED -> UiTone.Info
@@ -804,11 +1012,11 @@ private fun OperationDecisionRow(decision: OperationDecision) {
         ) {
             OperationDecisionIcon(icon, tone)
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(decision.title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-                Text(decision.message, style = MaterialTheme.typography.bodySmall)
+                Text(humanizeOperationDecisionTitle(decision), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                Text(humanizeDecisionMessage(decision.message), style = MaterialTheme.typography.bodySmall)
             }
             Text(
-                text = decision.actionLabel ?: decision.type.toShortLabel(),
+                text = decision.actionLabel?.replace("Business Day", "hari bisnis") ?: decision.type.toShortLabel(),
                 style = MaterialTheme.typography.labelSmall,
                 color = toneColor(tone)
             )
@@ -898,19 +1106,52 @@ private fun FormField(
 
 @Composable
 fun BannerCard(banner: UiBanner, onDismiss: () -> Unit) {
+    val tone = banner.tone
+    val icon = when (tone) {
+        UiTone.Info -> Icons.Default.Info
+        UiTone.Success -> Icons.Default.CheckCircle
+        UiTone.Warning -> Icons.Default.Warning
+        UiTone.Danger -> Icons.Default.Error
+    }
+    val title = when (tone) {
+        UiTone.Info -> "Info"
+        UiTone.Success -> "Berhasil"
+        UiTone.Warning -> "Perhatian"
+        UiTone.Danger -> "Masalah Operasional"
+    }
+    val message = banner.message.ifBlank {
+        when (tone) {
+            UiTone.Info -> "Ada pembaruan status, tetapi detail pesan tidak tersedia."
+            UiTone.Success -> "Aksi selesai, tetapi detail pesan tidak tersedia."
+            UiTone.Warning -> "Perlu perhatian operator, tetapi detail pesan tidak tersedia."
+            UiTone.Danger -> "Terjadi masalah, tetapi detail pesan tidak tersedia."
+        }
+    }
     ElevatedCard(
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.elevatedCardColors(
             containerColor = toneContainerColor(banner.tone)
-        )
+        ),
+        modifier = Modifier.widthIn(min = 320.dp, max = 440.dp)
     ) {
         Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text(banner.message, modifier = Modifier.weight(1f))
-            IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, contentDescription = "Close") }
+            Icon(icon, contentDescription = null, tint = toneContentColor(tone), modifier = Modifier.padding(top = 2.dp))
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(title, fontWeight = FontWeight.Bold, color = toneContentColor(tone))
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 3,
+                    color = toneContentColor(tone)
+                )
+            }
+            IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
+                Icon(Icons.Default.Close, contentDescription = "Tutup", tint = toneContentColor(tone))
+            }
         }
     }
 }
@@ -923,7 +1164,7 @@ private fun StageSectionCard(
 ) {
     Surface(
         tonalElevation = 1.dp,
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(12.dp),
         modifier = modifier
     ) {
         Column(
@@ -934,6 +1175,192 @@ private fun StageSectionCard(
                 content()
             }
         )
+    }
+}
+
+private data class BootstrapReadinessItem(
+    val title: String,
+    val detail: String,
+    val isReady: Boolean
+)
+
+@Composable
+private fun BootstrapReadinessRow(item: BootstrapReadinessItem) {
+    val icon = if (item.isReady) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked
+    Surface(
+        color = if (item.isReady) {
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)
+        },
+        shape = RoundedCornerShape(10.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = if (item.isReady) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                }
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(item.title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                Text(
+                    item.detail,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun BootstrapRoleCard(
+    title: String,
+    detail: String,
+    avatarPath: String?,
+    onSelectAvatar: () -> Unit,
+    onClearAvatar: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Surface(
+        modifier = modifier,
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f),
+        shape = RoundedCornerShape(10.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                BootstrapAvatarPlaceholder(
+                    title = title,
+                    avatarPath = avatarPath
+                )
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(
+                        detail,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(onClick = onSelectAvatar, modifier = Modifier.weight(1f)) { Text("Pilih foto") }
+                OutlinedButton(
+                    onClick = onClearAvatar,
+                    enabled = avatarPath != null,
+                    modifier = Modifier.weight(1f)
+                ) { Text("Hapus foto") }
+            }
+
+            avatarPath?.let {
+                Text(
+                    "File lokal: ${java.io.File(it).name}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            content()
+        }
+    }
+}
+
+@Composable
+private fun BootstrapAvatarPlaceholder(
+    title: String,
+    avatarPath: String?
+) {
+    ManagedAvatarPreview(
+        imagePath = avatarPath,
+        fallbackLabel = title,
+        contentDescription = "Foto $title",
+        size = 72.dp
+    )
+}
+
+@Composable
+private fun BootstrapPreviewRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            value,
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.End
+        )
+    }
+}
+
+@Composable
+private fun LoginOperatorCard(
+    option: OperatorOption,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    ElevatedCard(
+        modifier = modifier,
+        shape = RoundedCornerShape(10.dp),
+        onClick = onClick,
+        colors = if (selected) {
+            CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.76f))
+        } else {
+            CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.52f))
+        }
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                BootstrapAvatarPlaceholder(
+                    title = option.displayName.take(1).ifBlank { option.roleLabel.take(1) },
+                    avatarPath = option.avatarPath
+                )
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(option.displayName, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        option.roleLabel.roleUiLabel(),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            Text(
+                option.capabilitySummary,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                if (selected) "Siap login di terminal ini" else "Pilih operator ini untuk melanjutkan",
+                style = MaterialTheme.typography.bodySmall,
+                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
 
@@ -973,22 +1400,46 @@ private fun ReportingKeyValue(
 }
 
 private fun OperationType.toShortLabel(): String = when (this) {
-    OperationType.OPEN_BUSINESS_DAY -> "Open Day"
-    OperationType.START_SHIFT -> "Start Shift"
-    OperationType.CASH_IN -> "Cash In"
-    OperationType.CASH_OUT -> "Cash Out"
-    OperationType.SAFE_DROP -> "Safe Drop"
-    OperationType.CLOSE_SHIFT -> "Close Shift"
-    OperationType.CLOSE_BUSINESS_DAY -> "Close Day"
+    OperationType.OPEN_BUSINESS_DAY -> "Buka Hari"
+    OperationType.START_SHIFT -> "Buka Shift"
+    OperationType.CASH_IN -> "Uang Masuk"
+    OperationType.CASH_OUT -> "Uang Keluar"
+    OperationType.SAFE_DROP -> "Simpan Kas"
+    OperationType.CLOSE_SHIFT -> "Tutup Shift"
+    OperationType.CLOSE_BUSINESS_DAY -> "Tutup Hari"
     OperationType.VOID_SALE -> "Void"
-    OperationType.STOCK_ADJUSTMENT -> "Stock Adj"
-    OperationType.RESOLVE_STOCK_DISCREPANCY -> "Resolve Diff"
+    OperationType.STOCK_ADJUSTMENT -> "Adj. Stok"
+    OperationType.RESOLVE_STOCK_DISCREPANCY -> "Selisih Stok"
+}
+
+private fun humanizeOperationDecisionTitle(decision: OperationDecision): String = when (decision.type) {
+    OperationType.OPEN_BUSINESS_DAY -> "Buka hari bisnis"
+    OperationType.START_SHIFT -> "Buka shift"
+    OperationType.CASH_IN -> "Catat uang masuk"
+    OperationType.CASH_OUT -> "Catat uang keluar"
+    OperationType.SAFE_DROP -> "Simpan uang ke brankas"
+    OperationType.CLOSE_SHIFT -> "Tutup shift"
+    OperationType.CLOSE_BUSINESS_DAY -> "Tutup hari"
+    OperationType.VOID_SALE -> "Batalkan transaksi final"
+    OperationType.STOCK_ADJUSTMENT -> "Sesuaikan stok"
+    OperationType.RESOLVE_STOCK_DISCREPANCY -> "Tindak lanjuti selisih stok"
+}
+
+private fun humanizeDecisionMessage(message: String): String {
+    return message
+        .replace("Business day", "Hari bisnis")
+        .replace("business day", "hari bisnis")
+        .replace("Close day", "Tutup hari")
+        .replace("Cash In", "uang masuk")
+        .replace("Cash Out", "uang keluar")
+        .replace("Safe Drop", "simpan uang ke brankas")
+        .replace("Reason Code", "alasan operasional")
 }
 
 private fun CashMovementType.toUiLabel(): String = when (this) {
-    CashMovementType.CASH_IN -> "Cash In"
-    CashMovementType.CASH_OUT -> "Cash Out"
-    CashMovementType.SAFE_DROP -> "Safe Drop"
+    CashMovementType.CASH_IN -> "Uang Masuk"
+    CashMovementType.CASH_OUT -> "Uang Keluar"
+    CashMovementType.SAFE_DROP -> "Simpan Kas"
 }
 
 private fun String.toShortcutLabel(): String = when (this) {
@@ -1008,3 +1459,14 @@ private fun SyncStatus.toUiLabel(): String = when (level) {
 }
 
 private fun Instant.toUiTimestamp(): String = toString()
+
+private fun BootstrapState.visibleError(field: BootstrapField): String? {
+    return fieldErrors[field]?.takeIf { submitAttempted || field in touchedFields }
+}
+
+private fun String.roleUiLabel(): String = when (uppercase()) {
+    "CASHIER" -> "Kasir"
+    "SUPERVISOR" -> "Supervisor"
+    "OWNER" -> "Owner"
+    else -> this
+}

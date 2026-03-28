@@ -40,6 +40,7 @@ dependencies {
     implementation(libs.kotlinx.datetime)
     implementation(libs.kotlinx.coroutines.swing)
     implementation(libs.commons.csv)
+    runtimeOnly(libs.slf4j.simple)
     testImplementation(libs.kotlin.test.junit)
     testImplementation(libs.kotlinx.datetime)
     testImplementation(libs.sqldelight.sqlite.driver)

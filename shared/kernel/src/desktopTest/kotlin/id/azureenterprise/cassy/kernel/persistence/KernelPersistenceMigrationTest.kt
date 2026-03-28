@@ -107,6 +107,8 @@ class KernelPersistenceMigrationTest {
         assertTrue(driver.hasTable("ApprovalRequest"))
         assertTrue(driver.hasTable("CashMovement"))
         assertTrue(driver.hasTable("ShiftCloseReport"))
+        assertTrue(driver.hasTable("StoreProfile"))
+        assertTrue(driver.hasColumn("OperatorAccount", "avatarAssetPath"))
     }
 }
 
@@ -119,4 +121,22 @@ private fun JdbcSqliteDriver.hasTable(tableName: String): Boolean {
     ) {
         bindString(0, tableName)
     }.value
+}
+
+private fun JdbcSqliteDriver.hasColumn(tableName: String, columnName: String): Boolean {
+    return executeQuery(
+        null,
+        "PRAGMA table_info($tableName)",
+        { cursor ->
+            var found = false
+            while (cursor.next().value) {
+                if (cursor.getString(1) == columnName) {
+                    found = true
+                    break
+                }
+            }
+            QueryResult.Value(found)
+        },
+        0
+    ).value
 }

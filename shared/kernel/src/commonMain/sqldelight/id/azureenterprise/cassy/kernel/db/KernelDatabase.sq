@@ -28,11 +28,26 @@ CREATE TABLE TerminalBinding (
     boundAt INTEGER NOT NULL
 );
 
+CREATE TABLE StoreProfile (
+    id TEXT NOT NULL PRIMARY KEY,
+    storeId TEXT NOT NULL UNIQUE,
+    businessName TEXT NOT NULL,
+    businessAddress TEXT NOT NULL,
+    phoneCountryCode TEXT NOT NULL,
+    phoneNumber TEXT NOT NULL,
+    receiptNote TEXT,
+    logoAssetPath TEXT,
+    createdAt INTEGER NOT NULL,
+    updatedAt INTEGER NOT NULL,
+    revision INTEGER NOT NULL DEFAULT 1
+);
+
 CREATE TABLE OperatorAccount (
     id TEXT NOT NULL PRIMARY KEY,
     employeeCode TEXT NOT NULL UNIQUE,
     displayName TEXT NOT NULL,
     role TEXT NOT NULL,
+    avatarAssetPath TEXT,
     pinHash TEXT NOT NULL,
     pinSalt TEXT NOT NULL,
     failedAttempts INTEGER NOT NULL DEFAULT 0,
@@ -147,6 +162,7 @@ CREATE TABLE ShiftCloseReport (
 
 CREATE INDEX OutboxEvent_status_timestamp_idx ON OutboxEvent(status, timestamp);
 CREATE INDEX AuditLog_timestamp_idx ON AuditLog(timestamp);
+CREATE UNIQUE INDEX StoreProfile_storeId_idx ON StoreProfile(storeId);
 CREATE INDEX OperatorAccount_active_role_name_idx ON OperatorAccount(isActive, role, displayName);
 CREATE INDEX AccessSession_status_updatedAt_idx ON AccessSession(status, updatedAt);
 CREATE UNIQUE INDEX AccessSession_active_unique_idx ON AccessSession(status) WHERE status = 'ACTIVE';
@@ -217,7 +233,47 @@ INSERT OR REPLACE INTO TerminalBinding(terminalId, storeId, storeName, terminalN
 VALUES (?, ?, ?, ?, ?);
 
 getTerminalBinding:
-SELECT * FROM TerminalBinding LIMIT 1;
+SELECT
+    terminalId,
+    storeId,
+    storeName,
+    terminalName,
+    boundAt
+FROM TerminalBinding
+LIMIT 1;
+
+upsertStoreProfile:
+INSERT OR REPLACE INTO StoreProfile(
+    id,
+    storeId,
+    businessName,
+    businessAddress,
+    phoneCountryCode,
+    phoneNumber,
+    receiptNote,
+    logoAssetPath,
+    createdAt,
+    updatedAt,
+    revision
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+selectStoreProfileByStoreId:
+SELECT
+    id,
+    storeId,
+    businessName,
+    businessAddress,
+    phoneCountryCode,
+    phoneNumber,
+    receiptNote,
+    logoAssetPath,
+    createdAt,
+    updatedAt,
+    revision
+FROM StoreProfile
+WHERE storeId = ?
+LIMIT 1;
 
 insertOperator:
 INSERT OR REPLACE INTO OperatorAccount(
@@ -225,6 +281,7 @@ INSERT OR REPLACE INTO OperatorAccount(
     employeeCode,
     displayName,
     role,
+    avatarAssetPath,
     pinHash,
     pinSalt,
     failedAttempts,
@@ -232,15 +289,41 @@ INSERT OR REPLACE INTO OperatorAccount(
     isActive,
     lastLoginAt
 )
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 listActiveOperators:
-SELECT * FROM OperatorAccount
+SELECT
+    id,
+    employeeCode,
+    displayName,
+    role,
+    avatarAssetPath,
+    pinHash,
+    pinSalt,
+    failedAttempts,
+    lockedUntil,
+    isActive,
+    lastLoginAt
+FROM OperatorAccount
 WHERE isActive = 1
 ORDER BY role DESC, displayName ASC;
 
 selectOperatorById:
-SELECT * FROM OperatorAccount WHERE id = ? LIMIT 1;
+SELECT
+    id,
+    employeeCode,
+    displayName,
+    role,
+    avatarAssetPath,
+    pinHash,
+    pinSalt,
+    failedAttempts,
+    lockedUntil,
+    isActive,
+    lastLoginAt
+FROM OperatorAccount
+WHERE id = ?
+LIMIT 1;
 
 updateOperatorAccessState:
 UPDATE OperatorAccount

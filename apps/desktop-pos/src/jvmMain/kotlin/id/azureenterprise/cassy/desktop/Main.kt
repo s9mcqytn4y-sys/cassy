@@ -3,6 +3,7 @@ package id.azureenterprise.cassy.desktop
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.*
@@ -18,6 +19,8 @@ import kotlinx.coroutines.runBlocking
 import org.koin.compose.koinInject
 import org.koin.core.context.GlobalContext
 import java.io.File
+import java.io.RandomAccessFile
+import java.nio.channels.FileLock
 import kotlin.system.exitProcess
 
 fun main(args: Array<String>) {
@@ -35,13 +38,21 @@ fun main(args: Array<String>) {
 
     startDesktopKoin()
     println("Cassy desktop runtime Java ${System.getProperty("java.version")} | smokeMode=$smokeMode")
+    val appInstanceLock = DesktopAppInstanceLock.acquire()
+    if (appInstanceLock == null) {
+        System.err.println("Cassy desktop instance sudah aktif. Tutup window lama atau logout dari sesi sebelumnya.")
+        exitProcess(0)
+    }
 
     application {
         // 1. SCREEN FIT HARDENING: Start Maximized
         val windowState = rememberWindowState(placement = WindowPlacement.Maximized)
 
         Window(
-            onCloseRequest = ::exitApplication,
+            onCloseRequest = {
+                appInstanceLock.close()
+                exitApplication()
+            },
             title = "Cassy POS",
             state = windowState
         ) {
@@ -51,6 +62,7 @@ fun main(args: Array<String>) {
                 val scope = rememberCoroutineScope()
                 var showCommandPalette by remember { mutableStateOf(false) }
                 var showShortcutHelp by remember { mutableStateOf(false) }
+                var railExpanded by rememberSaveable { mutableStateOf(false) }
 
                 LaunchedEffect(Unit) {
                     controller.load()
@@ -90,6 +102,12 @@ fun main(args: Array<String>) {
                                 Key.K -> {
                                     if (it.isCtrlPressed) {
                                         showCommandPalette = !showCommandPalette
+                                        true
+                                    } else false
+                                }
+                                Key.B -> {
+                                    if (it.isCtrlPressed) {
+                                        railExpanded = !railExpanded
                                         true
                                     } else false
                                 }
@@ -160,136 +178,199 @@ fun main(args: Array<String>) {
                     }
                 ) {
                     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                        Row(modifier = Modifier.fillMaxSize()) {
-                            CassySlimRail(
-                                state = state.shell,
-                                selectedWorkspace = state.activeWorkspace,
-                                stage = state.stage,
-                                onSelectWorkspace = controller::selectWorkspace,
-                                onReload = { scope.launch { controller.replaySyncAndReload() } },
-                                onLogout = { scope.launch { controller.logout() } }
-                            )
-
-                            Column(modifier = Modifier.fillMaxSize()) {
-                                CassyTopBar(
+                        if (state.stage == DesktopStage.Workspace) {
+                            Row(modifier = Modifier.fillMaxSize()) {
+                                CassyOperationalRail(
                                     state = state.shell,
-                                    hardware = state.hardware,
-                                    syncStatus = state.operations.reportingSummary?.syncStatus,
-                                    onOpenCommand = { showCommandPalette = true }
+                                    selectedWorkspace = state.activeWorkspace,
+                                    stage = state.stage,
+                                    expanded = railExpanded,
+                                    onToggleExpanded = { railExpanded = !railExpanded },
+                                    onSelectWorkspace = controller::selectWorkspace,
+                                    onReload = { scope.launch { controller.replaySyncAndReload() } },
+                                    onLogout = { scope.launch { controller.logout() } }
                                 )
 
-                                CassyBottomStatusStrip(
-                                    shell = state.shell,
-                                    operations = state.operations,
-                                    hardware = state.hardware
-                                )
+                                Column(modifier = Modifier.fillMaxSize()) {
+                                    CassyOperationalTopBar(
+                                        stage = state.stage,
+                                        state = state.shell,
+                                        hardware = state.hardware,
+                                        syncStatus = state.operations.reportingSummary?.syncStatus,
+                                        onOpenCommand = { showCommandPalette = true }
+                                    )
 
-                                Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                                    when (val stage = state.stage) {
-                                        DesktopStage.Loading -> LoadingStage()
-                                        DesktopStage.Bootstrap -> BootstrapStage(
-                                            state = state,
-                                            onFieldChanged = controller::updateBootstrapField,
-                                            onBootstrap = { scope.launch { controller.bootstrapStore() } }
-                                        )
-                                        DesktopStage.Login -> LoginStage(
-                                            state = state,
-                                            onSelectOperator = controller::selectOperator,
-                                            onPinChanged = controller::updatePin,
-                                            onLogin = { scope.launch { controller.login() } }
-                                        )
-                                        DesktopStage.Workspace -> DesktopWorkspaceContent(
-                                            state = state,
-                                            onOpenDay = { scope.launch { controller.openBusinessDay() } },
-                                            onOpeningCashChanged = controller::updateOpeningCashInput,
-                                            onOpeningCashReasonChanged = controller::updateOpeningCashReasonInput,
-                                            onStartShift = { scope.launch { controller.startShift() } },
-                                            onSearchChanged = { v -> scope.launch { controller.updateCatalogQuery(v) } },
-                                            onBarcodeChanged = controller::updateBarcodeInput,
-                                            onScanBarcode = { scope.launch { controller.scanBarcodeOrSku() } },
-                                            onAddProduct = { p -> scope.launch { controller.addProduct(p) } },
-                                            onCashReceivedChanged = controller::updateCashReceivedInput,
-                                            onIncrement = { p -> scope.launch { controller.incrementItem(p) } },
-                                            onDecrement = { p, q -> scope.launch { controller.decrementItem(p, q) } },
-                                            onCheckoutCash = { scope.launch { controller.checkoutCash() } },
-                                            onPrintLastReceipt = { scope.launch { controller.printLastReceipt() } },
-                                            onReprintLastReceipt = { scope.launch { controller.reprintLastReceipt() } },
-                                            onCancelSale = { scope.launch { controller.cancelCurrentSale() } },
-                                            onSelectInventoryRoute = controller::selectInventoryRoute,
-                                            onSelectInventoryProduct = { productId -> scope.launch { controller.selectInventoryProduct(productId) } },
-                                            onInventoryCountChanged = controller::updateInventoryCountQuantityInput,
-                                            onSubmitInventoryCount = { scope.launch { controller.submitInventoryCount() } },
-                                            onInventoryAdjustmentDirectionChanged = controller::updateInventoryAdjustmentDirection,
-                                            onInventoryAdjustmentQuantityChanged = controller::updateInventoryAdjustmentQuantityInput,
-                                            onInventoryAdjustmentReasonChanged = controller::updateInventoryAdjustmentReasonCode,
-                                            onInventoryAdjustmentDetailChanged = controller::updateInventoryAdjustmentReasonDetail,
-                                            onApplyInventoryAdjustment = { scope.launch { controller.applyInventoryAdjustment() } },
-                                            onResolveInventoryDiscrepancy = { id -> scope.launch { controller.resolveInventoryDiscrepancy(id) } },
-                                            onMarkInventoryInvestigation = { id -> scope.launch { controller.markInventoryDiscrepancyInvestigation(id) } },
-                                            onApproveInventoryAction = { id -> scope.launch { controller.approveInventoryAction(id) } },
-                                            onDenyInventoryAction = { id -> scope.launch { controller.denyInventoryAction(id) } },
-                                            onDeferInventoryDiscrepancy = controller::deferInventoryDiscrepancy,
-                                            onSelectMasterCategory = { categoryId -> scope.launch { controller.selectMasterCategory(categoryId) } },
-                                            onMasterSearchChanged = { value -> scope.launch { controller.updateMasterDataSearchQuery(value) } },
-                                            onPrepareNewMasterProduct = controller::prepareNewMasterProduct,
-                                            onSelectMasterProduct = { id -> scope.launch { controller.selectMasterProduct(id) } },
-                                            onMasterProductNameChanged = controller::updateMasterProductName,
-                                            onMasterProductSkuChanged = controller::updateMasterProductSku,
-                                            onMasterProductPriceChanged = controller::updateMasterProductPrice,
-                                            onMasterProductCategoryChanged = controller::updateMasterProductCategory,
-                                            onMasterProductImageRefChanged = controller::updateMasterProductImageRef,
-                                            onMasterProductActiveChanged = controller::updateMasterProductActive,
-                                            onMasterBarcodeDraftChanged = controller::updateMasterBarcodeDraft,
-                                            onMasterBarcodeTypeChanged = controller::updateMasterBarcodeType,
-                                            onSaveMasterProduct = { scope.launch { controller.saveMasterProduct() } },
-                                            onAddMasterBarcode = { scope.launch { controller.addMasterBarcode() } },
-                                            onRemoveMasterBarcode = { barcode -> scope.launch { controller.removeMasterBarcode(barcode) } },
-                                            onNewCategoryNameChanged = controller::updateNewCategoryName,
-                                            onNewCategoryColorChanged = controller::updateNewCategoryColor,
-                                            onSaveMasterCategory = { scope.launch { controller.saveMasterCategory() } },
-                                            onSelectOperationsRoute = controller::selectOperationsRoute,
-                                            onCashMovementTypeSelected = controller::updateCashMovementType,
-                                            onCashMovementAmountChanged = controller::updateCashMovementAmountInput,
-                                            onCashReasonCodeChanged = controller::updateCashMovementReasonCode,
-                                            onCashReasonDetailChanged = controller::updateCashMovementReasonDetail,
-                                            onSubmitCashMovement = { scope.launch { controller.submitCashMovement() } },
-                                            onApproveCashMovement = { id -> scope.launch { controller.approveCashMovement(id) } },
-                                            onDenyCashMovement = { id -> scope.launch { controller.denyCashMovement(id) } },
-                                            onSelectVoidSale = controller::selectVoidSale,
-                                            onVoidReasonCodeChanged = controller::updateVoidReasonCode,
-                                            onVoidReasonDetailChanged = controller::updateVoidReasonDetail,
-                                            onVoidInventoryFollowUpChanged = controller::updateVoidInventoryFollowUpNote,
-                                            onExecuteVoid = { scope.launch { controller.executeVoidSale() } },
-                                            onClosingCashChanged = controller::updateClosingCashInput,
-                                            onCloseShiftReasonCodeChanged = controller::updateCloseShiftReasonCode,
-                                            onCloseShiftReasonDetailChanged = controller::updateCloseShiftReasonDetail,
-                                            onCloseShift = { scope.launch { controller.endShift() } },
-                                            onApproveCloseShift = { id -> scope.launch { controller.approveCloseShift(id) } },
-                                            onDenyCloseShift = { id -> scope.launch { controller.denyCloseShift(id) } },
-                                            onCloseBusinessDay = { scope.launch { controller.closeBusinessDay() } },
-                                            onSync = { scope.launch { controller.replaySyncAndReload() } },
-                                            onExportReport = { scope.launch { controller.exportOperationalReport() } },
-                                            onSelectWorkspace = controller::selectWorkspace
-                                        )
-                                        is DesktopStage.FatalError -> FatalStage(
-                                            message = stage.message,
-                                            onRetry = { scope.launch { controller.load() } }
-                                        )
+                                    Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                                        when (val stage = state.stage) {
+                                            DesktopStage.Loading -> LoadingStage()
+                                            DesktopStage.Bootstrap -> BootstrapStage(
+                                                state = state,
+                                                onFieldChanged = controller::updateBootstrapField,
+                                                onSelectAvatar = controller::selectBootstrapAvatar,
+                                                onClearAvatar = controller::clearBootstrapAvatar,
+                                                onBootstrap = { scope.launch { controller.bootstrapStore() } }
+                                            )
+                                            DesktopStage.Login -> LoginStage(
+                                                state = state,
+                                                onSelectOperator = controller::selectOperator,
+                                                onPinChanged = controller::updatePin,
+                                                onLogin = { scope.launch { controller.login() } }
+                                            )
+                                            DesktopStage.Workspace -> DesktopWorkspaceContent(
+                                                state = state,
+                                                onOpenDay = { scope.launch { controller.openBusinessDay() } },
+                                                onOpeningCashChanged = controller::updateOpeningCashInput,
+                                                onOpeningCashReasonChanged = controller::updateOpeningCashReasonInput,
+                                                onStartShift = { scope.launch { controller.startShift() } },
+                                                onSearchChanged = { v -> scope.launch { controller.updateCatalogQuery(v) } },
+                                                onBarcodeChanged = controller::updateBarcodeInput,
+                                                onScanBarcode = { scope.launch { controller.scanBarcodeOrSku() } },
+                                                onAddProduct = { p -> scope.launch { controller.addProduct(p) } },
+                                                onCashReceivedChanged = controller::updateCashReceivedInput,
+                                                onConfirmCartReview = controller::confirmCartReview,
+                                                onMemberNumberChanged = controller::updateMemberNumberInput,
+                                                onMemberNameChanged = controller::updateMemberNameInput,
+                                                onSkipMember = controller::skipMemberStep,
+                                                onDonationEnabledChanged = controller::offerDonation,
+                                                onDonationAmountChanged = controller::updateDonationAmountInput,
+                                                onSkipDonation = controller::skipDonationStep,
+                                                onIncrement = { p -> scope.launch { controller.incrementItem(p) } },
+                                                onDecrement = { p, q -> scope.launch { controller.decrementItem(p, q) } },
+                                                onCheckoutCash = { scope.launch { controller.checkoutCash() } },
+                                                onPrintLastReceipt = { scope.launch { controller.printLastReceipt() } },
+                                                onReprintLastReceipt = { scope.launch { controller.reprintLastReceipt() } },
+                                                onCancelSale = { scope.launch { controller.cancelCurrentSale() } },
+                                                onSelectInventoryRoute = controller::selectInventoryRoute,
+                                                onSelectInventoryProduct = { productId -> scope.launch { controller.selectInventoryProduct(productId) } },
+                                                onInventoryCountChanged = controller::updateInventoryCountQuantityInput,
+                                                onSubmitInventoryCount = { scope.launch { controller.submitInventoryCount() } },
+                                                onInventoryAdjustmentDirectionChanged = controller::updateInventoryAdjustmentDirection,
+                                                onInventoryAdjustmentQuantityChanged = controller::updateInventoryAdjustmentQuantityInput,
+                                                onInventoryAdjustmentReasonChanged = controller::updateInventoryAdjustmentReasonCode,
+                                                onInventoryAdjustmentDetailChanged = controller::updateInventoryAdjustmentReasonDetail,
+                                                onApplyInventoryAdjustment = { scope.launch { controller.applyInventoryAdjustment() } },
+                                                onResolveInventoryDiscrepancy = { id -> scope.launch { controller.resolveInventoryDiscrepancy(id) } },
+                                                onMarkInventoryInvestigation = { id -> scope.launch { controller.markInventoryDiscrepancyInvestigation(id) } },
+                                                onApproveInventoryAction = { id -> scope.launch { controller.approveInventoryAction(id) } },
+                                                onDenyInventoryAction = { id -> scope.launch { controller.denyInventoryAction(id) } },
+                                                onDeferInventoryDiscrepancy = controller::deferInventoryDiscrepancy,
+                                                onSelectMasterCategory = { categoryId -> scope.launch { controller.selectMasterCategory(categoryId) } },
+                                                onMasterSearchChanged = { value -> scope.launch { controller.updateMasterDataSearchQuery(value) } },
+                                                onPrepareNewMasterProduct = controller::prepareNewMasterProduct,
+                                                onSelectMasterProduct = { id -> scope.launch { controller.selectMasterProduct(id) } },
+                                                onMasterProductNameChanged = controller::updateMasterProductName,
+                                                onMasterProductSkuChanged = controller::updateMasterProductSku,
+                                                onMasterProductPriceChanged = controller::updateMasterProductPrice,
+                                                onMasterProductCategoryChanged = controller::updateMasterProductCategory,
+                                                onMasterProductImageRefChanged = controller::updateMasterProductImageRef,
+                                                onMasterProductActiveChanged = controller::updateMasterProductActive,
+                                                onMasterBarcodeDraftChanged = controller::updateMasterBarcodeDraft,
+                                                onMasterBarcodeTypeChanged = controller::updateMasterBarcodeType,
+                                                onSaveMasterProduct = { scope.launch { controller.saveMasterProduct() } },
+                                                onAddMasterBarcode = { scope.launch { controller.addMasterBarcode() } },
+                                                onRemoveMasterBarcode = { barcode -> scope.launch { controller.removeMasterBarcode(barcode) } },
+                                                onNewCategoryNameChanged = controller::updateNewCategoryName,
+                                                onNewCategoryColorChanged = controller::updateNewCategoryColor,
+                                                onSaveMasterCategory = { scope.launch { controller.saveMasterCategory() } },
+                                                onSelectOperationsRoute = controller::selectOperationsRoute,
+                                                onCashMovementTypeSelected = controller::updateCashMovementType,
+                                                onCashMovementAmountChanged = controller::updateCashMovementAmountInput,
+                                                onCashReasonCodeChanged = controller::updateCashMovementReasonCode,
+                                                onCashReasonDetailChanged = controller::updateCashMovementReasonDetail,
+                                                onSubmitCashMovement = { scope.launch { controller.submitCashMovement() } },
+                                                onApproveCashMovement = { id -> scope.launch { controller.approveCashMovement(id) } },
+                                                onDenyCashMovement = { id -> scope.launch { controller.denyCashMovement(id) } },
+                                                onSelectVoidSale = controller::selectVoidSale,
+                                                onVoidReasonCodeChanged = controller::updateVoidReasonCode,
+                                                onVoidReasonDetailChanged = controller::updateVoidReasonDetail,
+                                                onVoidInventoryFollowUpChanged = controller::updateVoidInventoryFollowUpNote,
+                                                onExecuteVoid = { scope.launch { controller.executeVoidSale() } },
+                                                onClosingCashChanged = controller::updateClosingCashInput,
+                                                onCloseShiftReasonCodeChanged = controller::updateCloseShiftReasonCode,
+                                                onCloseShiftReasonDetailChanged = controller::updateCloseShiftReasonDetail,
+                                                onCloseShift = { scope.launch { controller.endShift() } },
+                                                onApproveCloseShift = { id -> scope.launch { controller.approveCloseShift(id) } },
+                                                onDenyCloseShift = { id -> scope.launch { controller.denyCloseShift(id) } },
+                                                onCloseBusinessDay = { scope.launch { controller.closeBusinessDay() } },
+                                                onSync = { scope.launch { controller.replaySyncAndReload() } },
+                                                onExportReport = { scope.launch { controller.exportOperationalReport() } },
+                                                onStoreProfileFieldChanged = controller::updateStoreProfileField,
+                                                onSelectStoreLogo = controller::selectStoreProfileLogo,
+                                                onClearStoreLogo = controller::clearStoreProfileLogo,
+                                                onSaveStoreProfile = { scope.launch { controller.saveStoreProfile() } },
+                                                onSelectWorkspace = controller::selectWorkspace
+                                            )
+                                            is DesktopStage.FatalError -> FatalStage(
+                                                message = stage.message,
+                                                onRetry = { scope.launch { controller.load() } }
+                                            )
+                                        }
+
+                                        state.banner?.let { banner ->
+                                            LaunchedEffect(banner) {
+                                                when (banner.tone) {
+                                                    UiTone.Info, UiTone.Success -> {
+                                                        delay(2400)
+                                                        controller.dismissBanner()
+                                                    }
+                                                    UiTone.Warning -> {
+                                                        delay(4200)
+                                                        controller.dismissBanner()
+                                                    }
+                                                    UiTone.Danger -> Unit
+                                                }
+                                            }
+                                            Box(modifier = Modifier.padding(16.dp).align(Alignment.BottomEnd)) {
+                                                BannerCard(banner = banner, onDismiss = controller::dismissBanner)
+                                            }
+                                        }
                                     }
 
-                                    // 2. FEEDBACK HARDENING: Auto-close after 3s
-                                    state.banner?.let { banner ->
-                                        LaunchedEffect(banner) {
-                                            delay(3000)
-                                            controller.dismissBanner()
-                                        }
-                                        Box(modifier = Modifier.padding(16.dp).align(Alignment.BottomEnd)) {
-                                            BannerCard(banner = banner, onDismiss = controller::dismissBanner)
-                                        }
-                                    }
+                                    CassyOperationalFooter(shell = state.shell)
+                                }
+                            }
+                        } else {
+                            Box(modifier = Modifier.fillMaxSize()) {
+                                when (val stage = state.stage) {
+                                    DesktopStage.Loading -> LoadingStage()
+                                    DesktopStage.Bootstrap -> BootstrapStage(
+                                        state = state,
+                                        onFieldChanged = controller::updateBootstrapField,
+                                        onSelectAvatar = controller::selectBootstrapAvatar,
+                                        onClearAvatar = controller::clearBootstrapAvatar,
+                                        onBootstrap = { scope.launch { controller.bootstrapStore() } }
+                                    )
+                                    DesktopStage.Login -> LoginStage(
+                                        state = state,
+                                        onSelectOperator = controller::selectOperator,
+                                        onPinChanged = controller::updatePin,
+                                        onLogin = { scope.launch { controller.login() } }
+                                    )
+                                    DesktopStage.Workspace -> Unit
+                                    is DesktopStage.FatalError -> FatalStage(
+                                        message = stage.message,
+                                        onRetry = { scope.launch { controller.load() } }
+                                    )
                                 }
 
-                                CassyFooter(shell = state.shell)
+                                state.banner?.let { banner ->
+                                    LaunchedEffect(banner) {
+                                        when (banner.tone) {
+                                            UiTone.Info, UiTone.Success -> {
+                                                delay(2400)
+                                                controller.dismissBanner()
+                                            }
+                                            UiTone.Warning -> {
+                                                delay(4200)
+                                                controller.dismissBanner()
+                                            }
+                                            UiTone.Danger -> Unit
+                                        }
+                                    }
+                                    Box(modifier = Modifier.padding(16.dp).align(Alignment.BottomEnd)) {
+                                        BannerCard(banner = banner, onDismiss = controller::dismissBanner)
+                                    }
+                                }
                             }
                         }
                     }
@@ -321,6 +402,32 @@ fun main(args: Array<String>) {
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+private class DesktopAppInstanceLock private constructor(
+    private val file: RandomAccessFile,
+    private val lock: FileLock
+) : AutoCloseable {
+    override fun close() {
+        runCatching { lock.release() }
+        runCatching { file.close() }
+    }
+
+    companion object {
+        fun acquire(): DesktopAppInstanceLock? {
+            val lockFile = File(resolveDesktopDataRoot(), ".desktop-session.lock").apply {
+                parentFile?.mkdirs()
+            }
+            val access = RandomAccessFile(lockFile, "rw")
+            val fileLock = runCatching { access.channel.tryLock() }.getOrNull()
+            return if (fileLock != null) {
+                DesktopAppInstanceLock(access, fileLock)
+            } else {
+                runCatching { access.close() }
+                null
             }
         }
     }

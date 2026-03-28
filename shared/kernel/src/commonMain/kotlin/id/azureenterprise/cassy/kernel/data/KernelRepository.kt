@@ -12,6 +12,7 @@ import id.azureenterprise.cassy.kernel.domain.ReasonCategory
 import id.azureenterprise.cassy.kernel.domain.ReasonCode
 import id.azureenterprise.cassy.kernel.domain.ShiftCloseReport
 import id.azureenterprise.cassy.kernel.domain.Shift
+import id.azureenterprise.cassy.kernel.domain.StoreProfile
 import id.azureenterprise.cassy.kernel.domain.OperatorAccount
 import id.azureenterprise.cassy.kernel.domain.OperatorRole
 import id.azureenterprise.cassy.kernel.domain.TerminalBinding
@@ -56,6 +57,42 @@ open class KernelRepository(
         }
     }
 
+    open suspend fun getStoreProfile(storeId: String): StoreProfile? = withContext(ioDispatcher) {
+        queries?.selectStoreProfileByStoreId(storeId)?.executeAsOneOrNull()?.let { record ->
+            StoreProfile(
+                id = record.id,
+                storeId = record.storeId,
+                businessName = record.businessName,
+                address = record.businessAddress,
+                phoneCountryCode = record.phoneCountryCode,
+                phoneNumber = record.phoneNumber,
+                receiptNote = record.receiptNote,
+                logoPath = record.logoAssetPath,
+                createdAt = Instant.fromEpochMilliseconds(record.createdAt),
+                updatedAt = Instant.fromEpochMilliseconds(record.updatedAt),
+                revision = record.revision
+            )
+        }
+    }
+
+    open suspend fun upsertStoreProfile(profile: StoreProfile) {
+        withContext(ioDispatcher) {
+            queries?.upsertStoreProfile(
+                profile.id,
+                profile.storeId,
+                profile.businessName,
+                profile.address,
+                profile.phoneCountryCode,
+                profile.phoneNumber,
+                profile.receiptNote,
+                profile.logoPath,
+                profile.createdAt.toEpochMilliseconds(),
+                profile.updatedAt.toEpochMilliseconds(),
+                profile.revision
+            )
+        }
+    }
+
     open suspend fun listActiveOperators(): List<OperatorAccount> = withContext(ioDispatcher) {
         queries?.listActiveOperators()?.executeAsList()?.map { record ->
             OperatorAccount(
@@ -63,6 +100,7 @@ open class KernelRepository(
                 employeeCode = record.employeeCode,
                 displayName = record.displayName,
                 role = OperatorRole.valueOf(record.role),
+                avatarPath = record.avatarAssetPath,
                 pinHash = record.pinHash,
                 pinSalt = record.pinSalt,
                 failedAttempts = record.failedAttempts.toInt(),
@@ -80,6 +118,7 @@ open class KernelRepository(
                 employeeCode = record.employeeCode,
                 displayName = record.displayName,
                 role = OperatorRole.valueOf(record.role),
+                avatarPath = record.avatarAssetPath,
                 pinHash = record.pinHash,
                 pinSalt = record.pinSalt,
                 failedAttempts = record.failedAttempts.toInt(),
@@ -97,6 +136,7 @@ open class KernelRepository(
                 operator.employeeCode,
                 operator.displayName,
                 operator.role.name,
+                operator.avatarPath,
                 operator.pinHash,
                 operator.pinSalt,
                 operator.failedAttempts.toLong(),

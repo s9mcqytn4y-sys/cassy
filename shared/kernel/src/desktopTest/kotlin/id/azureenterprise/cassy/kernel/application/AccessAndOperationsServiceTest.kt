@@ -63,7 +63,7 @@ class AccessAndOperationsServiceTest {
     }
 
     @Test
-    fun `cashier is forbidden to open day but supervisor can complete day-shift flow`() {
+    fun `cashier can complete day-shift flow and supervisor can still close day`() {
         runBlocking {
             val fixture = kernelFixture()
             fixture.accessService.bootstrapStore(
@@ -82,12 +82,6 @@ class AccessAndOperationsServiceTest {
             val supervisor = operators.first { it.employeeCode == "supervisor" }
 
             fixture.accessService.login(cashier.id, "123456")
-            val forbiddenOpenDay = fixture.businessDayService.openNewDay()
-            assertTrue(forbiddenOpenDay.isFailure)
-            assertTrue(forbiddenOpenDay.exceptionOrNull()?.message?.contains(AccessCapability.OPEN_DAY.name) == true)
-
-            fixture.accessService.logout()
-            fixture.accessService.login(supervisor.id, "654321")
             val openedDay = fixture.businessDayService.openNewDay().getOrThrow()
             assertEquals("OPEN", openedDay.status)
 
@@ -100,6 +94,8 @@ class AccessAndOperationsServiceTest {
             val closedShift = fixture.shiftService.endShift(closingCash = 175.0).getOrThrow()
             assertEquals(175.0, closedShift.closingCash)
 
+            fixture.accessService.logout()
+            fixture.accessService.login(supervisor.id, "654321")
             val closedDay = fixture.businessDayService.closeCurrentDay().getOrThrow()
             assertEquals("CLOSED", closedDay.status)
             assertNull(fixture.shiftService.getActiveShift())

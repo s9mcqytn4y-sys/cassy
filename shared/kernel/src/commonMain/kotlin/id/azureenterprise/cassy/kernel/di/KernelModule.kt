@@ -11,6 +11,7 @@ import id.azureenterprise.cassy.kernel.application.OperationalControlService
 import id.azureenterprise.cassy.kernel.application.ShiftService
 import id.azureenterprise.cassy.kernel.application.ShiftClosingService
 import id.azureenterprise.cassy.kernel.application.ReportingQueryFacade
+import id.azureenterprise.cassy.kernel.application.StoreProfileService
 import id.azureenterprise.cassy.kernel.application.SyncReplayPort
 import id.azureenterprise.cassy.kernel.application.NoopSyncReplayPort
 import id.azureenterprise.cassy.kernel.application.SyncReplayService
@@ -36,6 +37,7 @@ val kernelModule = module {
     single { OutboxRepository(get(), get(), get()) }
     single { KernelRepository(get(), get(), get()) }
     single { AccessService(get(), get(), get()) }
+    single { StoreProfileService(get(), get()) }
     single { OpeningCashPolicy() }
     single { CashMovementPolicy() }
     single { ShiftClosePolicy() }

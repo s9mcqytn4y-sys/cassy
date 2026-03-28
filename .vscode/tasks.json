@@ -2,14 +2,42 @@
     "version": "2.0.0",
     "tasks": [
         {
+            "label": "Cassy Desktop Reset Sandbox Data",
+            "type": "shell",
+            "command": "powershell",
+            "args": [
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                "tooling/scripts/Invoke-DesktopSandbox.ps1",
+                "-ResetDemo"
+            ],
+            "problemMatcher": []
+        },
+        {
+            "label": "Cassy Desktop Run Sandbox",
+            "type": "shell",
+            "command": "powershell",
+            "args": [
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                "tooling/scripts/Invoke-DesktopSandbox.ps1"
+            ],
+            "problemMatcher": []
+        },
+        {
             "label": "Cassy Desktop Smoke Run",
             "type": "shell",
-            "command": ".\\gradlew",
+            "command": "powershell",
             "args": [
-                ":apps:desktop-pos:run",
-                "--args=--smoke-run",
-                "--no-configuration-cache",
-                "--console=plain"
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                "tooling/scripts/Invoke-DesktopSandbox.ps1",
+                "-SmokeRun",
+                "-DataRoot",
+                "${workspaceFolder}\\.sandbox\\desktop-smoke"
             ],
             "problemMatcher": []
         },
@@ -18,6 +46,7 @@
             "type": "shell",
             "command": ".\\gradlew",
             "args": [
+                "-Dcassy.data.dir=${workspaceFolder}\\.sandbox\\desktop-smoke",
                 ":apps:desktop-pos:smokeRun",
                 "--no-configuration-cache",
                 "--console=plain"

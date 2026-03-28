@@ -25,6 +25,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -45,6 +46,13 @@ fun DesktopWorkspaceContent(
     onScanBarcode: () -> Unit,
     onAddProduct: (Product) -> Unit,
     onCashReceivedChanged: (String) -> Unit,
+    onConfirmCartReview: () -> Unit,
+    onMemberNumberChanged: (String) -> Unit,
+    onMemberNameChanged: (String) -> Unit,
+    onSkipMember: () -> Unit,
+    onDonationEnabledChanged: (Boolean) -> Unit,
+    onDonationAmountChanged: (String) -> Unit,
+    onSkipDonation: () -> Unit,
     onIncrement: (Product) -> Unit,
     onDecrement: (Product, Double) -> Unit,
     onCheckoutCash: () -> Unit,
@@ -105,6 +113,10 @@ fun DesktopWorkspaceContent(
     onCloseBusinessDay: () -> Unit,
     onSync: () -> Unit,
     onExportReport: () -> Unit,
+    onStoreProfileFieldChanged: (StoreProfileUiField, String) -> Unit,
+    onSelectStoreLogo: () -> Unit,
+    onClearStoreLogo: () -> Unit,
+    onSaveStoreProfile: () -> Unit,
     onSelectWorkspace: (DesktopWorkspace) -> Unit
 ) {
     when (state.activeWorkspace) {
@@ -123,6 +135,13 @@ fun DesktopWorkspaceContent(
             onScanBarcode = onScanBarcode,
             onAddProduct = onAddProduct,
             onCashReceivedChanged = onCashReceivedChanged,
+            onConfirmCartReview = onConfirmCartReview,
+            onMemberNumberChanged = onMemberNumberChanged,
+            onMemberNameChanged = onMemberNameChanged,
+            onSkipMember = onSkipMember,
+            onDonationEnabledChanged = onDonationEnabledChanged,
+            onDonationAmountChanged = onDonationAmountChanged,
+            onSkipDonation = onSkipDonation,
             onIncrement = onIncrement,
             onDecrement = onDecrement,
             onCheckoutCash = onCheckoutCash,
@@ -191,7 +210,14 @@ fun DesktopWorkspaceContent(
             onSync = onSync
         )
         DesktopWorkspace.Reporting -> ReportingWorkspace(state.operations, onExportReport, state.isBusy)
-        DesktopWorkspace.System -> SystemWorkspace(state, onSync)
+        DesktopWorkspace.System -> SystemWorkspace(
+            state = state,
+            onSync = onSync,
+            onStoreProfileFieldChanged = onStoreProfileFieldChanged,
+            onSelectStoreLogo = onSelectStoreLogo,
+            onClearStoreLogo = onClearStoreLogo,
+            onSaveStoreProfile = onSaveStoreProfile
+        )
     }
 }
 
@@ -204,40 +230,155 @@ private fun DashboardWorkspace(
     onStartShift: () -> Unit,
     onSelectWorkspace: (DesktopWorkspace) -> Unit
 ) {
-    WorkspacePage("Guided Operations Dashboard", "Entry point setelah login. Fokus ke status dan next action.") {
+    WorkspacePage("Ringkasan operasional", "Layar keputusan 10 detik: cek urutan siap kerja, lihat kendala utama, lalu ambil langkah berikutnya.") {
+        DashboardMilestoneStrip(state)
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
-            WorkspaceCard("Status Operasional", Modifier.weight(1.2f)) {
-                OperationalDashboardCard(state.operations.dashboard)
+            WorkspaceCard("Langkah berikutnya", Modifier.weight(1.15f)) {
+                Text(state.operations.dashboard.headline)
+                state.operations.blockingMessage?.let {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                when {
+                    state.operations.businessDayLabel == null -> {
+                        Text(
+                            "Kasir aktif boleh membuka hari bisnis. Supervisor fokus ke hasil, approval penting, dan pemulihan bila ada masalah.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Button(
+                            onClick = onOpenDay,
+                            enabled = state.operations.canOpenDay && !state.isBusy
+                        ) { Text("Buka hari bisnis") }
+                    }
+                    state.operations.shiftLabel == null -> {
+                        CassyCurrencyInput(
+                            "Modal awal tunai",
+                            state.operations.openingCashInput,
+                            onOpeningCashChanged,
+                            helperText = "Isi sesuai uang fisik di laci kas sebelum shift dibuka."
+                        )
+                        SemanticTextField(
+                            "Catatan singkat",
+                            state.operations.openingCashReason,
+                            onOpeningCashReasonChanged,
+                            singleLine = false,
+                            placeholder = "Opsional"
+                        )
+                        Button(onClick = onStartShift, enabled = !state.isBusy) { Text("Buka shift") }
+                    }
+                    else -> {
+                        Text(
+                            "Terminal sudah siap dipakai. Buka kasir untuk transaksi atau operasional bila perlu kontrol lanjutan.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            if (DesktopWorkspace.Cashier in state.shell.availableWorkspaces) {
+                                Button(onClick = { onSelectWorkspace(DesktopWorkspace.Cashier) }) { Text("Masuk kasir") }
+                            }
+                            OutlinedButton(onClick = { onSelectWorkspace(DesktopWorkspace.Operations) }) { Text("Buka operasional") }
+                        }
+                    }
+                }
             }
-            WorkspaceCard("Context", Modifier.weight(0.8f)) {
-                SummaryRow("Hari Bisnis", humanizeBusinessDayLabel(state.operations.businessDayLabel))
+            WorkspaceCard("Status terminal", Modifier.weight(0.85f)) {
+                SummaryRow("Operator aktif", humanizeOperatorLabel(state.shell.operatorName, state.shell.roleLabel))
+                SummaryRow("Hari bisnis", humanizeBusinessDayLabel(state.operations.businessDayLabel))
                 SummaryRow("Shift", humanizeShiftLabel(state.operations.shiftLabel))
-                SummaryRow("Operator", humanizeOperatorLabel(state.shell.operatorName, state.shell.roleLabel))
-                SummaryRow("Tindakan", state.shell.nextActionLabel ?: "Tidak ada blocker utama")
+                SummaryRow("Tindak lanjut", state.shell.nextActionLabel ?: "Tidak ada blocker utama")
+                SummaryRow("Approval tertunda", state.operations.dashboard.pendingApprovalCount.toString())
             }
         }
-        if (!state.operations.dashboard.canAccessSalesHome) {
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
-                WorkspaceCard("Buka Hari", Modifier.weight(1f)) {
-                    Text(state.operations.blockingMessage ?: "Hari bisnis belum aktif.")
-                    Button(onClick = onOpenDay, enabled = state.operations.canOpenDay && !state.isBusy) { Text("Buka Hari Bisnis") }
-                }
-                WorkspaceCard("Buka Shift", Modifier.weight(1f)) {
-                    CassyCurrencyInput("Modal Awal Tunai", state.operations.openingCashInput, onOpeningCashChanged, helperText = "Saldo awal laci kas.")
-                    SemanticTextField("Catatan Approval", state.operations.openingCashReason, onOpeningCashReasonChanged, singleLine = false)
-                    Button(onClick = onStartShift, enabled = !state.isBusy) { Text("Buka Kasir") }
-                }
-            }
-        } else {
-            WorkspaceCard("Lanjutkan Operasional") {
-                Text("Kasir siap. Gunakan workspace khusus agar task kompleks tidak lagi hidup di modal besar.")
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Button(onClick = { onSelectWorkspace(DesktopWorkspace.Cashier) }) { Text("Masuk Kasir") }
-                    OutlinedButton(onClick = { onSelectWorkspace(DesktopWorkspace.Operations) }) { Text("Buka Operasional") }
+        val importantDecisions = state.operations.dashboard.decisions
+            .filter { it.status != id.azureenterprise.cassy.kernel.domain.OperationStatus.COMPLETED }
+            .take(3)
+        if (importantDecisions.isNotEmpty()) {
+            WorkspaceCard("Perlu perhatian") {
+                importantDecisions.forEach { decision ->
+                    OperationDecisionRow(decision)
                 }
             }
         }
     }
+}
+
+@Composable
+private fun DashboardMilestoneStrip(state: DesktopAppState) {
+    val items = listOf(
+        DashboardMilestoneItem(
+            title = "Operator aktif",
+            detail = state.shell.operatorName ?: "Login dulu",
+            state = if (state.shell.operatorName != null) DashboardMilestoneState.Done else DashboardMilestoneState.Active
+        ),
+        DashboardMilestoneItem(
+            title = "Hari bisnis",
+            detail = if (state.operations.businessDayLabel == null) "Belum dibuka" else "Sudah aktif",
+            state = when {
+                state.shell.operatorName == null -> DashboardMilestoneState.Pending
+                state.operations.businessDayLabel == null -> DashboardMilestoneState.Active
+                else -> DashboardMilestoneState.Done
+            }
+        ),
+        DashboardMilestoneItem(
+            title = "Shift aktif",
+            detail = if (state.operations.shiftLabel == null) "Belum dibuka" else "Sudah aktif",
+            state = when {
+                state.operations.businessDayLabel == null -> DashboardMilestoneState.Pending
+                state.operations.shiftLabel == null -> DashboardMilestoneState.Active
+                else -> DashboardMilestoneState.Done
+            }
+        ),
+        DashboardMilestoneItem(
+            title = "Kasir siap",
+            detail = if (state.operations.dashboard.canAccessSalesHome) "Bisa transaksi" else "Menunggu langkah sebelumnya",
+            state = when {
+                state.operations.dashboard.canAccessSalesHome -> DashboardMilestoneState.Done
+                state.operations.shiftLabel != null -> DashboardMilestoneState.Active
+                else -> DashboardMilestoneState.Pending
+            }
+        )
+    )
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+        items.forEach { item ->
+            Surface(
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(10.dp),
+                color = when (item.state) {
+                    DashboardMilestoneState.Done -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+                    DashboardMilestoneState.Active -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.52f)
+                    DashboardMilestoneState.Pending -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)
+                }
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(item.title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                    Text(
+                        item.detail,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+}
+
+private data class DashboardMilestoneItem(
+    val title: String,
+    val detail: String,
+    val state: DashboardMilestoneState
+)
+
+private enum class DashboardMilestoneState {
+    Pending,
+    Active,
+    Done
 }
 
 @Composable
@@ -248,6 +389,13 @@ private fun CheckoutWorkspace(
     onScanBarcode: () -> Unit,
     onAddProduct: (Product) -> Unit,
     onCashReceivedChanged: (String) -> Unit,
+    onConfirmCartReview: () -> Unit,
+    onMemberNumberChanged: (String) -> Unit,
+    onMemberNameChanged: (String) -> Unit,
+    onSkipMember: () -> Unit,
+    onDonationEnabledChanged: (Boolean) -> Unit,
+    onDonationAmountChanged: (String) -> Unit,
+    onSkipDonation: () -> Unit,
     onIncrement: (Product) -> Unit,
     onDecrement: (Product, Double) -> Unit,
     onCheckoutCash: () -> Unit,
@@ -255,18 +403,39 @@ private fun CheckoutWorkspace(
     onReprintLastReceipt: () -> Unit,
     onCancelSale: () -> Unit
 ) {
-    WorkspacePage("Kasir", "Split checkout workspace: lookup, cart, payment/receipt.") {
+    WorkspacePage(
+        title = "Kasir",
+        subtitle = "Fokus ke tiga hal: scan barang, review keranjang, lalu selesaikan pembayaran. Fallback tetap jelas bila perangkat bermasalah.",
+        scrollable = false
+    ) {
         if (!state.operations.dashboard.canAccessSalesHome) {
-            WorkspaceCard("Kasir Belum Siap") { Text(state.operations.blockingMessage ?: "Kasir belum siap dipakai.") }
+            WorkspaceCard("Kasir belum siap") { Text(state.operations.blockingMessage ?: "Kasir belum siap dipakai.") }
             return@WorkspacePage
         }
+        val milestone = remember(state.catalog) { resolveCashierMilestone(state.catalog) }
+        CashierMilestoneBar(milestone = milestone, catalog = state.catalog)
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxSize()) {
-            Surface(modifier = Modifier.weight(1f).fillMaxHeight(), shape = RoundedCornerShape(20.dp), tonalElevation = 1.dp) {
-                CassyCatalogView(state.catalog, onSearchChanged, onBarcodeChanged, onScanBarcode, onAddProduct)
+            Surface(modifier = Modifier.weight(1.15f).fillMaxHeight(), shape = RoundedCornerShape(10.dp), tonalElevation = 1.dp) {
+                CassyCatalogView(
+                    state = state.catalog,
+                    milestone = milestone,
+                    onSearchChanged = onSearchChanged,
+                    onBarcodeChanged = onBarcodeChanged,
+                    onScanBarcode = onScanBarcode,
+                    onAddProduct = onAddProduct
+                )
             }
-            WorkspaceCard("Cart Aktif", Modifier.weight(0.9f).fillMaxHeight()) {
+            WorkspaceCard("Keranjang aktif", Modifier.weight(0.95f).fillMaxHeight()) {
+                MemberStepCard(
+                    state = state.catalog,
+                    milestone = milestone,
+                    onMemberNumberChanged = onMemberNumberChanged,
+                    onMemberNameChanged = onMemberNameChanged,
+                    onSkipMember = onSkipMember
+                )
+                HorizontalDivider()
                 if (state.catalog.basket.items.isEmpty()) {
-                    Text("Belum ada item. Scan barcode atau cari SKU di panel kiri.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Belum ada barang. Scan barcode atau cari SKU di panel kiri.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } else {
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f, fill = false)) {
                         items(state.catalog.basket.items) { item -> CassyCartItemRow(item, onIncrement, onDecrement) }
@@ -275,30 +444,206 @@ private fun CheckoutWorkspace(
                 HorizontalDivider()
                 CassyMetricRow("Subtotal", "Rp ${state.catalog.basket.totals.subtotal.toInt()}")
                 CassyMetricRow("Pajak", "Rp ${state.catalog.basket.totals.taxTotal.toInt()}")
-                CassyMetricRow("Total Akhir", "Rp ${state.catalog.basket.totals.finalTotal.toInt()}", isHighlight = true)
+                CassyMetricRow("Total", "Rp ${state.catalog.basket.totals.finalTotal.toInt()}", isHighlight = true)
+                Button(
+                    onClick = onConfirmCartReview,
+                    enabled = state.catalog.basket.items.isNotEmpty() && !state.catalog.reviewConfirmed,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(if (state.catalog.reviewConfirmed) "Keranjang sudah dicek" else "Tandai keranjang sudah dicek")
+                }
             }
-            WorkspaceCard("Checkout & Struk", Modifier.weight(0.8f).fillMaxHeight()) {
-                CassyCurrencyInput("Bayar Tunai", state.catalog.cashReceivedInput, onCashReceivedChanged, helperText = "Nominal pelanggan.")
-                state.catalog.cashTenderQuote?.let { quote ->
-                    SummaryRow(if (quote.isSufficient) "Kembalian" else "Kurang", "Rp ${if (quote.isSufficient) quote.changeAmount.toInt() else quote.shortageAmount.toInt()}")
+            Column(
+                modifier = Modifier.weight(0.95f).fillMaxHeight(),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                WorkspaceCard("Pembayaran", Modifier.weight(0.52f).fillMaxWidth()) {
+                    DonationStepCard(
+                        state = state.catalog,
+                        milestone = milestone,
+                        onDonationEnabledChanged = onDonationEnabledChanged,
+                        onDonationAmountChanged = onDonationAmountChanged,
+                        onSkipDonation = onSkipDonation
+                    )
+                    CassyCurrencyInput("Uang diterima", state.catalog.cashReceivedInput, onCashReceivedChanged, helperText = "Masukkan nominal yang dibayar pelanggan.")
+                    state.catalog.cashTenderQuote?.let { quote ->
+                        SummaryRow(if (quote.isSufficient) "Kembalian" else "Kurang Bayar", "Rp ${if (quote.isSufficient) quote.changeAmount.toInt() else quote.shortageAmount.toInt()}")
+                    }
+                    Button(
+                        onClick = onCheckoutCash,
+                        enabled = state.catalog.basket.items.isNotEmpty() &&
+                            state.catalog.reviewConfirmed &&
+                            isMemberStepResolved(state.catalog) &&
+                            state.catalog.cashTenderQuote?.isSufficient == true,
+                        modifier = Modifier.fillMaxWidth().height(52.dp)
+                    ) {
+                        Text("Selesaikan pembayaran")
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        OutlinedButton(onClick = onCancelSale, enabled = state.catalog.basket.items.isNotEmpty(), modifier = Modifier.weight(1f)) { Text("Kosongkan") }
+                        OutlinedButton(onClick = onPrintLastReceipt, enabled = state.catalog.lastFinalizedSaleId != null, modifier = Modifier.weight(1f)) { Text("Cetak") }
+                    }
+                    OutlinedButton(onClick = onReprintLastReceipt, enabled = state.catalog.lastFinalizedSaleId != null, modifier = Modifier.fillMaxWidth()) { Text("Cetak Ulang") }
+                    SummaryRow("Status Struk", state.catalog.printState.detailMessage ?: "Belum ada struk final")
                 }
-                Button(onClick = onCheckoutCash, enabled = state.catalog.basket.items.isNotEmpty() && state.catalog.cashTenderQuote?.isSufficient == true, modifier = Modifier.fillMaxWidth().height(52.dp)) {
-                    Text("Finalisasi Transaksi")
+                WorkspaceCard("Preview Struk", Modifier.weight(0.48f).fillMaxWidth()) {
+                    ReceiptPreviewCard(state.catalog.receiptPreview, state.catalog.printState.detailMessage)
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    OutlinedButton(onClick = onCancelSale, enabled = state.catalog.basket.items.isNotEmpty(), modifier = Modifier.weight(1f)) { Text("Kosongkan") }
-                    OutlinedButton(onClick = onPrintLastReceipt, enabled = state.catalog.lastFinalizedSaleId != null, modifier = Modifier.weight(1f)) { Text("Cetak") }
+            }
+        }
+    }
+}
+
+enum class CashierMilestone(
+    val title: String,
+    val shortDescription: String
+) {
+    ScanBarang("Scan Barang", "Scan barcode atau cari SKU"),
+    ReviewKeranjang("Review Keranjang", "Cek item, jumlah, dan total"),
+    Member("Member", "Input member atau lewati"),
+    Pembayaran("Pembayaran", "Terima uang dan cek kembalian"),
+    Selesai("Selesai & Struk", "Pastikan hasil transaksi jelas")
+}
+
+private enum class MilestoneVisualState { Active, Done, Pending, Blocked }
+
+@Composable
+private fun CashierMilestoneBar(
+    milestone: CashierMilestone,
+    catalog: DesktopCatalogState
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+        CashierMilestone.entries.forEachIndexed { index, step ->
+            val state = milestoneVisualState(step, milestone, catalog)
+            Surface(
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(10.dp),
+                color = when (state) {
+                    MilestoneVisualState.Active -> MaterialTheme.colorScheme.primaryContainer
+                    MilestoneVisualState.Done -> MaterialTheme.colorScheme.secondaryContainer
+                    MilestoneVisualState.Pending -> MaterialTheme.colorScheme.surfaceVariant
+                    MilestoneVisualState.Blocked -> MaterialTheme.colorScheme.surface
+                },
+                tonalElevation = if (state == MilestoneVisualState.Active) 2.dp else 0.dp
+            ) {
+                Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text("${index + 1}. ${step.title}", fontWeight = FontWeight.Bold, color = if (state == MilestoneVisualState.Blocked) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface)
+                    Text(step.shortDescription, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                OutlinedButton(onClick = onReprintLastReceipt, enabled = state.catalog.lastFinalizedSaleId != null, modifier = Modifier.fillMaxWidth()) { Text("Cetak Ulang") }
-                SummaryRow("Status Struk", state.catalog.printState.detailMessage ?: "-")
             }
         }
     }
 }
 
 @Composable
+private fun MemberStepCard(
+    state: DesktopCatalogState,
+    milestone: CashierMilestone,
+    onMemberNumberChanged: (String) -> Unit,
+    onMemberNameChanged: (String) -> Unit,
+    onSkipMember: () -> Unit
+) {
+    WorkspaceCard("Member", Modifier.fillMaxWidth()) {
+        Text(
+            if (state.memberSkipped) "Langkah member dilewati untuk transaksi ini."
+            else "Tambahkan nomor atau nama member bila pelanggan memilikinya. Langkah ini opsional.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        SemanticTextField("Nomor Member", state.memberNumberInput, onMemberNumberChanged, helperText = "Opsional. Kosongkan bila tidak ada.", placeholder = "Contoh 081234567890")
+        SemanticTextField("Nama Member", state.memberNameInput, onMemberNameChanged, helperText = "Opsional untuk pencatatan lokal cepat.", placeholder = "Nama pelanggan")
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(onClick = onSkipMember, modifier = Modifier.weight(1f)) { Text("Lewati Member") }
+            Surface(
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(10.dp),
+                color = if (milestone.ordinal >= CashierMilestone.Member.ordinal && isMemberStepResolved(state)) {
+                    MaterialTheme.colorScheme.secondaryContainer
+                } else {
+                    MaterialTheme.colorScheme.surfaceVariant
+                }
+            ) {
+                Box(modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp), contentAlignment = androidx.compose.ui.Alignment.Center) {
+                    Text(if (isMemberStepResolved(state)) "Member Siap" else "Isi atau Lewati", fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DonationStepCard(
+    state: DesktopCatalogState,
+    milestone: CashierMilestone,
+    onDonationEnabledChanged: (Boolean) -> Unit,
+    onDonationAmountChanged: (String) -> Unit,
+    onSkipDonation: () -> Unit
+) {
+    WorkspaceCard("Donasi Opsional", Modifier.fillMaxWidth()) {
+        Text(
+            "Gunakan hanya bila toko memang sedang menjalankan program donasi. Langkah ini tidak wajib.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            FilterChip(
+                selected = state.donationOffered,
+                onClick = { onDonationEnabledChanged(true) },
+                label = { Text("Tawarkan Donasi") }
+            )
+            FilterChip(
+                selected = state.donationSkipped,
+                onClick = onSkipDonation,
+                label = { Text("Lewati Donasi") }
+            )
+        }
+        if (state.donationOffered) {
+            CassyCurrencyInput(
+                label = "Nominal Donasi",
+                value = state.donationAmountInput,
+                onValueChange = onDonationAmountChanged,
+                helperText = "Catatan lokal kasir. Belum mengubah total transaksi inti."
+            )
+        }
+        if (milestone == CashierMilestone.Pembayaran || milestone == CashierMilestone.Selesai) {
+            Text(
+                if (state.donationOffered && state.donationAmountInput.isNotBlank()) "Donasi dicatat sebagai catatan operasional lokal."
+                else "Bila tidak relevan, langsung lanjut ke pembayaran.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+private fun resolveCashierMilestone(catalog: DesktopCatalogState): CashierMilestone = when {
+    catalog.lastFinalizedSaleId != null && catalog.basket.items.isEmpty() && catalog.receiptPreview.saleId == catalog.lastFinalizedSaleId ->
+        CashierMilestone.Selesai
+    catalog.basket.items.isEmpty() -> CashierMilestone.ScanBarang
+    !catalog.reviewConfirmed -> CashierMilestone.ReviewKeranjang
+    !isMemberStepResolved(catalog) -> CashierMilestone.Member
+    else -> CashierMilestone.Pembayaran
+}
+
+private fun isMemberStepResolved(catalog: DesktopCatalogState): Boolean =
+    catalog.memberSkipped || catalog.memberNumberInput.isNotBlank() || catalog.memberNameInput.isNotBlank()
+
+private fun milestoneVisualState(
+    step: CashierMilestone,
+    active: CashierMilestone,
+    catalog: DesktopCatalogState
+): MilestoneVisualState = when {
+    step == active -> MilestoneVisualState.Active
+    step.ordinal < active.ordinal -> MilestoneVisualState.Done
+    step == CashierMilestone.Member && !catalog.reviewConfirmed -> MilestoneVisualState.Blocked
+    step == CashierMilestone.Pembayaran && (!catalog.reviewConfirmed || !isMemberStepResolved(catalog)) -> MilestoneVisualState.Blocked
+    step == CashierMilestone.Selesai && catalog.lastFinalizedSaleId == null -> MilestoneVisualState.Pending
+    else -> MilestoneVisualState.Pending
+}
+
+@Composable
 private fun HistoryWorkspace(recentSales: List<SaleHistoryEntry>) {
-    WorkspacePage("Riwayat Transaksi", "Daftar transaksi final terbaru untuk lookup dan review.") {
+    WorkspacePage("Riwayat transaksi", "Daftar transaksi final terbaru untuk dicari ulang dan direview.") {
         WorkspaceCard("Transaksi Terbaru") {
             if (recentSales.isEmpty()) {
                 Text("Belum ada transaksi final.", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -354,7 +699,7 @@ private fun InventoryWorkspace(
     onNewCategoryColorChanged: (String) -> Unit,
     onSaveMasterCategory: () -> Unit
 ) {
-    WorkspacePage("Inventori", "Stock truth dan master data dipisah agar layar tidak sumpek dan operator tidak salah konteks.") {
+    WorkspacePage("Inventori", "Kondisi stok saat ini dan daftar produk dipisah agar layar tetap ringkas dan operator tidak salah konteks.") {
         RouteChips(
             routes = DesktopInventoryRoute.entries.map { route ->
                 Triple(route.shortLabel, state.inventoryRoute == route, { onSelectInventoryRoute(route) })
@@ -558,7 +903,7 @@ private fun MasterDataWorkspace(
                     }
                 }
             }
-            SemanticTextField("Image Ref / File Hint", state.productImageRefInput, onProductImageRefChanged, helperText = "Bisa pakai imageUrl lama atau file di input_images.")
+            SemanticTextField("Referensi gambar produk", state.productImageRefInput, onProductImageRefChanged, helperText = "Bisa pakai referensi lama atau file dari folder gambar lokal.")
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 Checkbox(checked = state.productIsActive, onCheckedChange = onProductActiveChanged)
                 Text("Produk aktif untuk lookup dan penjualan")
@@ -618,17 +963,17 @@ private fun CashControlRoute(
                     )
                 }
             }
-            CassyCurrencyInput("Nominal", state.operations.cashMovementAmountInput, onCashMovementAmountChanged, helperText = "Reason code tetap wajib.")
-            SemanticTextField("Reason Code", state.operations.cashMovementReasonCode, onCashReasonCodeChanged)
+            CassyCurrencyInput("Nominal", state.operations.cashMovementAmountInput, onCashMovementAmountChanged, helperText = "Alasan operasional tetap wajib.")
+            SemanticTextField("Alasan Operasional", state.operations.cashMovementReasonCode, onCashReasonCodeChanged, helperText = "Pilih atau ketik alasan yang akan tercatat di audit.")
             SemanticTextField("Catatan", state.operations.cashMovementReasonDetail, onCashReasonDetailChanged, singleLine = false)
             Button(onClick = onSubmitCashMovement, modifier = Modifier.fillMaxWidth()) { Text("Simpan Kontrol Kas") }
         }
-        WorkspaceCard("Approval Queue", Modifier.weight(1f)) {
+        WorkspaceCard("Menunggu Persetujuan", Modifier.weight(1f)) {
             val approvals = state.operations.pendingApprovals.filter {
                 it.operationType.name == "CASH_IN" || it.operationType.name == "CASH_OUT" || it.operationType.name == "SAFE_DROP"
             }
             if (approvals.isEmpty()) {
-                Text("Tidak ada approval cash control yang menunggu.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Tidak ada kontrol kas yang menunggu persetujuan.", color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
                 approvals.forEach { approval ->
                     ApprovalRow(
@@ -654,7 +999,7 @@ private fun VoidSaleRoute(
     onExecuteVoid: () -> Unit
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
-        WorkspaceCard("Void Sale Review", Modifier.weight(1f)) {
+        WorkspaceCard("Review Void Transaksi", Modifier.weight(1f)) {
             Text(state.operations.voidSale.assessmentMessage, style = MaterialTheme.typography.bodySmall)
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.height(220.dp)) {
                 items(state.catalog.recentSales) { sale ->
@@ -665,14 +1010,14 @@ private fun VoidSaleRoute(
             }
         }
         WorkspaceCard("Eksekusi Void", Modifier.weight(1f)) {
-            SummaryRow("Sale Ref", state.operations.voidSale.selectedLocalNumber ?: "-")
+            SummaryRow("Transaksi", state.operations.voidSale.selectedLocalNumber ?: "-")
             SummaryRow("Metode", state.operations.voidSale.selectedPaymentMethod ?: "-")
             SummaryRow("Status", state.operations.voidSale.selectedSaleStatus ?: "-")
-            SummaryRow("Kontrak Stok", state.operations.voidSale.inventoryImpactClassification)
-            SemanticTextField("Reason Code", state.operations.voidSale.reasonCode, onVoidReasonCodeChanged)
+            SummaryRow("Tindak lanjut stok", state.operations.voidSale.inventoryImpactClassification)
+            SemanticTextField("Alasan Operasional", state.operations.voidSale.reasonCode, onVoidReasonCodeChanged, helperText = "Wajib diisi sebelum transaksi final dibatalkan.")
             SemanticTextField("Catatan Void", state.operations.voidSale.reasonDetail, onVoidReasonDetailChanged, singleLine = false)
             SemanticTextField("Follow-up Stok", state.operations.voidSale.inventoryFollowUpNote, onVoidInventoryFollowUpChanged, singleLine = false)
-            Button(onClick = onExecuteVoid, enabled = state.operations.voidSale.canExecute, modifier = Modifier.fillMaxWidth()) { Text("Eksekusi Void") }
+            Button(onClick = onExecuteVoid, enabled = state.operations.voidSale.canExecute, modifier = Modifier.fillMaxWidth()) { Text("Batalkan Transaksi Final") }
         }
     }
 }
@@ -688,17 +1033,17 @@ private fun CloseShiftRoute(
     onDenyCloseShift: (String) -> Unit
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
-        WorkspaceCard("Close Shift", Modifier.weight(1f)) {
+        WorkspaceCard("Tutup Shift", Modifier.weight(1f)) {
             state.operations.closeShiftReview?.let { review ->
                 SummaryRow("Expected Cash", "Rp ${review.expectedCash.toInt()}")
                 SummaryRow("Variance", review.variance?.let { "Rp ${it.toInt()}" } ?: "-")
             }
-            CassyCurrencyInput("Closing Cash", state.operations.closingCashInput, onClosingCashChanged, helperText = "Hitung fisik tunai dulu.")
-            SemanticTextField("Reason Code", state.operations.closeShiftReasonCode, onCloseShiftReasonCodeChanged)
+            CassyCurrencyInput("Kas Akhir", state.operations.closingCashInput, onClosingCashChanged, helperText = "Hitung fisik tunai sebelum menutup shift.")
+            SemanticTextField("Kode Alasan", state.operations.closeShiftReasonCode, onCloseShiftReasonCodeChanged)
             SemanticTextField("Catatan", state.operations.closeShiftReasonDetail, onCloseShiftReasonDetailChanged, singleLine = false)
             Button(onClick = onCloseShift, modifier = Modifier.fillMaxWidth()) { Text("Eksekusi Tutup Shift") }
         }
-        WorkspaceCard("Approval Close Shift", Modifier.weight(1f)) {
+        WorkspaceCard("Approval Tutup Shift", Modifier.weight(1f)) {
             val approvals = state.operations.pendingApprovals.filter { it.operationType.name == "CLOSE_SHIFT" }
             if (approvals.isEmpty()) {
                 Text("Tidak ada approval close shift yang menunggu.", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -722,7 +1067,7 @@ private fun CloseDayRoute(
     state: DesktopAppState,
     onCloseBusinessDay: () -> Unit
 ) {
-    WorkspaceCard("Close Day") {
+    WorkspaceCard("Tutup Hari") {
         SummaryRow("Hari Bisnis", humanizeBusinessDayLabel(state.operations.businessDayLabel))
         SummaryRow("Shift", humanizeShiftLabel(state.operations.shiftLabel))
         SummaryRow("Pending Approval", state.operations.dashboard.pendingApprovalCount.toString())
@@ -737,11 +1082,11 @@ private fun SyncCenterRoute(
     onSync: () -> Unit
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
-        WorkspaceCard("Sync Center", Modifier.weight(1f)) {
-            SummaryRow("Status", state.operations.reportingSummary?.syncStatus?.level?.name ?: "OFFLINE")
+        WorkspaceCard("Sinkronisasi", Modifier.weight(1f)) {
+                SummaryRow("Status", state.operations.reportingSummary?.syncStatus?.level?.name ?: "LOKAL")
             SummaryRow("Pending", state.operations.reportingSummary?.syncStatus?.pendingCount?.toString() ?: "0")
             SummaryRow("Failed", state.operations.reportingSummary?.syncStatus?.failedCount?.toString() ?: "0")
-            Button(onClick = onSync, modifier = Modifier.fillMaxWidth()) { Text("Replay Sync") }
+            Button(onClick = onSync, modifier = Modifier.fillMaxWidth()) { Text("Ulangi Sinkronisasi") }
         }
         WorkspaceCard("Recovery", Modifier.weight(1f)) {
             Text("Sync Cassy tetap local-first. Queue harus explainable dan bisa dipulihkan dengan sengaja.", style = MaterialTheme.typography.bodySmall)
@@ -812,17 +1157,43 @@ private fun ReportingWorkspace(state: OperationsState, onExportReport: () -> Uni
 }
 
 @Composable
-private fun SystemWorkspace(state: DesktopAppState, onSync: () -> Unit) {
-    WorkspacePage("Sistem", "Diagnostics, recovery, dan dev reset yang eksplisit.") {
+private fun SystemWorkspace(
+    state: DesktopAppState,
+    onSync: () -> Unit,
+    onStoreProfileFieldChanged: (StoreProfileUiField, String) -> Unit,
+    onSelectStoreLogo: () -> Unit,
+    onClearStoreLogo: () -> Unit,
+    onSaveStoreProfile: () -> Unit
+) {
+    WorkspacePage("Pengaturan terminal", "Kelola identitas usaha, logo lokal, dan recovery desktop tanpa meninggalkan konteks kerja.") {
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
+            WorkspaceCard("Profil usaha", Modifier.weight(1.15f)) {
+                StoreProfileEditor(
+                    state = state.storeProfile,
+                    isBusy = state.isBusy,
+                    onFieldChanged = onStoreProfileFieldChanged,
+                    onSelectLogo = onSelectStoreLogo,
+                    onClearLogo = onClearStoreLogo,
+                    onSave = onSaveStoreProfile
+                )
+            }
+            WorkspaceCard("Preview branding", Modifier.weight(0.85f)) {
+                StoreProfilePreviewCard(
+                    profile = state.storeProfile,
+                    shell = state.shell
+                )
+            }
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
             WorkspaceCard("Recovery", Modifier.weight(1f)) {
                 SummaryRow("Data Root", resolveDesktopDataRoot().absolutePath)
                 SummaryRow("Printer", state.hardware.printer.label)
                 SummaryRow("Scanner", state.hardware.scanner.label)
-                Button(onClick = onSync) { Text("Replay Sync") }
+                SummaryRow("Laci Kas", state.hardware.cashDrawer.label)
+                Button(onClick = onSync) { Text("Ulangi Sinkronisasi") }
             }
-            WorkspaceCard("Dev Reset", Modifier.weight(1f)) {
-                Text("Reset database hanya boleh jalan dengan dev flag eksplisit.", style = MaterialTheme.typography.bodySmall)
+            WorkspaceCard("Reset Data Demo", Modifier.weight(1f)) {
+                Text("Reset data hanya boleh dijalankan pada folder sandbox terpisah.", style = MaterialTheme.typography.bodySmall)
                 Text(devResetCommandHint(), style = MaterialTheme.typography.bodySmall)
             }
         }
@@ -830,8 +1201,161 @@ private fun SystemWorkspace(state: DesktopAppState, onSync: () -> Unit) {
 }
 
 @Composable
+private fun StoreProfileEditor(
+    state: StoreProfileState,
+    isBusy: Boolean,
+    onFieldChanged: (StoreProfileUiField, String) -> Unit,
+    onSelectLogo: () -> Unit,
+    onClearLogo: () -> Unit,
+    onSave: () -> Unit
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            SemanticTextField(
+                label = "Nama usaha",
+                value = state.businessName,
+                onValueChange = { onFieldChanged(StoreProfileUiField.BusinessName, it) },
+                placeholder = "Contoh Toko Berkah Jaya",
+                helperText = "Nama ini tampil di struk dan ringkasan operasional.",
+                errorText = state.visibleError(StoreProfileUiField.BusinessName)
+            )
+            SemanticTextField(
+                label = "Alamat usaha",
+                value = state.address,
+                onValueChange = { onFieldChanged(StoreProfileUiField.Address, it) },
+                placeholder = "Contoh Jl. Raya No. 10, Lembang",
+                helperText = "Tulis alamat yang akan dibaca pelanggan di struk.",
+                errorText = state.visibleError(StoreProfileUiField.Address),
+                singleLine = false
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                SemanticTextField(
+                    label = "Kode negara",
+                    value = state.phoneCountryCode,
+                    onValueChange = { onFieldChanged(StoreProfileUiField.PhoneCountryCode, it) },
+                    placeholder = "+62",
+                    errorText = state.visibleError(StoreProfileUiField.PhoneCountryCode),
+                    modifier = Modifier.width(120.dp)
+                )
+                SemanticTextField(
+                    label = "Nomor telepon",
+                    value = state.phoneNumber,
+                    onValueChange = { onFieldChanged(StoreProfileUiField.PhoneNumber, it) },
+                    placeholder = "81234567890",
+                    helperText = "Nomor ini tampil di struk bila pelanggan perlu menghubungi toko.",
+                    errorText = state.visibleError(StoreProfileUiField.PhoneNumber),
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            SemanticTextField(
+                label = "Catatan struk",
+                value = state.receiptNote,
+                onValueChange = { onFieldChanged(StoreProfileUiField.ReceiptNote, it) },
+                placeholder = "Contoh Terima kasih sudah berbelanja",
+                helperText = "Opsional. Dipakai sebagai footer struk.",
+                errorText = state.visibleError(StoreProfileUiField.ReceiptNote),
+                singleLine = false
+            )
+        }
+
+        Column(
+            modifier = Modifier.width(188.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text("Logo usaha", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+            ManagedImagePreview(
+                imagePath = state.logoPath,
+                fallbackLabel = state.businessName.ifBlank { "Usaha" },
+                contentDescription = "Logo usaha",
+                modifier = Modifier.fillMaxWidth().height(172.dp)
+            )
+            Text(
+                state.logoPath?.let { "File lokal: ${java.io.File(it).name}" } ?: "Belum ada logo lokal. Anda tetap bisa menyimpan profil usaha tanpa logo.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(onClick = onSelectLogo, modifier = Modifier.weight(1f)) { Text("Pilih") }
+                OutlinedButton(
+                    onClick = onClearLogo,
+                    enabled = state.logoPath != null,
+                    modifier = Modifier.weight(1f)
+                ) { Text("Hapus") }
+            }
+            Button(onClick = onSave, enabled = !isBusy, modifier = Modifier.fillMaxWidth()) {
+                Text(if (isBusy) "Menyimpan..." else "Simpan Profil")
+            }
+        }
+    }
+}
+
+@Composable
+private fun StoreProfilePreviewCard(
+    profile: StoreProfileState,
+    shell: DesktopShellState
+) {
+    ManagedImagePreview(
+        imagePath = profile.logoPath,
+        fallbackLabel = profile.businessName.ifBlank { shell.storeName ?: "Cassy" },
+        contentDescription = "Preview logo usaha",
+        modifier = Modifier.fillMaxWidth().height(132.dp)
+    )
+    SummaryRow("Nama usaha", profile.businessName.ifBlank { "Belum diisi" })
+    SummaryRow("Alamat", profile.address.ifBlank { "Belum diisi" })
+    SummaryRow(
+        "Telepon",
+        listOf(profile.phoneCountryCode, profile.phoneNumber)
+            .joinToString(" ") { it.trim() }
+            .trim()
+            .ifBlank { "Belum diisi" }
+    )
+    SummaryRow("Catatan struk", profile.receiptNote.ifBlank { "Tidak ada catatan tambahan" })
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        tonalElevation = 0.dp,
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(profile.businessName.ifBlank { shell.storeName ?: "Nama usaha" }, fontWeight = FontWeight.Bold)
+            Text(profile.address.ifBlank { "Alamat usaha akan muncul di sini." }, style = MaterialTheme.typography.bodySmall)
+            Text(
+                listOf(profile.phoneCountryCode, profile.phoneNumber).joinToString(" ") { it.trim() }.trim().ifBlank { "Nomor telepon usaha" },
+                style = MaterialTheme.typography.bodySmall
+            )
+            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+            Text("Preview struk", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+            Text(
+                profile.receiptNote.ifBlank { "Terima kasih sudah berbelanja di toko kami." },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
 private fun WorkspacePage(title: String, subtitle: String, content: @Composable ColumnScope.() -> Unit) {
-    Column(modifier = Modifier.fillMaxSize().padding(20.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    WorkspacePage(title = title, subtitle = subtitle, scrollable = true, content = content)
+}
+
+@Composable
+private fun WorkspacePage(
+    title: String,
+    subtitle: String,
+    scrollable: Boolean,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    val modifier = Modifier.fillMaxSize().padding(20.dp).let { base ->
+        if (scrollable) base.verticalScroll(rememberScrollState()) else base
+    }
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant)
         content()
@@ -840,7 +1364,7 @@ private fun WorkspacePage(title: String, subtitle: String, content: @Composable 
 
 @Composable
 private fun WorkspaceCard(title: String, modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
-    Surface(modifier = modifier, shape = RoundedCornerShape(20.dp), tonalElevation = 1.dp) {
+    Surface(modifier = modifier, shape = RoundedCornerShape(10.dp), tonalElevation = 1.dp) {
         Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             content()
@@ -856,6 +1380,47 @@ private fun SummaryRow(label: String, value: String) {
     }
 }
 
+private fun StoreProfileState.visibleError(field: StoreProfileUiField): String? {
+    return fieldErrors[field]?.takeIf { submitAttempted || field in touchedFields }
+}
+
+@Composable
+private fun ReceiptPreviewCard(
+    preview: ReceiptPreviewState,
+    printMessage: String?
+) {
+    val content = preview.content
+    if (content.isNullOrBlank()) {
+        Text(
+            preview.availabilityMessage,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        printMessage?.let {
+            Text(
+                it,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        return
+    }
+
+    SummaryRow("No. transaksi", preview.localNumber ?: "-")
+    printMessage?.let { SummaryRow("Status cetak", it) }
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        tonalElevation = 0.dp,
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(
+            text = content,
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            style = MaterialTheme.typography.bodySmall
+        )
+    }
+}
+
 @Composable
 private fun ApprovalRow(
     title: String,
@@ -864,7 +1429,7 @@ private fun ApprovalRow(
     onApprove: () -> Unit,
     onDeny: () -> Unit
 ) {
-    Surface(shape = RoundedCornerShape(14.dp), tonalElevation = 1.dp, modifier = Modifier.fillMaxWidth()) {
+    Surface(shape = RoundedCornerShape(10.dp), tonalElevation = 1.dp, modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(title, fontWeight = FontWeight.Bold)
             Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)

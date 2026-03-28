@@ -24,7 +24,7 @@ class BusinessDayService(
             return OperationDecision(
                 type = OperationType.OPEN_BUSINESS_DAY,
                 status = OperationStatus.BLOCKED,
-                title = "Buka Business Day",
+                title = "Buka Hari Bisnis",
                 message = "Terminal belum terikat ke store.",
                 blockerCode = OperationBlockerCode.TERMINAL_NOT_BOUND
             )
@@ -33,8 +33,8 @@ class BusinessDayService(
             return OperationDecision(
                 type = OperationType.OPEN_BUSINESS_DAY,
                 status = OperationStatus.BLOCKED,
-                title = "Buka Business Day",
-                message = "Login supervisor atau owner diperlukan.",
+                title = "Buka Hari Bisnis",
+                message = "Login operator diperlukan sebelum buka hari bisnis.",
                 blockerCode = OperationBlockerCode.ACCESS_NOT_ACTIVE
             )
         }
@@ -42,8 +42,8 @@ class BusinessDayService(
             return OperationDecision(
                 type = OperationType.OPEN_BUSINESS_DAY,
                 status = OperationStatus.COMPLETED,
-                title = "Buka Business Day",
-                message = "Business day ${activeDay.id} sudah aktif."
+                title = "Buka Hari Bisnis",
+                message = "Hari bisnis ${activeDay.id} sudah aktif."
             )
         }
         val capabilityResult = accessService.requireCapability(AccessCapability.OPEN_DAY)
@@ -51,17 +51,17 @@ class BusinessDayService(
             return OperationDecision(
                 type = OperationType.OPEN_BUSINESS_DAY,
                 status = OperationStatus.BLOCKED,
-                title = "Buka Business Day",
-                message = "Supervisor atau owner diperlukan untuk membuka business day.",
+                title = "Buka Hari Bisnis",
+                message = "Operator aktif belum punya hak untuk membuka hari bisnis.",
                 blockerCode = OperationBlockerCode.CAPABILITY_DENIED
             )
         }
         return OperationDecision(
             type = OperationType.OPEN_BUSINESS_DAY,
             status = OperationStatus.READY,
-            title = "Buka Business Day",
-            message = "Siap membuka business day hari ini.",
-            actionLabel = "Buka Business Day"
+            title = "Buka Hari Bisnis",
+            message = "Hari bisnis siap dibuka untuk operasional hari ini.",
+            actionLabel = "Buka Hari Bisnis"
         )
     }
 
