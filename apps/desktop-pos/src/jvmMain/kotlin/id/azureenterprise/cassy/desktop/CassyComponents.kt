@@ -31,6 +31,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import id.azureenterprise.cassy.kernel.domain.OperationDecision
+import id.azureenterprise.cassy.kernel.domain.OperationStatus
 import id.azureenterprise.cassy.kernel.domain.SyncLevel
 import id.azureenterprise.cassy.kernel.domain.SyncStatus
 import id.azureenterprise.cassy.masterdata.domain.Product
@@ -689,6 +691,102 @@ fun CassyStepUpAuthDialog(
             OutlinedButton(onClick = onDismiss) { Text("Batal") }
         }
     )
+}
+
+@Composable
+fun BannerCard(
+    banner: UiBanner,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier.widthIn(max = 420.dp),
+        shape = RoundedCornerShape(12.dp),
+        color = toneContainerColor(banner.tone),
+        tonalElevation = 4.dp,
+        border = BorderStroke(1.dp, toneColor(banner.tone).copy(alpha = 0.2f))
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            Icon(
+                imageVector = when (banner.tone) {
+                    UiTone.Success -> Icons.Default.CheckCircle
+                    UiTone.Warning -> Icons.Default.Warning
+                    UiTone.Danger -> Icons.Default.Error
+                    UiTone.Info -> Icons.Default.Info
+                },
+                contentDescription = null,
+                tint = toneColor(banner.tone),
+                modifier = Modifier.size(24.dp)
+            )
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = banner.message,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = toneContentColor(banner.tone)
+                )
+            }
+            IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
+                Icon(Icons.Default.Close, contentDescription = "Close", tint = toneColor(banner.tone).copy(alpha = 0.6f))
+            }
+        }
+    }
+}
+
+@Composable
+fun OperationDecisionRow(
+    decision: OperationDecision,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(10.dp),
+        color = toneContainerColor(
+            when (decision.status) {
+                OperationStatus.READY -> UiTone.Success
+                OperationStatus.REQUIRES_APPROVAL -> UiTone.Warning
+                else -> UiTone.Danger
+            }
+        ).copy(alpha = 0.4f),
+        border = BorderStroke(1.dp, toneColor(
+            when (decision.status) {
+                OperationStatus.READY -> UiTone.Success
+                OperationStatus.REQUIRES_APPROVAL -> UiTone.Warning
+                else -> UiTone.Danger
+            }
+        ).copy(alpha = 0.15f))
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = when (decision.status) {
+                    OperationStatus.READY -> Icons.Default.CheckCircle
+                    OperationStatus.REQUIRES_APPROVAL -> Icons.Default.Pending
+                    else -> Icons.Default.Block
+                },
+                contentDescription = null,
+                tint = toneColor(
+                    when (decision.status) {
+                        OperationStatus.READY -> UiTone.Success
+                        OperationStatus.REQUIRES_APPROVAL -> UiTone.Warning
+                        else -> UiTone.Danger
+                    }
+                ),
+                modifier = Modifier.size(20.dp)
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(decision.title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                Text(decision.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
 }
 
 @Composable
