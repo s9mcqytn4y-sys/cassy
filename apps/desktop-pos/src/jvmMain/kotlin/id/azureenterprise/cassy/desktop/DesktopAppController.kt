@@ -56,7 +56,17 @@ class DesktopAppController(
 
     suspend fun load() {
         mutateBusy(true)
-        runCatching { refreshStage() }
+        updateLoadingState(
+            phase = DesktopLoadingPhase.PreparingStorage,
+            detail = "Menyiapkan data lokal Cassy"
+        )
+        runCatching {
+            updateLoadingState(
+                phase = DesktopLoadingPhase.RestoringContext,
+                detail = "Membaca terminal, operator, dan sesi terakhir"
+            )
+            refreshStage()
+        }
             .onFailure { error ->
                 _state.update {
                     it.copy(
@@ -205,20 +215,53 @@ class DesktopAppController(
 
     suspend fun bootstrapStore() {
         mutateBusy(true)
+        val currentState = state.value
         val validatedBootstrap = applyBootstrapValidation(
-            state.value.bootstrap.copy(submitAttempted = true)
+            currentState.bootstrap.copy(submitAttempted = true)
         )
-        _state.update { it.copy(bootstrap = validatedBootstrap) }
-        if (validatedBootstrap.fieldErrors.isNotEmpty()) {
+        val validatedStoreProfile = applyStoreProfileValidation(
+            currentState.storeProfile.copy(submitAttempted = true)
+        )
+        _state.update {
+            it.copy(
+                bootstrap = validatedBootstrap,
+                storeProfile = validatedStoreProfile
+            )
+        }
+        val requiresBootstrapIdentity = currentState.bootstrapMode == BootstrapMode.FullSetup
+        val hasBootstrapErrors = requiresBootstrapIdentity && validatedBootstrap.fieldErrors.isNotEmpty()
+        val hasStoreProfileErrors = validatedStoreProfile.fieldErrors.isNotEmpty()
+        if (hasBootstrapErrors || hasStoreProfileErrors) {
             mutateBusy(false)
-            pushBanner(UiBanner(UiTone.Warning, "Periksa lagi field yang belum valid"))
+            pushBanner(UiBanner(UiTone.Warning, "Lengkapi dulu data usaha dan operator yang masih belum valid"))
             return
         }
-        val result = accessService.bootstrapStore(validatedBootstrap.toBootstrapStoreRequest())
+
+        val bootstrapResult = if (requiresBootstrapIdentity) {
+            accessService.bootstrapStore(validatedBootstrap.toBootstrapStoreRequest())
+        } else {
+            Result.success(accessService.restoreContext().terminalBinding)
+        }
+        val storeId = bootstrapResult.getOrNull()?.storeId
+            ?: accessService.restoreContext().terminalBinding?.storeId
+        if (storeId == null) {
+            mutateBusy(false)
+            pushBanner(UiBanner(UiTone.Danger, "Store belum siap disimpan. Ulangi bootstrap terminal utama."))
+            return
+        }
+
+        val profileResult = storeProfileService.save(validatedStoreProfile.toDraft())
         refreshStage(
-            result.fold(
-                onSuccess = { UiBanner(UiTone.Success, "Pengaturan awal selesai. Login dengan PIN operator.") },
-                onFailure = { UiBanner(UiTone.Danger, it.message ?: "Bootstrap store gagal") }
+            profileResult.fold(
+                onSuccess = {
+                    val message = if (requiresBootstrapIdentity) {
+                        "Identitas usaha lengkap. Lanjut login operator lokal."
+                    } else {
+                        "Identitas usaha sudah lengkap. Login operator bisa dilanjutkan."
+                    }
+                    UiBanner(UiTone.Success, message)
+                },
+                onFailure = { UiBanner(UiTone.Danger, it.message ?: "Profil usaha gagal disimpan") }
             )
         )
     }
@@ -227,14 +270,33 @@ class DesktopAppController(
         _state.update {
             val updated = when (field) {
                 StoreProfileUiField.BusinessName -> it.storeProfile.copy(businessName = value)
-                StoreProfileUiField.Address -> it.storeProfile.copy(address = value)
+                StoreProfileUiField.StreetAddress -> it.storeProfile.copy(streetAddress = value)
+                StoreProfileUiField.Neighborhood -> it.storeProfile.copy(neighborhood = value)
+                StoreProfileUiField.Village -> it.storeProfile.copy(village = value)
+                StoreProfileUiField.District -> it.storeProfile.copy(district = value)
+                StoreProfileUiField.City -> it.storeProfile.copy(city = value)
+                StoreProfileUiField.Province -> it.storeProfile.copy(province = value)
+                StoreProfileUiField.PostalCode -> it.storeProfile.copy(postalCode = value)
                 StoreProfileUiField.PhoneCountryCode -> it.storeProfile.copy(phoneCountryCode = value)
                 StoreProfileUiField.PhoneNumber -> it.storeProfile.copy(phoneNumber = value)
+                StoreProfileUiField.BusinessEmail -> it.storeProfile.copy(businessEmail = value)
+                StoreProfileUiField.LegalId -> it.storeProfile.copy(legalId = value)
                 StoreProfileUiField.ReceiptNote -> it.storeProfile.copy(receiptNote = value)
                 StoreProfileUiField.LogoPath -> it.storeProfile
             }.copy(
                 touchedFields = it.storeProfile.touchedFields + field
             )
+            it.copy(storeProfile = applyStoreProfileValidation(updated))
+        }
+    }
+
+    fun updateStoreProfileToggle(field: StoreProfileToggleField, enabled: Boolean) {
+        _state.update {
+            val updated = when (field) {
+                StoreProfileToggleField.ShowLogoOnReceipt -> it.storeProfile.copy(showLogoOnReceipt = enabled)
+                StoreProfileToggleField.ShowAddressOnReceipt -> it.storeProfile.copy(showAddressOnReceipt = enabled)
+                StoreProfileToggleField.ShowPhoneOnReceipt -> it.storeProfile.copy(showPhoneOnReceipt = enabled)
+            }
             it.copy(storeProfile = applyStoreProfileValidation(updated))
         }
     }
@@ -1603,8 +1665,16 @@ class DesktopAppController(
 
     private suspend fun refreshStage(banner: UiBanner? = state.value.banner) {
         val context = accessService.restoreContext()
+        updateLoadingState(
+            phase = DesktopLoadingPhase.RestoringContext,
+            detail = "Membaca status terminal dan operator"
+        )
         val businessDay = businessDayService.getActiveBusinessDay()
         val activeShift = shiftService.getActiveShift()
+        updateLoadingState(
+            phase = DesktopLoadingPhase.CheckingOperations,
+            detail = "Memeriksa kesiapan operasional terminal"
+        )
         val operationalSnapshot = operationalControlService.buildSnapshot(
             openingCashInput = state.value.operations.openingCashInput,
             openingCashReason = state.value.operations.openingCashReason
@@ -1635,22 +1705,44 @@ class DesktopAppController(
         )
         val pendingApprovals = cashControlService.listPendingApprovals() + shiftClosingService.listPendingApprovals()
         val activeOperator = context.activeOperator
+        updateLoadingState(
+            phase = DesktopLoadingPhase.CheckingIdentity,
+            detail = "Memeriksa identitas usaha dan template struk"
+        )
+        val draftFromState = state.value.storeProfile.toDraft()
         val storeProfileDraft = context.terminalBinding?.let {
             storeProfileService.loadDraft().getOrNull()
-        }
-        val validatedStoreProfile = storeProfileDraft?.let { draft ->
+        } ?: draftFromState
+        val storeProfileValidation = storeProfileService.validate(storeProfileDraft)
+        val validatedStoreProfile = run {
+            val draft = storeProfileDraft
             val previous = state.value.storeProfile
             applyStoreProfileValidation(
                 previous.copy(
                     businessName = draft.businessName,
                     address = draft.address,
+                    streetAddress = draft.streetAddress,
+                    neighborhood = draft.neighborhood,
+                    village = draft.village,
+                    district = draft.district,
+                    city = draft.city,
+                    province = draft.province,
+                    postalCode = draft.postalCode,
                     phoneCountryCode = draft.phoneCountryCode,
                     phoneNumber = draft.phoneNumber,
+                    businessEmail = draft.businessEmail,
+                    legalId = draft.legalId,
                     receiptNote = draft.receiptNote,
-                    logoPath = draft.logoPath
+                    logoPath = draft.logoPath,
+                    showLogoOnReceipt = draft.showLogoOnReceipt,
+                    showAddressOnReceipt = draft.showAddressOnReceipt,
+                    showPhoneOnReceipt = draft.showPhoneOnReceipt
                 )
             )
-        } ?: StoreProfileState()
+        }
+        val requiresIdentityCompletion = context.terminalBinding != null &&
+            context.operators.isNotEmpty() &&
+            !storeProfileValidation.isValid
         val operators = context.operators.map {
             OperatorOption(
                 id = it.id,
@@ -1684,8 +1776,14 @@ class DesktopAppController(
             ?: DesktopWorkspace.Dashboard
         val stage = when {
             context.terminalBinding == null || context.operators.isEmpty() -> DesktopStage.Bootstrap
+            requiresIdentityCompletion -> DesktopStage.Bootstrap
             context.activeSession == null -> DesktopStage.Login
             else -> DesktopStage.Workspace
+        }
+        val bootstrapMode = if (context.terminalBinding == null || context.operators.isEmpty()) {
+            BootstrapMode.FullSetup
+        } else {
+            BootstrapMode.CompleteIdentity
         }
 
         // R5 Reporting Aggregation
@@ -1757,15 +1855,25 @@ class DesktopAppController(
                     feedback = if (stage == DesktopStage.Login) it.login.feedback else null
                 ),
                 bootstrap = if (stage == DesktopStage.Bootstrap) {
-                    applyBootstrapValidation(it.bootstrap)
+                    if (bootstrapMode == BootstrapMode.FullSetup) {
+                        applyBootstrapValidation(it.bootstrap)
+                    } else {
+                        it.bootstrap.copy(fieldErrors = emptyMap(), submitAttempted = false)
+                    }
                 } else {
                     BootstrapState()
                 },
-                storeProfile = if (stage == DesktopStage.Workspace) {
+                storeProfile = if (stage == DesktopStage.Workspace || stage == DesktopStage.Bootstrap) {
                     validatedStoreProfile
                 } else {
                     StoreProfileState()
                 },
+                bootstrapMode = bootstrapMode,
+                loading = DesktopLoadingState(
+                    phase = DesktopLoadingPhase.Ready,
+                    title = "Siap dipakai",
+                    detail = "Shell desktop sudah siap dipakai."
+                ),
                 operations = OperationsState(
                     canOpenDay = activeOperator?.role?.supports(AccessCapability.OPEN_DAY) == true,
                     blockingMessage = when {
@@ -2004,6 +2112,22 @@ class DesktopAppController(
         _state.update { it.copy(isBusy = value) }
     }
 
+    private fun updateLoadingState(
+        phase: DesktopLoadingPhase,
+        detail: String = phase.title
+    ) {
+        _state.update {
+            it.copy(
+                loading = DesktopLoadingState(
+                    phase = phase,
+                    title = phase.title,
+                    detail = detail,
+                    progress = phase.progress
+                )
+            )
+        }
+    }
+
     private fun pushBanner(banner: UiBanner) {
         _state.update { it.copy(isBusy = false, banner = banner) }
     }
@@ -2081,6 +2205,8 @@ data class DesktopAppState(
     val activeWorkspace: DesktopWorkspace = DesktopWorkspace.Dashboard,
     val inventoryRoute: DesktopInventoryRoute = DesktopInventoryRoute.StockOverview,
     val operationsRoute: DesktopOperationsRoute = DesktopOperationsRoute.CashControl,
+    val bootstrapMode: BootstrapMode = BootstrapMode.FullSetup,
+    val loading: DesktopLoadingState = DesktopLoadingState(),
     val shell: DesktopShellState = DesktopShellState(),
     val bootstrap: BootstrapState = BootstrapState(),
     val login: LoginState = LoginState(),
@@ -2101,6 +2227,29 @@ sealed interface DesktopStage {
     data object Login : DesktopStage
     data object Workspace : DesktopStage
     data class FatalError(val message: String) : DesktopStage
+}
+
+enum class BootstrapMode {
+    FullSetup,
+    CompleteIdentity
+}
+
+data class DesktopLoadingState(
+    val phase: DesktopLoadingPhase = DesktopLoadingPhase.PreparingStorage,
+    val title: String = "Menyiapkan Cassy",
+    val detail: String = "Menunggu startup desktop selesai",
+    val progress: Float = 0.1f
+)
+
+enum class DesktopLoadingPhase(
+    val title: String,
+    val progress: Float
+) {
+    PreparingStorage("Menyiapkan Cassy", 0.16f),
+    RestoringContext("Memuat konteks lokal", 0.38f),
+    CheckingOperations("Memeriksa kesiapan terminal", 0.64f),
+    CheckingIdentity("Memeriksa identitas usaha", 0.82f),
+    Ready("Siap dipakai", 1f)
 }
 
 data class DesktopShellState(
@@ -2151,10 +2300,22 @@ data class LoginState(
 data class StoreProfileState(
     val businessName: String = "",
     val address: String = "",
+    val streetAddress: String = "",
+    val neighborhood: String = "",
+    val village: String = "",
+    val district: String = "",
+    val city: String = "",
+    val province: String = "",
+    val postalCode: String = "",
     val phoneCountryCode: String = DEFAULT_PHONE_COUNTRY_CODE,
     val phoneNumber: String = "",
+    val businessEmail: String = "",
+    val legalId: String = "",
     val receiptNote: String = "",
     val logoPath: String? = null,
+    val showLogoOnReceipt: Boolean = true,
+    val showAddressOnReceipt: Boolean = true,
+    val showPhoneOnReceipt: Boolean = true,
     val fieldErrors: Map<StoreProfileUiField, String> = emptyMap(),
     val touchedFields: Set<StoreProfileUiField> = emptySet(),
     val submitAttempted: Boolean = false
@@ -2162,11 +2323,25 @@ data class StoreProfileState(
 
 enum class StoreProfileUiField {
     BusinessName,
-    Address,
+    StreetAddress,
+    Neighborhood,
+    Village,
+    District,
+    City,
+    Province,
+    PostalCode,
     PhoneCountryCode,
     PhoneNumber,
+    BusinessEmail,
+    LegalId,
     ReceiptNote,
     LogoPath
+}
+
+enum class StoreProfileToggleField {
+    ShowLogoOnReceipt,
+    ShowAddressOnReceipt,
+    ShowPhoneOnReceipt
 }
 
 data class OperatorOption(
@@ -2422,9 +2597,17 @@ private fun BootstrapStoreField.toUiField(): BootstrapField = when (this) {
 
 private fun StoreProfileField.toUiField(): StoreProfileUiField = when (this) {
     StoreProfileField.BUSINESS_NAME -> StoreProfileUiField.BusinessName
-    StoreProfileField.ADDRESS -> StoreProfileUiField.Address
+    StoreProfileField.STREET_ADDRESS -> StoreProfileUiField.StreetAddress
+    StoreProfileField.NEIGHBORHOOD -> StoreProfileUiField.Neighborhood
+    StoreProfileField.VILLAGE -> StoreProfileUiField.Village
+    StoreProfileField.DISTRICT -> StoreProfileUiField.District
+    StoreProfileField.CITY -> StoreProfileUiField.City
+    StoreProfileField.PROVINCE -> StoreProfileUiField.Province
+    StoreProfileField.POSTAL_CODE -> StoreProfileUiField.PostalCode
     StoreProfileField.PHONE_COUNTRY_CODE -> StoreProfileUiField.PhoneCountryCode
     StoreProfileField.PHONE_NUMBER -> StoreProfileUiField.PhoneNumber
+    StoreProfileField.BUSINESS_EMAIL -> StoreProfileUiField.BusinessEmail
+    StoreProfileField.LEGAL_ID -> StoreProfileUiField.LegalId
     StoreProfileField.RECEIPT_NOTE -> StoreProfileUiField.ReceiptNote
     StoreProfileField.LOGO_PATH -> StoreProfileUiField.LogoPath
 }
@@ -2433,9 +2616,21 @@ private fun StoreProfileState.toDraft(): StoreProfileDraft {
     return StoreProfileDraft(
         businessName = businessName,
         address = address,
+        streetAddress = streetAddress,
+        neighborhood = neighborhood,
+        village = village,
+        district = district,
+        city = city,
+        province = province,
+        postalCode = postalCode,
         phoneCountryCode = phoneCountryCode,
         phoneNumber = phoneNumber,
+        businessEmail = businessEmail,
+        legalId = legalId,
         receiptNote = receiptNote,
-        logoPath = logoPath
+        logoPath = logoPath,
+        showLogoOnReceipt = showLogoOnReceipt,
+        showAddressOnReceipt = showAddressOnReceipt,
+        showPhoneOnReceipt = showPhoneOnReceipt
     )
 }

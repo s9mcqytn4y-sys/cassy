@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Prepare Gradle Wrapper
-        run: chmod +x ./gradlew
+        run: chmod +x ./gradlew tooling/scripts/invoke-desktop-sandbox.sh
       - uses: actions/setup-java@v5
         with:
           java-version: '17'
@@ -33,6 +33,8 @@ jobs:
           --configuration-cache
           --scan
           --no-daemon
+      - name: Smoke Run Desktop Sandbox
+        run: ./tooling/scripts/invoke-desktop-sandbox.sh --smoke-run --truncate-data --data-root "$PWD/.sandbox/nightly-desktop-smoke"
       - name: Upload Nightly Reports
         if: always()
         uses: actions/upload-artifact@v6

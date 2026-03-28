@@ -1,19 +1,34 @@
 package id.azureenterprise.cassy.desktop
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -28,9 +43,66 @@ import id.azureenterprise.cassy.sales.domain.SaleHistoryEntry
 import kotlinx.datetime.Instant
 
 @Composable
-fun LoadingStage() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator()
+fun LoadingStage(state: DesktopLoadingState) {
+    val animatedProgress by animateFloatAsState(
+        targetValue = state.progress,
+        animationSpec = tween(durationMillis = 460),
+        label = "loading-progress"
+    )
+    val animatedScale by animateFloatAsState(
+        targetValue = 0.92f + (animatedProgress * 0.12f),
+        animationSpec = tween(durationMillis = 520),
+        label = "loading-scale"
+    )
+
+    Box(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 28.dp, vertical = 24.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Surface(
+            modifier = Modifier.widthIn(max = 720.dp),
+            shape = RoundedCornerShape(20.dp),
+            tonalElevation = 2.dp
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 32.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Image(
+                    painter = painterResource(CASSY_BRAND_ICON_RESOURCE),
+                    contentDescription = "Cassy POS",
+                    modifier = Modifier
+                        .size(96.dp)
+                        .graphicsLayer {
+                            scaleX = animatedScale
+                            scaleY = animatedScale
+                            alpha = 0.78f + (animatedProgress * 0.22f)
+                        }
+                )
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(state.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    Text(
+                        state.detail,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                }
+                LinearProgressIndicator(
+                    progress = { animatedProgress.coerceIn(0.06f, 1f) },
+                    modifier = Modifier.fillMaxWidth().height(8.dp)
+                )
+                Text(
+                    "${(animatedProgress * 100).toInt()}% siap",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
     }
 }
 
@@ -48,34 +120,57 @@ fun FatalStage(message: String, onRetry: () -> Unit) {
 @Composable
 fun BootstrapStage(
     state: DesktopAppState,
+    mode: BootstrapMode,
     onFieldChanged: (BootstrapField, String) -> Unit,
+    onStoreProfileFieldChanged: (StoreProfileUiField, String) -> Unit,
+    onStoreProfileToggleChanged: (StoreProfileToggleField, Boolean) -> Unit,
     onSelectAvatar: (BootstrapField) -> Unit,
     onClearAvatar: (BootstrapField) -> Unit,
+    onSelectStoreLogo: () -> Unit,
+    onClearStoreLogo: () -> Unit,
     onBootstrap: () -> Unit
 ) {
     val readinessItems = listOf(
         BootstrapReadinessItem(
-            title = "Nama toko",
-            detail = "Nama yang muncul di struk dan laporan.",
-            isReady = state.bootstrap.storeName.isNotBlank()
+            title = "Nama usaha",
+            detail = "Nama yang muncul di aplikasi, struk, dan invoice.",
+            isReady = state.storeProfile.businessName.isNotBlank()
         ),
         BootstrapReadinessItem(
-            title = "Nama terminal",
-            detail = "Penanda perangkat kasir utama.",
-            isReady = state.bootstrap.terminalName.isNotBlank()
+            title = "Alamat dan kontak",
+            detail = "Alamat terstruktur, telepon, dan catatan struk wajib lengkap.",
+            isReady = state.storeProfile.fieldErrors.isEmpty() &&
+                state.storeProfile.streetAddress.isNotBlank() &&
+                state.storeProfile.phoneNumber.isNotBlank() &&
+                state.storeProfile.receiptNote.isNotBlank()
         ),
         BootstrapReadinessItem(
-            title = "Kasir awal",
-            detail = "Nama kasir dan PIN 6 digit harus lengkap.",
-            isReady = state.bootstrap.cashierName.isNotBlank() && state.bootstrap.cashierPin.length == 6
+            title = "Terminal utama",
+            detail = if (mode == BootstrapMode.FullSetup) "Penanda perangkat kasir utama." else "Terminal ini sudah terdaftar.",
+            isReady = mode == BootstrapMode.CompleteIdentity || state.bootstrap.terminalName.isNotBlank()
         ),
         BootstrapReadinessItem(
-            title = "Supervisor awal",
-            detail = "Nama supervisor dan PIN 6 digit harus lengkap.",
-            isReady = state.bootstrap.supervisorName.isNotBlank() && state.bootstrap.supervisorPin.length == 6
+            title = "Operator awal",
+            detail = "Kasir dan supervisor awal wajib lengkap.",
+            isReady = mode == BootstrapMode.CompleteIdentity || (
+                state.bootstrap.cashierName.isNotBlank() &&
+                    state.bootstrap.cashierPin.length == 6 &&
+                    state.bootstrap.supervisorName.isNotBlank() &&
+                    state.bootstrap.supervisorPin.length == 6
+                )
         )
     )
     val completedCount = readinessItems.count { it.isReady }
+    val stageTitle = if (mode == BootstrapMode.FullSetup) "Pengaturan awal toko" else "Lengkapi identitas usaha"
+    val stageSubtitle = if (mode == BootstrapMode.FullSetup) {
+        "Selesaikan identitas usaha, terminal utama, dan operator awal agar startup Cassy bisa lanjut ke login operator."
+    } else {
+        "Terminal sudah terdaftar. Lengkapi dulu identitas usaha agar struk, invoice dasar, dan login operator bisa dipakai."
+    }
+    val previewPhone = listOf(state.storeProfile.phoneCountryCode, state.storeProfile.phoneNumber)
+        .joinToString(" ") { it.trim() }
+        .trim()
+        .ifBlank { "Belum diisi" }
 
     Box(modifier = Modifier.fillMaxSize().padding(horizontal = 28.dp, vertical = 24.dp)) {
         Row(
@@ -95,9 +190,9 @@ fun BootstrapStage(
                         modifier = Modifier.fillMaxWidth().padding(18.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Text("Pengaturan awal toko", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                        Text(stageTitle, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                         Text(
-                            "Selesaikan data dasar ini sekali saja agar terminal bisa dipakai operasional harian tanpa kebingungan.",
+                            stageSubtitle,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -131,9 +226,9 @@ fun BootstrapStage(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text("Setelah disimpan", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                        Text("1. Layar akan pindah ke login operator lokal.", style = MaterialTheme.typography.bodySmall)
-                        Text("2. Kasir dapat membuka hari bisnis saat mulai operasional.", style = MaterialTheme.typography.bodySmall)
-                        Text("3. Kasir membuka shift setelah modal awal siap.", style = MaterialTheme.typography.bodySmall)
+                        Text("1. Splash akan lanjut ke login operator lokal.", style = MaterialTheme.typography.bodySmall)
+                        Text("2. Data usaha ini dipakai di struk dan invoice dasar.", style = MaterialTheme.typography.bodySmall)
+                        Text("3. Kasir bisa membuka hari bisnis setelah login.", style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }
@@ -158,7 +253,7 @@ fun BootstrapStage(
                         ) {
                             Text("Isi data terminal utama", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                             Text(
-                                "Fokus dulu ke identitas toko, lalu operator awal. Tidak perlu memikirkan hari bisnis, shift, atau perangkat di tahap ini.",
+                                "Fokus dulu ke identitas usaha, lalu operator awal. Hari bisnis, shift, dan perangkat diproses sesudah login.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -175,47 +270,278 @@ fun BootstrapStage(
                         verticalAlignment = Alignment.Top
                     ) {
                         StageSectionCard(
-                            title = "Identitas toko dan terminal",
+                            title = "Identitas usaha dan terminal",
                             modifier = Modifier.weight(1f)
                         ) {
                             SemanticTextField(
-                                label = "Nama Toko",
-                                value = state.bootstrap.storeName,
-                                onValueChange = { onFieldChanged(BootstrapField.StoreName, it) },
-                                helperText = "Nama ini akan muncul di struk dan laporan harian.",
-                                errorText = state.bootstrap.visibleError(BootstrapField.StoreName),
+                                label = "Nama usaha",
+                                value = state.storeProfile.businessName,
+                                onValueChange = {
+                                    onStoreProfileFieldChanged(StoreProfileUiField.BusinessName, it)
+                                    if (mode == BootstrapMode.FullSetup) onFieldChanged(BootstrapField.StoreName, it)
+                                },
+                                helperText = "Nama ini tampil di aplikasi, struk, dan invoice.",
+                                errorText = state.storeProfile.visibleError(StoreProfileUiField.BusinessName),
                                 placeholder = "Contoh: Toko Berkah Jaya",
                                 leadingIcon = Icons.Default.Storefront
                             )
+                            if (mode == BootstrapMode.FullSetup) {
+                                SemanticTextField(
+                                    label = "Nama terminal",
+                                    value = state.bootstrap.terminalName,
+                                    onValueChange = { onFieldChanged(BootstrapField.TerminalName, it) },
+                                    helperText = "Gunakan nama perangkat yang mudah dikenali, misalnya Kasir-01.",
+                                    errorText = state.bootstrap.visibleError(BootstrapField.TerminalName),
+                                    placeholder = "Contoh: Kasir-01",
+                                    leadingIcon = Icons.Default.PointOfSale
+                                )
+                            } else {
+                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text(
+                                        "Nama terminal",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Surface(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 16.dp),
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.PointOfSale,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary
+                                            )
+                                            Text(
+                                                text = state.shell.terminalName.orEmpty().ifBlank { "Terminal utama" },
+                                                style = MaterialTheme.typography.bodyLarge,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                        }
+                                    }
+                                    Text(
+                                        "Terminal ini sudah terdaftar dan tidak perlu diubah di tahap ini.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
                             SemanticTextField(
-                                label = "Nama Terminal",
-                                value = state.bootstrap.terminalName,
-                                onValueChange = { onFieldChanged(BootstrapField.TerminalName, it) },
-                                helperText = "Gunakan nama perangkat yang mudah dikenali, misalnya Kasir-01.",
-                                errorText = state.bootstrap.visibleError(BootstrapField.TerminalName),
-                                placeholder = "Contoh: Kasir-01",
-                                leadingIcon = Icons.Default.PointOfSale
+                                label = "Alamat jalan",
+                                value = state.storeProfile.streetAddress,
+                                onValueChange = { onStoreProfileFieldChanged(StoreProfileUiField.StreetAddress, it) },
+                                helperText = "Alamat utama yang tampil di struk.",
+                                errorText = state.storeProfile.visibleError(StoreProfileUiField.StreetAddress),
+                                placeholder = "Contoh: Jl. Jayagiri No. 10",
+                                leadingIcon = Icons.Default.Home,
+                                singleLine = false
                             )
+                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                                SemanticTextField(
+                                    label = "RT / RW",
+                                    value = state.storeProfile.neighborhood,
+                                    onValueChange = { onStoreProfileFieldChanged(StoreProfileUiField.Neighborhood, it) },
+                                    helperText = "Wajib diisi.",
+                                    errorText = state.storeProfile.visibleError(StoreProfileUiField.Neighborhood),
+                                    placeholder = "02/05",
+                                    modifier = Modifier.weight(0.6f)
+                                )
+                                SemanticTextField(
+                                    label = "Kelurahan / Desa",
+                                    value = state.storeProfile.village,
+                                    onValueChange = { onStoreProfileFieldChanged(StoreProfileUiField.Village, it) },
+                                    helperText = "Wajib diisi.",
+                                    errorText = state.storeProfile.visibleError(StoreProfileUiField.Village),
+                                    placeholder = "Jayagiri",
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                                SemanticTextField(
+                                    label = "Kecamatan",
+                                    value = state.storeProfile.district,
+                                    onValueChange = { onStoreProfileFieldChanged(StoreProfileUiField.District, it) },
+                                    errorText = state.storeProfile.visibleError(StoreProfileUiField.District),
+                                    placeholder = "Lembang",
+                                    modifier = Modifier.weight(1f)
+                                )
+                                SemanticTextField(
+                                    label = "Kota / Kabupaten",
+                                    value = state.storeProfile.city,
+                                    onValueChange = { onStoreProfileFieldChanged(StoreProfileUiField.City, it) },
+                                    errorText = state.storeProfile.visibleError(StoreProfileUiField.City),
+                                    placeholder = "Bandung Barat",
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                                SemanticTextField(
+                                    label = "Provinsi",
+                                    value = state.storeProfile.province,
+                                    onValueChange = { onStoreProfileFieldChanged(StoreProfileUiField.Province, it) },
+                                    errorText = state.storeProfile.visibleError(StoreProfileUiField.Province),
+                                    placeholder = "Jawa Barat",
+                                    modifier = Modifier.weight(1f)
+                                )
+                                SemanticTextField(
+                                    label = "Kode pos",
+                                    value = state.storeProfile.postalCode,
+                                    onValueChange = { onStoreProfileFieldChanged(StoreProfileUiField.PostalCode, it) },
+                                    errorText = state.storeProfile.visibleError(StoreProfileUiField.PostalCode),
+                                    placeholder = "40391",
+                                    modifier = Modifier.width(128.dp)
+                                )
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                                SemanticTextField(
+                                    label = "Kode negara",
+                                    value = state.storeProfile.phoneCountryCode,
+                                    onValueChange = { onStoreProfileFieldChanged(StoreProfileUiField.PhoneCountryCode, it) },
+                                    errorText = state.storeProfile.visibleError(StoreProfileUiField.PhoneCountryCode),
+                                    placeholder = "+62",
+                                    modifier = Modifier.width(120.dp)
+                                )
+                                SemanticTextField(
+                                    label = "Nomor telepon",
+                                    value = state.storeProfile.phoneNumber,
+                                    onValueChange = { onStoreProfileFieldChanged(StoreProfileUiField.PhoneNumber, it) },
+                                    helperText = "Dipakai untuk kontak usaha di struk.",
+                                    errorText = state.storeProfile.visibleError(StoreProfileUiField.PhoneNumber),
+                                    placeholder = "81234567890",
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                                SemanticTextField(
+                                    label = "Email usaha",
+                                    value = state.storeProfile.businessEmail,
+                                    onValueChange = { onStoreProfileFieldChanged(StoreProfileUiField.BusinessEmail, it) },
+                                    helperText = "Opsional. Dipakai untuk invoice dasar.",
+                                    errorText = state.storeProfile.visibleError(StoreProfileUiField.BusinessEmail),
+                                    placeholder = "contoh@usaha.com",
+                                    modifier = Modifier.weight(1f)
+                                )
+                                SemanticTextField(
+                                    label = "NIB / NPWP / ID legal",
+                                    value = state.storeProfile.legalId,
+                                    onValueChange = { onStoreProfileFieldChanged(StoreProfileUiField.LegalId, it) },
+                                    helperText = "Opsional, tetapi disarankan.",
+                                    errorText = state.storeProfile.visibleError(StoreProfileUiField.LegalId),
+                                    placeholder = "Opsional",
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            SemanticTextField(
+                                label = "Catatan struk",
+                                value = state.storeProfile.receiptNote,
+                                onValueChange = { onStoreProfileFieldChanged(StoreProfileUiField.ReceiptNote, it) },
+                                helperText = "Wajib diisi. Dipakai sebagai footer struk.",
+                                errorText = state.storeProfile.visibleError(StoreProfileUiField.ReceiptNote),
+                                placeholder = "Contoh: Terima kasih sudah berbelanja",
+                                singleLine = false,
+                                leadingIcon = Icons.Default.ReceiptLong
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                                OutlinedButton(onClick = onSelectStoreLogo, modifier = Modifier.weight(1f)) { Text("Pilih logo") }
+                                OutlinedButton(
+                                    onClick = onClearStoreLogo,
+                                    enabled = state.storeProfile.logoPath != null,
+                                    modifier = Modifier.weight(1f)
+                                ) { Text("Hapus logo") }
+                            }
+                            Surface(
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text("Tampilan struk", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                                    BootstrapReceiptToggleRow(
+                                        label = "Tampilkan logo",
+                                        checked = state.storeProfile.showLogoOnReceipt,
+                                        onCheckedChange = { onStoreProfileToggleChanged(StoreProfileToggleField.ShowLogoOnReceipt, it) }
+                                    )
+                                    BootstrapReceiptToggleRow(
+                                        label = "Tampilkan alamat",
+                                        checked = state.storeProfile.showAddressOnReceipt,
+                                        onCheckedChange = { onStoreProfileToggleChanged(StoreProfileToggleField.ShowAddressOnReceipt, it) }
+                                    )
+                                    BootstrapReceiptToggleRow(
+                                        label = "Tampilkan telepon",
+                                        checked = state.storeProfile.showPhoneOnReceipt,
+                                        onCheckedChange = { onStoreProfileToggleChanged(StoreProfileToggleField.ShowPhoneOnReceipt, it) }
+                                    )
+                                }
+                            }
                         }
 
                         StageSectionCard(
                             title = "Preview identitas",
                             modifier = Modifier.width(296.dp)
                         ) {
-                            BootstrapPreviewRow("Nama toko", state.bootstrap.storeName.ifBlank { "Belum diisi" })
-                            BootstrapPreviewRow("Nama terminal", state.bootstrap.terminalName.ifBlank { "Belum diisi" })
+                            ManagedImagePreview(
+                                imagePath = state.storeProfile.logoPath,
+                                fallbackLabel = state.storeProfile.businessName.ifBlank { "Usaha" },
+                                contentDescription = "Preview logo usaha",
+                                modifier = Modifier.fillMaxWidth().height(132.dp)
+                            )
+                            BootstrapPreviewRow("Nama toko", state.storeProfile.businessName.ifBlank { "Belum diisi" })
+                            BootstrapPreviewRow(
+                                "Nama terminal",
+                                if (mode == BootstrapMode.FullSetup) {
+                                    state.bootstrap.terminalName.ifBlank { "Belum diisi" }
+                                } else {
+                                    state.shell.terminalName.orEmpty().ifBlank { "Belum diisi" }
+                                }
+                            )
+                            BootstrapPreviewRow("Alamat", state.storeProfile.address.ifBlank { "Belum diisi" })
+                            BootstrapPreviewRow("Telepon", previewPhone)
                             BootstrapPreviewRow(
                                 "Nama kasir",
-                                state.bootstrap.cashierName.ifBlank { "Belum diisi" }
+                                if (mode == BootstrapMode.FullSetup) state.bootstrap.cashierName.ifBlank { "Belum diisi" } else "Sudah tersimpan"
                             )
                             BootstrapPreviewRow(
                                 "Nama supervisor",
-                                state.bootstrap.supervisorName.ifBlank { "Belum diisi" }
+                                if (mode == BootstrapMode.FullSetup) state.bootstrap.supervisorName.ifBlank { "Belum diisi" } else "Sudah tersimpan"
+                            )
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                            Text("Preview struk", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                            Text(
+                                state.storeProfile.businessName.ifBlank { "Nama usaha akan tampil di sini" },
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            if (state.storeProfile.showAddressOnReceipt) {
+                                Text(state.storeProfile.address.ifBlank { "Alamat usaha tampil di sini" }, style = MaterialTheme.typography.bodySmall)
+                            }
+                            if (state.storeProfile.showPhoneOnReceipt) {
+                                Text(previewPhone, style = MaterialTheme.typography.bodySmall)
+                            }
+                            if (state.storeProfile.businessEmail.isNotBlank()) {
+                                Text(state.storeProfile.businessEmail, style = MaterialTheme.typography.bodySmall)
+                            }
+                            if (state.storeProfile.legalId.isNotBlank()) {
+                                Text("ID legal: ${state.storeProfile.legalId}", style = MaterialTheme.typography.bodySmall)
+                            }
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                            Text(
+                                state.storeProfile.receiptNote.ifBlank { "Catatan struk tampil di sini." },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
 
-                    StageSectionCard(title = "Operator awal") {
+                    if (mode == BootstrapMode.FullSetup) {
+                        StageSectionCard(title = "Operator awal") {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -275,6 +601,7 @@ fun BootstrapStage(
                             }
                         }
                     }
+                    }
 
                     Surface(
                         tonalElevation = 0.dp,
@@ -287,7 +614,7 @@ fun BootstrapStage(
                         ) {
                             Text("Catatan operasional", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                             Text(
-                                "Logo toko, alamat, telepon, dan catatan struk belum wajib di tahap ini. Fokus dulu agar terminal bisa dipakai dan operator bisa masuk.",
+                                "Logo usaha tetap opsional. Alamat terstruktur, telepon, catatan struk, dan operator awal wajib lengkap karena langsung dipakai untuk gate startup dan template struk.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -299,7 +626,7 @@ fun BootstrapStage(
                         enabled = !state.isBusy,
                         modifier = Modifier.fillMaxWidth().height(52.dp)
                     ) {
-                        Text(if (state.isBusy) "Menyimpan..." else "Simpan dan lanjut ke login")
+                        Text(if (state.isBusy) "Menyimpan..." else "Simpan dan lanjut")
                     }
                 }
             }
@@ -314,63 +641,225 @@ fun LoginStage(
     onPinChanged: (String) -> Unit,
     onLogin: () -> Unit
 ) {
-    Box(modifier = Modifier.fillMaxSize().padding(horizontal = 36.dp, vertical = 28.dp)) {
+    val selectedOperator = state.login.operators.firstOrNull { it.id == state.login.selectedOperatorId }
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(state.login.selectedOperatorId) {
+        if (state.login.selectedOperatorId != null) {
+            focusRequester.requestFocus()
+        }
+    }
+
+    fun appendDigit(digit: Int) {
+        if (state.isBusy) return
+        onPinChanged((state.login.pin + digit.toString()).take(6))
+    }
+
+    fun backspaceDigit() {
+        if (state.isBusy) return
+        onPinChanged(state.login.pin.dropLast(1))
+    }
+
+    fun clearPin() {
+        if (state.isBusy) return
+        onPinChanged("")
+    }
+
+    Box(modifier = Modifier.fillMaxSize().padding(horizontal = 40.dp, vertical = 28.dp)) {
         Surface(
-            modifier = Modifier.fillMaxWidth().widthIn(max = 1120.dp).align(Alignment.TopCenter),
+            modifier = Modifier.fillMaxWidth().widthIn(max = 1160.dp).align(Alignment.TopCenter),
             tonalElevation = 1.dp,
-            shape = RoundedCornerShape(12.dp)
+            shape = RoundedCornerShape(18.dp)
         ) {
-            Column(
-                modifier = Modifier.fillMaxWidth().padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
+            Row(
+                modifier = Modifier.fillMaxWidth().heightIn(min = 720.dp)
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Top
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.weight(1f)) {
-                        Text("Masuk operator", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                        Text(
-                            "Pilih operator yang aktif di terminal ini. Hak akses kasir dan supervisor dibedakan secara tegas.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    ShortcutHintBar(hints = listOf("Klik operator", "PIN 6 digit", "Enter masuk"))
-                }
-
-                Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
-                    state.login.operators.forEach { option ->
-                        val selected = state.login.selectedOperatorId == option.id
-                        LoginOperatorCard(
-                            option = option,
-                            selected = selected,
-                            onClick = { onSelectOperator(option.id) },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
-
                 Surface(
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.64f),
-                    shape = RoundedCornerShape(10.dp)
+                    modifier = Modifier.widthIn(min = 360.dp, max = 420.dp).fillMaxHeight(),
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.18f)
                 ) {
                     Column(
-                        modifier = Modifier.fillMaxWidth().padding(18.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        modifier = Modifier.fillMaxSize().padding(horizontal = 28.dp, vertical = 30.dp),
+                        verticalArrangement = Arrangement.spacedBy(22.dp)
                     ) {
-                        SemanticPinField(
-                            label = "PIN Operator",
-                            value = state.login.pin,
-                            onValueChange = onPinChanged,
-                            modifier = Modifier.fillMaxWidth(),
-                            helperText = "PIN diverifikasi lokal di perangkat ini.",
-                            errorText = state.login.feedback,
-                            onImeAction = onLogin
+                        Text("Cassy", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold)
+                        Text(
+                            "Pilih operator untuk memulai",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
                         )
-                        Button(onClick = onLogin, enabled = !state.isBusy, modifier = Modifier.fillMaxWidth().height(50.dp)) {
-                            Text(if (state.isBusy) "Memproses..." else "Masuk ke terminal")
+                        Text(
+                            "Pilih operator aktif di terminal ini, lalu masukkan PIN lokal 6 digit.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        LazyColumn(
+                            modifier = Modifier.weight(1f, fill = false).fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        )
+                        {
+                            items(state.login.operators, key = { it.id }) { option ->
+                                val selected = state.login.selectedOperatorId == option.id
+                                LoginOperatorCard(
+                                    option = option,
+                                    selected = selected,
+                                    onClick = { onSelectOperator(option.id) },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        }
+
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            LoginStatusPill(
+                                text = "Terminal ${state.shell.terminalName ?: "-"}",
+                                tone = UiTone.Info
+                            )
+                            LoginStatusPill(
+                                text = "Auth lokal aktif",
+                                tone = UiTone.Success
+                            )
+                        }
+                    }
+                }
+
+                Column(
+                    modifier = Modifier.weight(1f).fillMaxHeight().padding(horizontal = 36.dp, vertical = 32.dp),
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(18.dp),
+                        tonalElevation = 0.dp,
+                        color = MaterialTheme.colorScheme.surface
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null
+                                ) { focusRequester.requestFocus() }
+                                .padding(horizontal = 46.dp, vertical = 34.dp),
+                            verticalArrangement = Arrangement.spacedBy(22.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Surface(
+                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.42f),
+                                shape = RoundedCornerShape(18.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Lock,
+                                    contentDescription = null,
+                                    modifier = Modifier.padding(18.dp).size(28.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+
+                            Text("Masukkan PIN", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold)
+                            Text(
+                                selectedOperator?.let { "Gunakan 6 digit PIN untuk ${it.displayName}." }
+                                    ?: "Pilih operator terlebih dahulu, lalu masukkan PIN 6 digit.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center
+                            )
+
+                            BasicTextField(
+                                value = state.login.pin,
+                                onValueChange = { onPinChanged(it.filter(Char::isDigit).take(6)) },
+                                modifier = Modifier
+                                    .size(1.dp)
+                                    .focusRequester(focusRequester)
+                                    .graphicsLayer { alpha = 0f }
+                            )
+
+                            LoginPinSlotRow(
+                                pin = state.login.pin,
+                                modifier = Modifier.fillMaxWidth().widthIn(max = 420.dp)
+                            )
+
+                            state.login.feedback?.let {
+                                Text(
+                                    text = it,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+
+                            Column(
+                                modifier = Modifier.widthIn(max = 420.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                LoginPinKeypadRow(
+                                    items = listOf(
+                                        LoginPadAction.Digit(1),
+                                        LoginPadAction.Digit(2),
+                                        LoginPadAction.Digit(3)
+                                    ),
+                                    onDigit = ::appendDigit,
+                                    onBackspace = ::backspaceDigit,
+                                    onClear = ::clearPin,
+                                    onSubmit = onLogin,
+                                    isBusy = state.isBusy,
+                                    submitEnabled = state.login.pin.length == 6 && selectedOperator != null
+                                )
+                                LoginPinKeypadRow(
+                                    items = listOf(
+                                        LoginPadAction.Digit(4),
+                                        LoginPadAction.Digit(5),
+                                        LoginPadAction.Digit(6)
+                                    ),
+                                    onDigit = ::appendDigit,
+                                    onBackspace = ::backspaceDigit,
+                                    onClear = ::clearPin,
+                                    onSubmit = onLogin,
+                                    isBusy = state.isBusy,
+                                    submitEnabled = state.login.pin.length == 6 && selectedOperator != null
+                                )
+                                LoginPinKeypadRow(
+                                    items = listOf(
+                                        LoginPadAction.Digit(7),
+                                        LoginPadAction.Digit(8),
+                                        LoginPadAction.Digit(9)
+                                    ),
+                                    onDigit = ::appendDigit,
+                                    onBackspace = ::backspaceDigit,
+                                    onClear = ::clearPin,
+                                    onSubmit = onLogin,
+                                    isBusy = state.isBusy,
+                                    submitEnabled = state.login.pin.length == 6 && selectedOperator != null
+                                )
+                                LoginPinKeypadRow(
+                                    items = listOf(
+                                        LoginPadAction.Backspace,
+                                        LoginPadAction.Digit(0),
+                                        LoginPadAction.Submit
+                                    ),
+                                    onDigit = ::appendDigit,
+                                    onBackspace = ::backspaceDigit,
+                                    onClear = ::clearPin,
+                                    onSubmit = onLogin,
+                                    isBusy = state.isBusy,
+                                    submitEnabled = state.login.pin.length == 6 && selectedOperator != null
+                                )
+                            }
+
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                LoginStatusPill(
+                                    text = "PIN lokal 6 digit",
+                                    tone = UiTone.Info
+                                )
+                                LoginStatusPill(
+                                    text = if (state.isBusy) "Memproses..." else "Siap diverifikasi",
+                                    tone = if (state.isBusy) UiTone.Warning else UiTone.Success
+                                )
+                            }
                         }
                     }
                 }
@@ -1185,6 +1674,25 @@ private data class BootstrapReadinessItem(
 )
 
 @Composable
+private fun BootstrapReceiptToggleRow(
+    label: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, style = MaterialTheme.typography.bodyMedium)
+        Checkbox(
+            checked = checked,
+            onCheckedChange = onCheckedChange
+        )
+    }
+}
+
+@Composable
 private fun BootstrapReadinessRow(item: BootstrapReadinessItem) {
     val icon = if (item.isReady) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked
     Surface(
@@ -1319,48 +1827,211 @@ private fun LoginOperatorCard(
     modifier: Modifier = Modifier
 ) {
     ElevatedCard(
-        modifier = modifier,
-        shape = RoundedCornerShape(10.dp),
+        modifier = modifier.border(
+            BorderStroke(
+                1.dp,
+                if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
+                else MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
+            ),
+            RoundedCornerShape(14.dp)
+        ),
+        shape = RoundedCornerShape(14.dp),
         onClick = onClick,
         colors = if (selected) {
-            CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.76f))
+            CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface)
         } else {
-            CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.52f))
+            CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f))
         }
     ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                BootstrapAvatarPlaceholder(
-                    title = option.displayName.take(1).ifBlank { option.roleLabel.take(1) },
-                    avatarPath = option.avatarPath
+            BootstrapAvatarPlaceholder(
+                title = option.displayName.take(1).ifBlank { option.roleLabel.take(1) },
+                avatarPath = option.avatarPath
+            )
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(option.displayName, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    option.roleLabel.roleUiLabel(),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(option.displayName, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        option.roleLabel.roleUiLabel(),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                Text(
+                    if (selected) "Operator terpilih untuk login" else option.capabilitySummary,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2
+                )
+            }
+            if (selected) {
+                Surface(
+                    shape = RoundedCornerShape(999.dp),
+                    color = MaterialTheme.colorScheme.primary
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = null,
+                        modifier = Modifier.padding(6.dp).size(14.dp),
+                        tint = MaterialTheme.colorScheme.onPrimary
                     )
                 }
             }
-            Text(
-                option.capabilitySummary,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(
-                if (selected) "Siap login di terminal ini" else "Pilih operator ini untuk melanjutkan",
-                style = MaterialTheme.typography.bodySmall,
-                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-            )
         }
+    }
+}
+
+private sealed interface LoginPadAction {
+    data class Digit(val value: Int) : LoginPadAction
+    data object Backspace : LoginPadAction
+    data object Submit : LoginPadAction
+}
+
+@Composable
+private fun LoginPinSlotRow(
+    pin: String,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        repeat(6) { index ->
+            val isFilled = index < pin.length
+            val isActive = index == pin.length.coerceAtMost(5) && pin.length < 6
+            Surface(
+                modifier = Modifier.weight(1f).height(70.dp),
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.38f),
+                border = BorderStroke(
+                    1.dp,
+                    when {
+                        isActive -> MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)
+                        isFilled -> MaterialTheme.colorScheme.primary.copy(alpha = 0.28f)
+                        else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
+                    }
+                )
+            ) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    when {
+                        isFilled -> Surface(
+                            shape = RoundedCornerShape(999.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(16.dp)
+                        ) {}
+                        isActive -> HorizontalDivider(
+                            modifier = Modifier.width(20.dp),
+                            thickness = 2.dp,
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                        )
+                        else -> Text(" ", style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LoginPinKeypadRow(
+    items: List<LoginPadAction>,
+    onDigit: (Int) -> Unit,
+    onBackspace: () -> Unit,
+    onClear: () -> Unit,
+    onSubmit: () -> Unit,
+    isBusy: Boolean,
+    submitEnabled: Boolean
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        items.forEach { action ->
+            when (action) {
+                is LoginPadAction.Digit -> LoginPadButton(
+                    label = action.value.toString(),
+                    onClick = { onDigit(action.value) },
+                    enabled = !isBusy,
+                    modifier = Modifier.weight(1f)
+                )
+                LoginPadAction.Backspace -> LoginPadButton(
+                    label = "Hapus",
+                    icon = Icons.Default.Backspace,
+                    onClick = {
+                        if (submitEnabled) {
+                            onBackspace()
+                        } else {
+                            onClear()
+                        }
+                    },
+                    enabled = !isBusy,
+                    modifier = Modifier.weight(1f),
+                    tone = UiTone.Warning
+                )
+                LoginPadAction.Submit -> LoginPadButton(
+                    label = if (isBusy) "Proses" else "Masuk",
+                    icon = Icons.Default.ArrowForward,
+                    onClick = onSubmit,
+                    enabled = submitEnabled && !isBusy,
+                    modifier = Modifier.weight(1f),
+                    tone = UiTone.Success
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LoginPadButton(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    icon: ImageVector? = null,
+    tone: UiTone = UiTone.Info
+) {
+    FilledTonalButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier.height(74.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = ButtonDefaults.filledTonalButtonColors(
+            containerColor = if (tone == UiTone.Success) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.42f),
+            contentColor = if (tone == UiTone.Success) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+        )
+    ) {
+        if (icon != null) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp))
+                Text(label, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            }
+        } else {
+            Text(label, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+private fun LoginStatusPill(
+    text: String,
+    tone: UiTone
+) {
+    Surface(
+        shape = RoundedCornerShape(999.dp),
+        color = toneContainerColor(tone)
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            style = MaterialTheme.typography.labelMedium,
+            color = toneColor(tone),
+            fontWeight = FontWeight.SemiBold
+        )
     }
 }
 
@@ -1461,6 +2132,10 @@ private fun SyncStatus.toUiLabel(): String = when (level) {
 private fun Instant.toUiTimestamp(): String = toString()
 
 private fun BootstrapState.visibleError(field: BootstrapField): String? {
+    return fieldErrors[field]?.takeIf { submitAttempted || field in touchedFields }
+}
+
+private fun StoreProfileState.visibleError(field: StoreProfileUiField): String? {
     return fieldErrors[field]?.takeIf { submitAttempted || field in touchedFields }
 }
 

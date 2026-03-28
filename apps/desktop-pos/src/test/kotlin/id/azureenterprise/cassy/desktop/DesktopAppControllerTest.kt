@@ -66,6 +66,7 @@ class DesktopAppControllerTest {
             )
         )
         fixture.insertOperator("O1", "Cashier", "123456", OperatorRole.CASHIER)
+        fixture.completeStoreProfile("S1", "Store 1")
 
         val controller = fixture.newController()
         controller.load()
@@ -81,6 +82,7 @@ class DesktopAppControllerTest {
             TerminalBinding("S1", "Store 1", "T1", "Term 1", Clock.System.now())
         )
         fixture.insertOperator("O1", "Cashier", "123456", OperatorRole.CASHIER)
+        fixture.completeStoreProfile("S1", "Store 1")
 
         val controller = fixture.newController()
         controller.load()
@@ -360,6 +362,7 @@ class DesktopAppControllerTest {
         kernelRepository.upsertTerminalBinding(
             TerminalBinding("S1", "Store 1", "T1", "Term 1", Clock.System.now())
         )
+        completeStoreProfile("S1", "Store 1")
         val pin = "111111"
         insertOperator("SUP1", "Supervisor", pin, OperatorRole.SUPERVISOR)
         accessService.login("SUP1", pin)
@@ -367,6 +370,26 @@ class DesktopAppControllerTest {
 
     private suspend fun DesktopFixture.openShift() {
         shiftService.submitStartShift(100_000.0)
+    }
+
+    private suspend fun DesktopFixture.completeStoreProfile(storeId: String, storeName: String) {
+        storeProfileService.save(
+            StoreProfileDraft(
+                businessName = storeName,
+                streetAddress = "Jl. Merdeka No. 1",
+                neighborhood = "01/02",
+                village = "Cibogo",
+                district = "Lembang",
+                city = "Bandung Barat",
+                province = "Jawa Barat",
+                postalCode = "40391",
+                phoneCountryCode = "+62",
+                phoneNumber = "81234567890",
+                businessEmail = "halo@cassy.test",
+                legalId = "NIB-$storeId",
+                receiptNote = "Terima kasih sudah berbelanja"
+            )
+        ).getOrThrow()
     }
 
     private suspend fun DesktopFixture.insertOperator(

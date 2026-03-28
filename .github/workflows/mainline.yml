@@ -21,8 +21,8 @@ jobs:
           distribution: 'temurin'
           cache: gradle
       - name: Smoke Run Desktop Source
-        shell: cmd
-        run: gradlew.bat :apps:desktop-pos:smokeRun --no-daemon
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File tooling/scripts/Invoke-DesktopSandbox.ps1 -SmokeRun -TruncateData -DataRoot (Join-Path $PWD '.sandbox\mainline-smoke')
       - name: Verify Inventory Migration
         shell: cmd
         run: gradlew.bat :shared:inventory:verifyCommonMainInventoryDatabaseMigration --no-daemon

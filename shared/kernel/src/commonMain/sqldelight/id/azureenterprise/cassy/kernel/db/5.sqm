@@ -1,0 +1,16 @@
+ALTER TABLE StoreProfile ADD COLUMN businessAddressStreet TEXT NOT NULL DEFAULT '';
+ALTER TABLE StoreProfile ADD COLUMN businessAddressNeighborhood TEXT NOT NULL DEFAULT '';
+ALTER TABLE StoreProfile ADD COLUMN businessAddressVillage TEXT NOT NULL DEFAULT '';
+ALTER TABLE StoreProfile ADD COLUMN businessAddressDistrict TEXT NOT NULL DEFAULT '';
+ALTER TABLE StoreProfile ADD COLUMN businessAddressCity TEXT NOT NULL DEFAULT '';
+ALTER TABLE StoreProfile ADD COLUMN businessAddressProvince TEXT NOT NULL DEFAULT '';
+ALTER TABLE StoreProfile ADD COLUMN businessPostalCode TEXT NOT NULL DEFAULT '';
+ALTER TABLE StoreProfile ADD COLUMN businessEmail TEXT;
+ALTER TABLE StoreProfile ADD COLUMN businessLegalId TEXT;
+ALTER TABLE StoreProfile ADD COLUMN showLogoOnReceipt INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE StoreProfile ADD COLUMN showAddressOnReceipt INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE StoreProfile ADD COLUMN showPhoneOnReceipt INTEGER NOT NULL DEFAULT 1;
+
+UPDATE StoreProfile
+SET businessAddressStreet = businessAddress
+WHERE trim(businessAddressStreet) = '';

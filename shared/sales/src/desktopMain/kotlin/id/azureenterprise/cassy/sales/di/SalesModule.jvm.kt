@@ -143,7 +143,12 @@ private class KernelSalesKernelPort(
             operatorName = activeOperator?.displayName,
             businessAddress = storeProfile?.address,
             businessPhone = storeProfile?.let { "${it.phoneCountryCode} ${it.phoneNumber}" },
-            receiptNote = storeProfile?.receiptNote
+            businessEmail = storeProfile?.businessEmail,
+            businessLegalId = storeProfile?.legalId,
+            receiptNote = storeProfile?.receiptNote,
+            showLogoOnReceipt = storeProfile?.showLogoOnReceipt ?: true,
+            showAddressOnReceipt = storeProfile?.showAddressOnReceipt ?: true,
+            showPhoneOnReceipt = storeProfile?.showPhoneOnReceipt ?: true
         )
     }
 

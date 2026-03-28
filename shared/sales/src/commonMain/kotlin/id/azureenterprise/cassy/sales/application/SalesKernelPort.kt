@@ -14,5 +14,10 @@ data class SalesOperationalContext(
     val operatorName: String? = null,
     val businessAddress: String? = null,
     val businessPhone: String? = null,
-    val receiptNote: String? = null
+    val businessEmail: String? = null,
+    val businessLegalId: String? = null,
+    val receiptNote: String? = null,
+    val showLogoOnReceipt: Boolean = true,
+    val showAddressOnReceipt: Boolean = true,
+    val showPhoneOnReceipt: Boolean = true
 )

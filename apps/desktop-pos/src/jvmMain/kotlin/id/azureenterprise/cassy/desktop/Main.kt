@@ -202,12 +202,17 @@ fun main(args: Array<String>) {
 
                                     Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                                         when (val stage = state.stage) {
-                                            DesktopStage.Loading -> LoadingStage()
+                                            DesktopStage.Loading -> LoadingStage(state.loading)
                                             DesktopStage.Bootstrap -> BootstrapStage(
                                                 state = state,
+                                                mode = state.bootstrapMode,
                                                 onFieldChanged = controller::updateBootstrapField,
+                                                onStoreProfileFieldChanged = controller::updateStoreProfileField,
+                                                onStoreProfileToggleChanged = controller::updateStoreProfileToggle,
                                                 onSelectAvatar = controller::selectBootstrapAvatar,
                                                 onClearAvatar = controller::clearBootstrapAvatar,
+                                                onSelectStoreLogo = controller::selectStoreProfileLogo,
+                                                onClearStoreLogo = controller::clearStoreProfileLogo,
                                                 onBootstrap = { scope.launch { controller.bootstrapStore() } }
                                             )
                                             DesktopStage.Login -> LoginStage(
@@ -295,6 +300,7 @@ fun main(args: Array<String>) {
                                                 onSync = { scope.launch { controller.replaySyncAndReload() } },
                                                 onExportReport = { scope.launch { controller.exportOperationalReport() } },
                                                 onStoreProfileFieldChanged = controller::updateStoreProfileField,
+                                                onStoreProfileToggleChanged = controller::updateStoreProfileToggle,
                                                 onSelectStoreLogo = controller::selectStoreProfileLogo,
                                                 onClearStoreLogo = controller::clearStoreProfileLogo,
                                                 onSaveStoreProfile = { scope.launch { controller.saveStoreProfile() } },
@@ -332,12 +338,17 @@ fun main(args: Array<String>) {
                         } else {
                             Box(modifier = Modifier.fillMaxSize()) {
                                 when (val stage = state.stage) {
-                                    DesktopStage.Loading -> LoadingStage()
+                                    DesktopStage.Loading -> LoadingStage(state.loading)
                                     DesktopStage.Bootstrap -> BootstrapStage(
                                         state = state,
+                                        mode = state.bootstrapMode,
                                         onFieldChanged = controller::updateBootstrapField,
+                                        onStoreProfileFieldChanged = controller::updateStoreProfileField,
+                                        onStoreProfileToggleChanged = controller::updateStoreProfileToggle,
                                         onSelectAvatar = controller::selectBootstrapAvatar,
                                         onClearAvatar = controller::clearBootstrapAvatar,
+                                        onSelectStoreLogo = controller::selectStoreProfileLogo,
+                                        onClearStoreLogo = controller::clearStoreProfileLogo,
                                         onBootstrap = { scope.launch { controller.bootstrapStore() } }
                                     )
                                     DesktopStage.Login -> LoginStage(
@@ -477,6 +488,19 @@ private suspend fun runBetaSmokeScenario(controller: DesktopAppController): Stri
         controller.updateBootstrapField(BootstrapField.CashierPin, "123456")
         controller.updateBootstrapField(BootstrapField.SupervisorName, "Supervisor Beta")
         controller.updateBootstrapField(BootstrapField.SupervisorPin, "654321")
+        controller.updateStoreProfileField(StoreProfileUiField.BusinessName, "Cassy Beta Store")
+        controller.updateStoreProfileField(StoreProfileUiField.StreetAddress, "Jl. Beta No. 10")
+        controller.updateStoreProfileField(StoreProfileUiField.Neighborhood, "01/02")
+        controller.updateStoreProfileField(StoreProfileUiField.Village, "Jayamukti")
+        controller.updateStoreProfileField(StoreProfileUiField.District, "Lembang")
+        controller.updateStoreProfileField(StoreProfileUiField.City, "Bandung Barat")
+        controller.updateStoreProfileField(StoreProfileUiField.Province, "Jawa Barat")
+        controller.updateStoreProfileField(StoreProfileUiField.PostalCode, "40391")
+        controller.updateStoreProfileField(StoreProfileUiField.PhoneCountryCode, "+62")
+        controller.updateStoreProfileField(StoreProfileUiField.PhoneNumber, "81234567890")
+        controller.updateStoreProfileField(StoreProfileUiField.BusinessEmail, "beta@cassy.local")
+        controller.updateStoreProfileField(StoreProfileUiField.LegalId, "NIB-BETA-001")
+        controller.updateStoreProfileField(StoreProfileUiField.ReceiptNote, "Terima kasih sudah belanja di Cassy Beta")
         controller.bootstrapStore()
         delay(400)
     }

@@ -109,6 +109,18 @@ class KernelPersistenceMigrationTest {
         assertTrue(driver.hasTable("ShiftCloseReport"))
         assertTrue(driver.hasTable("StoreProfile"))
         assertTrue(driver.hasColumn("OperatorAccount", "avatarAssetPath"))
+        assertTrue(driver.hasColumn("StoreProfile", "businessAddressStreet"))
+        assertTrue(driver.hasColumn("StoreProfile", "businessAddressNeighborhood"))
+        assertTrue(driver.hasColumn("StoreProfile", "businessAddressVillage"))
+        assertTrue(driver.hasColumn("StoreProfile", "businessAddressDistrict"))
+        assertTrue(driver.hasColumn("StoreProfile", "businessAddressCity"))
+        assertTrue(driver.hasColumn("StoreProfile", "businessAddressProvince"))
+        assertTrue(driver.hasColumn("StoreProfile", "businessPostalCode"))
+        assertTrue(driver.hasColumn("StoreProfile", "businessEmail"))
+        assertTrue(driver.hasColumn("StoreProfile", "businessLegalId"))
+        assertTrue(driver.hasColumn("StoreProfile", "showLogoOnReceipt"))
+        assertTrue(driver.hasColumn("StoreProfile", "showAddressOnReceipt"))
+        assertTrue(driver.hasColumn("StoreProfile", "showPhoneOnReceipt"))
     }
 }
 

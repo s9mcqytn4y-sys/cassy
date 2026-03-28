@@ -1,6 +1,7 @@
 package id.azureenterprise.cassy.desktop
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.FlowRow
@@ -213,11 +214,18 @@ fun ShortcutHintBar(
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         hints.forEach { hint ->
-            AssistChip(
-                onClick = {},
-                enabled = false,
-                label = { Text(hint) }
-            )
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.6f))
+            ) {
+                Text(
+                    text = hint,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }

@@ -17,10 +17,13 @@ Format changelog ini mengikuti prinsip Keep a Changelog dan versioning pre-relea
 - Shortcut F-key laptop/desktop dipetakan ulang ke workspace/sub-route yang lebih jelas: `F7` void, `F8` laporan, `F9` inventori, `F10` kas, `F11` close shift, `F12` diagnostics.
 - Master data seed diperluas agar demo produk/kategori lebih realistis untuk retail single outlet.
 - Topbar title kini mengikuti sub-route aktif agar operator selalu tahu konteks kerja saat ini.
+- Shell desktop dipadatkan lagi: rail dikelompokkan, topbar lebih ringkas, dan kasir diarahkan ke finalization zone yang lebih tegas.
+- Jalur sandbox desktop sekarang punya parity PowerShell + bash dengan opsi `truncate` eksplisit untuk run lokal dan CI.
 
 ### Fixed
 - Flow approval desktop yang sebelumnya mengandalkan sesi approver aktif penuh sekarang bisa memakai verifikasi PIN step-up secara eksplisit.
 - Filter kategori dan pencarian master data sekarang memicu refresh state yang konsisten.
+- Milestone kasir, helper scan, member, donasi, dan status struk dirapikan agar tidak drift antar-screen.
 
 ## [0.2.0-beta.2] - 2026-03-27
 

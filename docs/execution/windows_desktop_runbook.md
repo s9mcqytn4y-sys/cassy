@@ -17,6 +17,16 @@ Dokumen ini hanya mencatat jalur yang benar-benar relevan untuk pilot Windows da
 .\gradlew :apps:desktop-pos:run
 .\gradlew :apps:desktop-pos:smokeRun
 .\gradlew :apps:desktop-pos:run --args="--smoke-run"
+powershell -ExecutionPolicy Bypass -File tooling/scripts/Invoke-DesktopSandbox.ps1 -SmokeRun -TruncateData
+powershell -ExecutionPolicy Bypass -File tooling/scripts/Invoke-DesktopSandbox.ps1 -ResetDemo -TruncateData
+```
+
+```bash
+./gradlew :apps:desktop-pos:run
+./gradlew :apps:desktop-pos:smokeRun
+./gradlew :apps:desktop-pos:run --args="--smoke-run"
+./tooling/scripts/invoke-desktop-sandbox.sh --smoke-run --truncate-data
+./tooling/scripts/invoke-desktop-sandbox.sh --reset-demo --truncate-data
 ```
 
 Expected smoke marker:
@@ -36,6 +46,7 @@ Gunakan urutan ini:
 ```powershell
 .\gradlew :apps:desktop-pos:smokeRun
 .\gradlew :apps:desktop-pos:run --args="--smoke-run"
+powershell -ExecutionPolicy Bypass -File tooling/scripts/Invoke-DesktopSandbox.ps1 -SmokeRun -TruncateData
 .\gradlew --version
 .\gradlew clean
 .\gradlew build

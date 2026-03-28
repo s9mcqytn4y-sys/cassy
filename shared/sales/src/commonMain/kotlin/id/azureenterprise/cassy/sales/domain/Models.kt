@@ -87,7 +87,10 @@ data class ReceiptTemplateSnapshot(
     val templateId: String = "thermal-80mm-v1",
     val templateVersion: Int = 1,
     val paperWidthMm: Int = 80,
-    val lineWidth: Int = 32
+    val lineWidth: Int = 32,
+    val showLogo: Boolean = true,
+    val showAddress: Boolean = true,
+    val showPhone: Boolean = true
 )
 
 enum class ReceiptPrintStatus {
@@ -164,6 +167,8 @@ data class ReceiptSnapshotDocument(
     val storeName: String = "",
     val businessAddress: String? = null,
     val businessPhone: String? = null,
+    val businessEmail: String? = null,
+    val businessLegalId: String? = null,
     val shiftId: String,
     val terminalId: String,
     val terminalName: String? = null,

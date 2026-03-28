@@ -561,12 +561,18 @@ class SalesService(
             storeName = contextualInfo?.storeName ?: "",
             businessAddress = contextualInfo?.businessAddress,
             businessPhone = contextualInfo?.businessPhone,
+            businessEmail = contextualInfo?.businessEmail,
+            businessLegalId = contextualInfo?.businessLegalId,
             shiftId = pendingSale.sale.shiftId,
             terminalId = pendingSale.sale.terminalId,
             terminalName = contextualInfo?.terminalName,
             cashierName = contextualInfo?.operatorName,
             finalizedAtEpochMs = clock.now().toEpochMilliseconds(),
-            template = ReceiptTemplateSnapshot(),
+            template = ReceiptTemplateSnapshot(
+                showLogo = contextualInfo?.showLogoOnReceipt ?: true,
+                showAddress = contextualInfo?.showAddressOnReceipt ?: true,
+                showPhone = contextualInfo?.showPhoneOnReceipt ?: true
+            ),
             payment = ReceiptPaymentSnapshot(
                 method = paymentMethod,
                 amount = pendingSale.sale.finalAmount,
@@ -686,11 +692,21 @@ class SalesService(
         val lineWidth = receiptSnapshot.template.lineWidth.coerceAtLeast(24)
         val lines = buildList {
             add(centerText(receiptSnapshot.storeName.ifBlank { "Cassy POS" }, lineWidth))
-            receiptSnapshot.businessAddress?.takeIf { it.isNotBlank() }?.let { address ->
+            receiptSnapshot.businessAddress?.takeIf {
+                receiptSnapshot.template.showAddress && it.isNotBlank()
+            }?.let { address ->
                 wrapLine(address, lineWidth).forEach { add(centerText(it, lineWidth)) }
             }
-            receiptSnapshot.businessPhone?.takeIf { it.isNotBlank() }?.let { phone ->
+            receiptSnapshot.businessPhone?.takeIf {
+                receiptSnapshot.template.showPhone && it.isNotBlank()
+            }?.let { phone ->
                 add(centerText(phone, lineWidth))
+            }
+            receiptSnapshot.businessEmail?.takeIf { it.isNotBlank() }?.let { email ->
+                add(centerText(email, lineWidth))
+            }
+            receiptSnapshot.businessLegalId?.takeIf { it.isNotBlank() }?.let { legalId ->
+                add(centerText(legalId, lineWidth))
             }
             add(horizontalRule(lineWidth))
             if (isReprint) {

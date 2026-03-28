@@ -59,13 +59,15 @@ fun CassyOperationalRail(
     onLogout: () -> Unit,
     onReload: () -> Unit
 ) {
+    val primaryWorkspaces = state.availableWorkspaces.filter { it in PRIMARY_WORKSPACES }
+    val secondaryWorkspaces = state.availableWorkspaces.filter { it in SECONDARY_WORKSPACES }
     NavigationRail(
         modifier = Modifier.width(if (expanded) 112.dp else 76.dp),
         containerColor = MaterialTheme.colorScheme.surface,
         header = {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(top = 10.dp)
+                modifier = Modifier.padding(top = 8.dp)
             ) {
                 IconButton(onClick = onToggleExpanded) {
                     Icon(
@@ -76,22 +78,22 @@ fun CassyOperationalRail(
                 Image(
                     painter = painterResource(CASSY_BRAND_ICON_RESOURCE),
                     contentDescription = "Logo Cassy",
-                    modifier = Modifier.width(if (expanded) 48.dp else 40.dp)
+                    modifier = Modifier.width(if (expanded) 44.dp else 38.dp)
                 )
                 if (expanded) {
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         "Cassy POS",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
             }
         }
     ) {
         if (stage == DesktopStage.Workspace) {
-            state.availableWorkspaces.forEach { workspace ->
+            primaryWorkspaces.forEach { workspace ->
                 RailItemV2(
                     selected = workspace == selectedWorkspace,
                     icon = workspace.toOperationalIcon(),
@@ -99,6 +101,18 @@ fun CassyOperationalRail(
                     expanded = expanded,
                     onClick = { onSelectWorkspace(workspace) }
                 )
+            }
+            if (secondaryWorkspaces.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                secondaryWorkspaces.forEach { workspace ->
+                    RailItemV2(
+                        selected = workspace == selectedWorkspace,
+                        icon = workspace.toOperationalIcon(),
+                        label = workspace.shortLabel,
+                        expanded = expanded,
+                        onClick = { onSelectWorkspace(workspace) }
+                    )
+                }
             }
         }
 
@@ -178,7 +192,7 @@ fun CassyOperationalTopBar(
     val syncLabel = syncStatus?.let {
         when (it.level) {
             SyncLevel.HEALTHY -> "Normal"
-            SyncLevel.PENDING -> "Menunggu kirim"
+            SyncLevel.PENDING -> "Menunggu"
             SyncLevel.DELAYED -> "Tertunda"
             SyncLevel.STALLED -> "Macet"
             SyncLevel.ERROR -> "Perlu tindakan"
@@ -263,12 +277,12 @@ fun CassyOperationalTopBar(
                 }
 
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(
-                        modifier = Modifier.widthIn(min = 180.dp, max = 240.dp),
+                        modifier = Modifier.widthIn(min = 180.dp, max = 230.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Text(state.workspaceTitle, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
@@ -292,7 +306,7 @@ fun CassyOperationalTopBar(
                     )
 
                     Column(
-                        modifier = Modifier.widthIn(min = 200.dp, max = 240.dp),
+                        modifier = Modifier.widthIn(min = 180.dp, max = 220.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp),
                         horizontalAlignment = Alignment.End
                     ) {
@@ -301,23 +315,16 @@ fun CassyOperationalTopBar(
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.SemiBold
                         )
-                        Text(
-                            "Versi $releaseVersion",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            "Sinkronisasi: $syncLabel",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = toneContentColor(syncTone)
-                        )
-                        Text(
-                            primaryHardwareSummary(hardware),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.End
-                        )
-                        AssistChip(onClick = onOpenCommand, label = { Text("Aksi") })
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            CompactChromeBadge(label = "Sinkron $syncLabel", tone = syncTone)
+                            primaryHardwareIssueOrNull(hardware)?.let { issue ->
+                                CompactChromeBadge(label = issue, tone = UiTone.Warning)
+                            }
+                        }
+                        AssistChip(onClick = onOpenCommand, label = { Text("Aksi cepat") })
                     }
                 }
             }
@@ -357,8 +364,8 @@ fun CassyOperationalBottomStrip(
 
 @Composable
 private fun StageTopBar(
-        title: String,
-        subtitle: String,
+    title: String,
+    subtitle: String,
     statusTitle: String,
     statusDetail: String,
     statusTone: UiTone,
@@ -438,6 +445,25 @@ private fun ChromeStatusPanel(
 }
 
 @Composable
+private fun CompactChromeBadge(
+    label: String,
+    tone: UiTone
+) {
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = toneContainerColor(tone)
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = toneContentColor(tone)
+        )
+    }
+}
+
+@Composable
 fun CassyOperationalFooter(
     shell: DesktopShellState,
     modifier: Modifier = Modifier
@@ -449,7 +475,7 @@ fun CassyOperationalFooter(
         modifier = modifier.fillMaxWidth()
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -476,6 +502,24 @@ private fun primaryHardwareSummary(hardware: CashierHardwareSnapshot): String {
     val issue = devices.firstOrNull { it.second.status != HardwareDeviceStatus.READY }
     return issue?.let { "${it.first}: ${it.second.label}" } ?: "Perangkat utama siap"
 }
+
+private fun primaryHardwareIssueOrNull(hardware: CashierHardwareSnapshot): String? {
+    val summary = primaryHardwareSummary(hardware)
+    return summary.takeUnless { it == "Perangkat utama siap" }
+}
+
+private val PRIMARY_WORKSPACES = setOf(
+    DesktopWorkspace.Cashier,
+    DesktopWorkspace.Dashboard,
+    DesktopWorkspace.History,
+    DesktopWorkspace.Inventory,
+    DesktopWorkspace.Operations
+)
+
+private val SECONDARY_WORKSPACES = setOf(
+    DesktopWorkspace.Reporting,
+    DesktopWorkspace.System
+)
 
 private fun bottomStripSyncLabel(status: SyncStatus?): String = when (status?.level) {
     SyncLevel.HEALTHY -> "Sehat"

@@ -61,17 +61,11 @@ fun CassyCatalogView(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     ShortcutHintBar(
-                        hints = listOf("Enter Scan", "F7 Void", "F8 Ringkasan", "F10 Kas")
+                        hints = listOf("Enter scan", "F7 batal", "Ctrl+K aksi")
                     )
                 }
                 Text(
-                    text = when (milestone) {
-                        CashierMilestone.ScanBarang -> "Langkah 1 aktif. Scan barang tetap jadi jalur tercepat."
-                        CashierMilestone.ReviewKeranjang -> "Barang sudah masuk. Cek jumlah dan total sebelum lanjut."
-                        CashierMilestone.Member -> "Keranjang sudah dicek. Tambahkan member atau lewati."
-                        CashierMilestone.Pembayaran -> "Langsung terima pembayaran dan cek kembalian."
-                        CashierMilestone.Selesai -> "Transaksi selesai. Siap mulai transaksi berikutnya."
-                    },
+                    text = DesktopLabels.Cashier.scanLaneHint(milestone),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -80,7 +74,7 @@ fun CassyCatalogView(
                     value = state.searchQuery,
                     onValueChange = onSearchChanged,
                     placeholder = "Nama barang atau SKU",
-                    helperText = "Pakai saat barcode tidak terbaca atau ada kode bentrok.",
+                    helperText = "Pakai saat barcode tidak terbaca.",
                     modifier = Modifier.fillMaxWidth(),
                     leadingIcon = Icons.Default.Search,
                     imeAction = ImeAction.Search
@@ -95,7 +89,7 @@ fun CassyCatalogView(
                         value = state.barcodeInput,
                         onValueChange = onBarcodeChanged,
                         placeholder = "Scan atau ketik kode",
-                        helperText = "Enter untuk memasukkan barang ke keranjang aktif.",
+                        helperText = "Tekan Enter untuk memasukkan barang.",
                         modifier = Modifier.weight(1f),
                         leadingIcon = Icons.Default.ShoppingCart,
                         keyboardType = KeyboardType.Ascii,
@@ -108,7 +102,7 @@ fun CassyCatalogView(
                         shape = RoundedCornerShape(10.dp),
                         elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
                     ) {
-                        Text("Masukkan", fontWeight = FontWeight.Black)
+                        Text("Tambah", fontWeight = FontWeight.Black)
                     }
                 }
             }

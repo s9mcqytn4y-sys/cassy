@@ -24,6 +24,9 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
           cache: gradle
+      - name: Smoke Run Desktop Source
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File tooling/scripts/Invoke-DesktopSandbox.ps1 -SmokeRun -TruncateData -DataRoot (Join-Path $PWD '.sandbox\beta-source-smoke')
       - name: Build Windows Beta Distribution
         shell: cmd
         run: gradlew.bat :apps:desktop-pos:createDistributable :apps:desktop-pos:packageExe :apps:desktop-pos:packageMsi :apps:desktop-pos:smokeRun --no-daemon

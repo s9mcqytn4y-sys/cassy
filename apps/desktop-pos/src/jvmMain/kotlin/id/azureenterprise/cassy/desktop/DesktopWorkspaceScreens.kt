@@ -114,6 +114,7 @@ fun DesktopWorkspaceContent(
     onSync: () -> Unit,
     onExportReport: () -> Unit,
     onStoreProfileFieldChanged: (StoreProfileUiField, String) -> Unit,
+    onStoreProfileToggleChanged: (StoreProfileToggleField, Boolean) -> Unit,
     onSelectStoreLogo: () -> Unit,
     onClearStoreLogo: () -> Unit,
     onSaveStoreProfile: () -> Unit,
@@ -214,6 +215,7 @@ fun DesktopWorkspaceContent(
             state = state,
             onSync = onSync,
             onStoreProfileFieldChanged = onStoreProfileFieldChanged,
+            onStoreProfileToggleChanged = onStoreProfileToggleChanged,
             onSelectStoreLogo = onSelectStoreLogo,
             onClearStoreLogo = onClearStoreLogo,
             onSaveStoreProfile = onSaveStoreProfile
@@ -230,7 +232,7 @@ private fun DashboardWorkspace(
     onStartShift: () -> Unit,
     onSelectWorkspace: (DesktopWorkspace) -> Unit
 ) {
-    WorkspacePage("Ringkasan operasional", "Layar keputusan 10 detik: cek urutan siap kerja, lihat kendala utama, lalu ambil langkah berikutnya.") {
+    WorkspacePage(DesktopLabels.Dashboard.title, DesktopLabels.Dashboard.subtitle) {
         DashboardMilestoneStrip(state)
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
             WorkspaceCard("Langkah berikutnya", Modifier.weight(1.15f)) {
@@ -294,10 +296,18 @@ private fun DashboardWorkspace(
             }
         }
         val importantDecisions = state.operations.dashboard.decisions
-            .filter { it.status != id.azureenterprise.cassy.kernel.domain.OperationStatus.COMPLETED }
+            .filter {
+                it.status != id.azureenterprise.cassy.kernel.domain.OperationStatus.COMPLETED &&
+                    it.status != id.azureenterprise.cassy.kernel.domain.OperationStatus.READY
+            }
             .take(3)
-        if (importantDecisions.isNotEmpty()) {
-            WorkspaceCard("Perlu perhatian") {
+        WorkspaceCard("Perlu perhatian") {
+            if (importantDecisions.isEmpty()) {
+                Text(
+                    DesktopLabels.Dashboard.issuesEmpty,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
                 importantDecisions.forEach { decision ->
                     OperationDecisionRow(decision)
                 }
@@ -342,7 +352,7 @@ private fun DashboardMilestoneStrip(state: DesktopAppState) {
             }
         )
     )
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
         items.forEach { item ->
             Surface(
                 modifier = Modifier.weight(1f),
@@ -354,10 +364,10 @@ private fun DashboardMilestoneStrip(state: DesktopAppState) {
                 }
             ) {
                 Column(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Text(item.title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                    Text(item.title, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                     Text(
                         item.detail,
                         style = MaterialTheme.typography.bodySmall,
@@ -404,70 +414,118 @@ private fun CheckoutWorkspace(
     onCancelSale: () -> Unit
 ) {
     WorkspacePage(
-        title = "Kasir",
-        subtitle = "Fokus ke tiga hal: scan barang, review keranjang, lalu selesaikan pembayaran. Fallback tetap jelas bila perangkat bermasalah.",
+        title = DesktopLabels.Cashier.title,
+        subtitle = DesktopLabels.Cashier.subtitle,
         scrollable = false
     ) {
         if (!state.operations.dashboard.canAccessSalesHome) {
-            WorkspaceCard("Kasir belum siap") { Text(state.operations.blockingMessage ?: "Kasir belum siap dipakai.") }
+            WorkspaceCard(DesktopLabels.Cashier.unavailableTitle) {
+                Text(state.operations.blockingMessage ?: DesktopLabels.Cashier.unavailableDetail)
+            }
             return@WorkspacePage
         }
         val milestone = remember(state.catalog) { resolveCashierMilestone(state.catalog) }
         CashierMilestoneBar(milestone = milestone, catalog = state.catalog)
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxSize()) {
-            Surface(modifier = Modifier.weight(1.15f).fillMaxHeight(), shape = RoundedCornerShape(10.dp), tonalElevation = 1.dp) {
-                CassyCatalogView(
-                    state = state.catalog,
-                    milestone = milestone,
-                    onSearchChanged = onSearchChanged,
-                    onBarcodeChanged = onBarcodeChanged,
-                    onScanBarcode = onScanBarcode,
-                    onAddProduct = onAddProduct
-                )
-            }
-            WorkspaceCard("Keranjang aktif", Modifier.weight(0.95f).fillMaxHeight()) {
-                MemberStepCard(
-                    state = state.catalog,
-                    milestone = milestone,
-                    onMemberNumberChanged = onMemberNumberChanged,
-                    onMemberNameChanged = onMemberNameChanged,
-                    onSkipMember = onSkipMember
-                )
-                HorizontalDivider()
-                if (state.catalog.basket.items.isEmpty()) {
-                    Text("Belum ada barang. Scan barcode atau cari SKU di panel kiri.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                } else {
-                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f, fill = false)) {
-                        items(state.catalog.basket.items) { item -> CassyCartItemRow(item, onIncrement, onDecrement) }
-                    }
-                }
-                HorizontalDivider()
-                CassyMetricRow("Subtotal", "Rp ${state.catalog.basket.totals.subtotal.toInt()}")
-                CassyMetricRow("Pajak", "Rp ${state.catalog.basket.totals.taxTotal.toInt()}")
-                CassyMetricRow("Total", "Rp ${state.catalog.basket.totals.finalTotal.toInt()}", isHighlight = true)
-                Button(
-                    onClick = onConfirmCartReview,
-                    enabled = state.catalog.basket.items.isNotEmpty() && !state.catalog.reviewConfirmed,
-                    modifier = Modifier.fillMaxWidth()
+            Column(
+                modifier = Modifier.weight(1.35f).fillMaxHeight(),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Surface(
+                    modifier = Modifier.weight(0.58f).fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    tonalElevation = 1.dp
                 ) {
-                    Text(if (state.catalog.reviewConfirmed) "Keranjang sudah dicek" else "Tandai keranjang sudah dicek")
+                    CassyCatalogView(
+                        state = state.catalog,
+                        milestone = milestone,
+                        onSearchChanged = onSearchChanged,
+                        onBarcodeChanged = onBarcodeChanged,
+                        onScanBarcode = onScanBarcode,
+                        onAddProduct = onAddProduct
+                    )
+                }
+                WorkspaceCard("Keranjang aktif", Modifier.weight(0.42f).fillMaxWidth()) {
+                    if (state.catalog.basket.items.isEmpty()) {
+                        Text(
+                            DesktopLabels.Cashier.emptyBasket,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        LazyColumn(
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.weight(1f, fill = false)
+                        ) {
+                            items(state.catalog.basket.items) { item ->
+                                CassyCartItemRow(item, onIncrement, onDecrement)
+                            }
+                        }
+                    }
+                    HorizontalDivider()
+                    CassyMetricRow("Subtotal", "Rp ${state.catalog.basket.totals.subtotal.toInt()}")
+                    CassyMetricRow("Pajak", "Rp ${state.catalog.basket.totals.taxTotal.toInt()}")
+                    CassyMetricRow("Total", "Rp ${state.catalog.basket.totals.finalTotal.toInt()}", isHighlight = true)
+                    Button(
+                        onClick = onConfirmCartReview,
+                        enabled = state.catalog.basket.items.isNotEmpty() && !state.catalog.reviewConfirmed,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            if (state.catalog.reviewConfirmed) {
+                                DesktopLabels.Cashier.reviewedCta
+                            } else {
+                                DesktopLabels.Cashier.reviewCta
+                            }
+                        )
+                    }
                 }
             }
             Column(
                 modifier = Modifier.weight(0.95f).fillMaxHeight(),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                WorkspaceCard("Pembayaran", Modifier.weight(0.52f).fillMaxWidth()) {
-                    DonationStepCard(
-                        state = state.catalog,
-                        milestone = milestone,
-                        onDonationEnabledChanged = onDonationEnabledChanged,
-                        onDonationAmountChanged = onDonationAmountChanged,
-                        onSkipDonation = onSkipDonation
+                WorkspaceCard(DesktopLabels.Cashier.finalizationTitle, Modifier.weight(0.66f).fillMaxWidth()) {
+                    Text(
+                        DesktopLabels.Cashier.finalizationIntro,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    CassyCurrencyInput("Uang diterima", state.catalog.cashReceivedInput, onCashReceivedChanged, helperText = "Masukkan nominal yang dibayar pelanggan.")
-                    state.catalog.cashTenderQuote?.let { quote ->
-                        SummaryRow(if (quote.isSufficient) "Kembalian" else "Kurang Bayar", "Rp ${if (quote.isSufficient) quote.changeAmount.toInt() else quote.shortageAmount.toInt()}")
+                    CashierFinalizationStatusPanel(state.catalog)
+                    HorizontalDivider()
+                    if (!state.catalog.reviewConfirmed) {
+                        Text(
+                            DesktopLabels.Cashier.reviewFirst,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        MemberInlineSection(
+                            state = state.catalog,
+                            onMemberNumberChanged = onMemberNumberChanged,
+                            onMemberNameChanged = onMemberNameChanged,
+                            onSkipMember = onSkipMember
+                        )
+                        HorizontalDivider()
+                        DonationInlineSection(
+                            state = state.catalog,
+                            onDonationEnabledChanged = onDonationEnabledChanged,
+                            onDonationAmountChanged = onDonationAmountChanged,
+                            onSkipDonation = onSkipDonation
+                        )
+                    }
+                    HorizontalDivider()
+                    PaymentReadinessCard(state.catalog)
+                    CassyCurrencyInput(
+                        "Uang diterima",
+                        state.catalog.cashReceivedInput,
+                        onCashReceivedChanged,
+                        helperText = DesktopLabels.Cashier.paymentCashHelper
+                    )
+                    paymentBlockingMessage(state.catalog)?.let { blockingMessage ->
+                        Text(
+                            blockingMessage,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                     Button(
                         onClick = onCheckoutCash,
@@ -477,17 +535,20 @@ private fun CheckoutWorkspace(
                             state.catalog.cashTenderQuote?.isSufficient == true,
                         modifier = Modifier.fillMaxWidth().height(52.dp)
                     ) {
-                        Text("Selesaikan pembayaran")
+                        Text(DesktopLabels.Cashier.paymentCta)
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                        OutlinedButton(onClick = onCancelSale, enabled = state.catalog.basket.items.isNotEmpty(), modifier = Modifier.weight(1f)) { Text("Kosongkan") }
-                        OutlinedButton(onClick = onPrintLastReceipt, enabled = state.catalog.lastFinalizedSaleId != null, modifier = Modifier.weight(1f)) { Text("Cetak") }
-                    }
-                    OutlinedButton(onClick = onReprintLastReceipt, enabled = state.catalog.lastFinalizedSaleId != null, modifier = Modifier.fillMaxWidth()) { Text("Cetak Ulang") }
-                    SummaryRow("Status Struk", state.catalog.printState.detailMessage ?: "Belum ada struk final")
+                    OutlinedButton(
+                        onClick = onCancelSale,
+                        enabled = state.catalog.basket.items.isNotEmpty(),
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text(DesktopLabels.Cashier.clearSale) }
                 }
-                WorkspaceCard("Preview Struk", Modifier.weight(0.48f).fillMaxWidth()) {
-                    ReceiptPreviewCard(state.catalog.receiptPreview, state.catalog.printState.detailMessage)
+                WorkspaceCard(DesktopLabels.Cashier.receiptTitle, Modifier.weight(0.34f).fillMaxWidth()) {
+                    ReceiptStatePanel(
+                        state = state.catalog,
+                        onPrintLastReceipt = onPrintLastReceipt,
+                        onReprintLastReceipt = onReprintLastReceipt
+                    )
                 }
             }
         }
@@ -512,107 +573,233 @@ private fun CashierMilestoneBar(
     milestone: CashierMilestone,
     catalog: DesktopCatalogState
 ) {
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-        CashierMilestone.entries.forEachIndexed { index, step ->
-            val state = milestoneVisualState(step, milestone, catalog)
-            Surface(
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(10.dp),
-                color = when (state) {
-                    MilestoneVisualState.Active -> MaterialTheme.colorScheme.primaryContainer
-                    MilestoneVisualState.Done -> MaterialTheme.colorScheme.secondaryContainer
-                    MilestoneVisualState.Pending -> MaterialTheme.colorScheme.surfaceVariant
-                    MilestoneVisualState.Blocked -> MaterialTheme.colorScheme.surface
-                },
-                tonalElevation = if (state == MilestoneVisualState.Active) 2.dp else 0.dp
-            ) {
-                Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Text("${index + 1}. ${step.title}", fontWeight = FontWeight.Bold, color = if (state == MilestoneVisualState.Blocked) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface)
-                    Text(step.shortDescription, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+            CashierMilestone.entries.forEachIndexed { index, step ->
+                val state = milestoneVisualState(step, milestone, catalog)
+                Surface(
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(10.dp),
+                    color = when (state) {
+                        MilestoneVisualState.Active -> MaterialTheme.colorScheme.primaryContainer
+                        MilestoneVisualState.Done -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.52f)
+                        MilestoneVisualState.Pending -> MaterialTheme.colorScheme.surfaceVariant
+                        MilestoneVisualState.Blocked -> MaterialTheme.colorScheme.surface
+                    },
+                    tonalElevation = if (state == MilestoneVisualState.Active) 1.dp else 0.dp
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = cashierMilestoneMarker(index, state),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (state == MilestoneVisualState.Blocked) {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            } else {
+                                MaterialTheme.colorScheme.primary
+                            }
+                        )
+                        Text(
+                            text = step.title,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = if (state == MilestoneVisualState.Blocked) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                 }
             }
+        }
+        Text(
+            DesktopLabels.Cashier.milestoneHint(milestone),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+private fun cashierMilestoneMarker(
+    index: Int,
+    state: MilestoneVisualState
+): String = when (state) {
+    MilestoneVisualState.Done -> "OK"
+    MilestoneVisualState.Active -> "${index + 1}"
+    MilestoneVisualState.Pending -> "${index + 1}"
+    MilestoneVisualState.Blocked -> "!"
+}
+
+@Composable
+private fun CashierFinalizationStatusPanel(catalog: DesktopCatalogState) {
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            SummaryRow("Keranjang", if (catalog.reviewConfirmed) "Sudah diperiksa" else "Perlu diperiksa")
+            SummaryRow(
+                DesktopLabels.Cashier.memberTitle,
+                if (isMemberStepResolved(catalog)) "Siap lanjut" else "Opsional, belum dipilih"
+            )
+            SummaryRow(
+                "Pembayaran",
+                when {
+                    catalog.cashTenderQuote?.isSufficient == true -> DesktopLabels.Cashier.paymentReady
+                    else -> DesktopLabels.Cashier.paymentWaiting
+                }
+            )
         }
     }
 }
 
 @Composable
-private fun MemberStepCard(
+private fun PaymentReadinessCard(catalog: DesktopCatalogState) {
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        tonalElevation = 1.dp,
+        color = MaterialTheme.colorScheme.surface
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            SummaryRow("Total dibayar", "Rp ${catalog.basket.totals.finalTotal.toInt()}")
+            catalog.cashTenderQuote?.let { quote ->
+                SummaryRow(
+                    if (quote.isSufficient) "Kembalian" else "Kurang bayar",
+                    "Rp ${if (quote.isSufficient) quote.changeAmount.toInt() else quote.shortageAmount.toInt()}"
+                )
+            }
+        }
+    }
+}
+
+private fun paymentBlockingMessage(catalog: DesktopCatalogState): String? = when {
+    catalog.basket.items.isEmpty() -> "Tambahkan barang dulu sebelum pembayaran dibuka."
+    !catalog.reviewConfirmed -> "Periksa keranjang dulu sebelum transaksi diselesaikan."
+    !isMemberStepResolved(catalog) -> "Isi member atau lewati langkah ini dulu."
+    catalog.cashTenderQuote?.isSufficient != true -> "Nominal pembayaran pelanggan masih belum cukup."
+    else -> null
+}
+
+@Composable
+private fun MemberInlineSection(
     state: DesktopCatalogState,
-    milestone: CashierMilestone,
     onMemberNumberChanged: (String) -> Unit,
     onMemberNameChanged: (String) -> Unit,
     onSkipMember: () -> Unit
 ) {
-    WorkspaceCard("Member", Modifier.fillMaxWidth()) {
-        Text(
-            if (state.memberSkipped) "Langkah member dilewati untuk transaksi ini."
-            else "Tambahkan nomor atau nama member bila pelanggan memilikinya. Langkah ini opsional.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        SemanticTextField("Nomor Member", state.memberNumberInput, onMemberNumberChanged, helperText = "Opsional. Kosongkan bila tidak ada.", placeholder = "Contoh 081234567890")
-        SemanticTextField("Nama Member", state.memberNameInput, onMemberNameChanged, helperText = "Opsional untuk pencatatan lokal cepat.", placeholder = "Nama pelanggan")
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            OutlinedButton(onClick = onSkipMember, modifier = Modifier.weight(1f)) { Text("Lewati Member") }
-            Surface(
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(10.dp),
-                color = if (milestone.ordinal >= CashierMilestone.Member.ordinal && isMemberStepResolved(state)) {
-                    MaterialTheme.colorScheme.secondaryContainer
-                } else {
-                    MaterialTheme.colorScheme.surfaceVariant
-                }
-            ) {
-                Box(modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp), contentAlignment = androidx.compose.ui.Alignment.Center) {
-                    Text(if (isMemberStepResolved(state)) "Member Siap" else "Isi atau Lewati", fontWeight = FontWeight.SemiBold)
-                }
+    Text(DesktopLabels.Cashier.memberTitle, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+    Text(
+        if (state.memberSkipped) DesktopLabels.Cashier.memberSkipped else DesktopLabels.Cashier.memberHelper,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    SemanticTextField(
+        "Nomor Member",
+        state.memberNumberInput,
+        onMemberNumberChanged,
+        helperText = DesktopLabels.Cashier.memberNumberHelper,
+        placeholder = "Contoh 081234567890"
+    )
+    SemanticTextField(
+        "Nama Member",
+        state.memberNameInput,
+        onMemberNameChanged,
+        helperText = DesktopLabels.Cashier.memberNameHelper,
+        placeholder = "Nama pelanggan"
+    )
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        OutlinedButton(onClick = onSkipMember, modifier = Modifier.weight(1f)) { Text("Lewati") }
+        Surface(
+            modifier = Modifier.weight(1f),
+            shape = RoundedCornerShape(10.dp),
+            color = if (isMemberStepResolved(state)) {
+                MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
+            } else {
+                MaterialTheme.colorScheme.surfaceVariant
+            }
+        ) {
+            Box(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp), contentAlignment = androidx.compose.ui.Alignment.Center) {
+                Text(if (isMemberStepResolved(state)) "Siap lanjut" else "Belum dipilih", fontWeight = FontWeight.SemiBold)
             }
         }
     }
 }
 
 @Composable
-private fun DonationStepCard(
+private fun DonationInlineSection(
     state: DesktopCatalogState,
-    milestone: CashierMilestone,
     onDonationEnabledChanged: (Boolean) -> Unit,
     onDonationAmountChanged: (String) -> Unit,
     onSkipDonation: () -> Unit
 ) {
-    WorkspaceCard("Donasi Opsional", Modifier.fillMaxWidth()) {
+    Text(DesktopLabels.Cashier.donationTitle, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+    Text(
+        DesktopLabels.Cashier.donationHelper,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        FilterChip(
+            selected = state.donationOffered,
+            onClick = { onDonationEnabledChanged(true) },
+            label = { Text("Tawarkan") }
+        )
+        FilterChip(
+            selected = state.donationSkipped,
+            onClick = onSkipDonation,
+            label = { Text("Lewati") }
+        )
+    }
+    if (state.donationOffered) {
+        CassyCurrencyInput(
+            label = "Nominal Donasi",
+            value = state.donationAmountInput,
+            onValueChange = onDonationAmountChanged,
+            helperText = DesktopLabels.Cashier.donationAmountHelper
+        )
+    }
+}
+
+@Composable
+private fun ReceiptStatePanel(
+    state: DesktopCatalogState,
+    onPrintLastReceipt: () -> Unit,
+    onReprintLastReceipt: () -> Unit
+) {
+    val hasReceipt = state.receiptPreview.content?.isNotBlank() == true
+    Text(
+        state.printState.detailMessage ?: if (hasReceipt) DesktopLabels.Cashier.receiptReady else DesktopLabels.Cashier.receiptPending,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        OutlinedButton(
+            onClick = onPrintLastReceipt,
+            enabled = state.lastFinalizedSaleId != null,
+            modifier = Modifier.weight(1f)
+        ) {
+            Text(DesktopLabels.Cashier.printLastReceipt)
+        }
+        OutlinedButton(
+            onClick = onReprintLastReceipt,
+            enabled = state.lastFinalizedSaleId != null,
+            modifier = Modifier.weight(1f)
+        ) {
+            Text(DesktopLabels.Cashier.reprintReceipt)
+        }
+    }
+    if (hasReceipt) {
+        ReceiptPreviewCard(state.receiptPreview, state.printState.detailMessage)
+    } else {
         Text(
-            "Gunakan hanya bila toko memang sedang menjalankan program donasi. Langkah ini tidak wajib.",
+            DesktopLabels.Cashier.receiptPreviewPending,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            FilterChip(
-                selected = state.donationOffered,
-                onClick = { onDonationEnabledChanged(true) },
-                label = { Text("Tawarkan Donasi") }
-            )
-            FilterChip(
-                selected = state.donationSkipped,
-                onClick = onSkipDonation,
-                label = { Text("Lewati Donasi") }
-            )
-        }
-        if (state.donationOffered) {
-            CassyCurrencyInput(
-                label = "Nominal Donasi",
-                value = state.donationAmountInput,
-                onValueChange = onDonationAmountChanged,
-                helperText = "Catatan lokal kasir. Belum mengubah total transaksi inti."
-            )
-        }
-        if (milestone == CashierMilestone.Pembayaran || milestone == CashierMilestone.Selesai) {
-            Text(
-                if (state.donationOffered && state.donationAmountInput.isNotBlank()) "Donasi dicatat sebagai catatan operasional lokal."
-                else "Bila tidak relevan, langsung lanjut ke pembayaran.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
     }
 }
 
@@ -699,7 +886,7 @@ private fun InventoryWorkspace(
     onNewCategoryColorChanged: (String) -> Unit,
     onSaveMasterCategory: () -> Unit
 ) {
-    WorkspacePage("Inventori", "Kondisi stok saat ini dan daftar produk dipisah agar layar tetap ringkas dan operator tidak salah konteks.") {
+    WorkspacePage(DesktopLabels.Inventory.title, DesktopLabels.Inventory.subtitle) {
         RouteChips(
             routes = DesktopInventoryRoute.entries.map { route ->
                 Triple(route.shortLabel, state.inventoryRoute == route, { onSelectInventoryRoute(route) })
@@ -773,7 +960,7 @@ private fun OperationsWorkspace(
     onCloseBusinessDay: () -> Unit,
     onSync: () -> Unit
 ) {
-    WorkspacePage("Operasional", "Task operasional berat dibagi ke sub-route agar mudah diakses, cepat dipahami, dan aman untuk laptop.") {
+    WorkspacePage(DesktopLabels.Operations.title, DesktopLabels.Operations.subtitle) {
         RouteChips(
             routes = DesktopOperationsRoute.entries.map { route ->
                 Triple(route.shortLabel, state.operationsRoute == route, { onSelectOperationsRoute(route) })
@@ -1161,6 +1348,7 @@ private fun SystemWorkspace(
     state: DesktopAppState,
     onSync: () -> Unit,
     onStoreProfileFieldChanged: (StoreProfileUiField, String) -> Unit,
+    onStoreProfileToggleChanged: (StoreProfileToggleField, Boolean) -> Unit,
     onSelectStoreLogo: () -> Unit,
     onClearStoreLogo: () -> Unit,
     onSaveStoreProfile: () -> Unit
@@ -1172,6 +1360,7 @@ private fun SystemWorkspace(
                     state = state.storeProfile,
                     isBusy = state.isBusy,
                     onFieldChanged = onStoreProfileFieldChanged,
+                    onToggleChanged = onStoreProfileToggleChanged,
                     onSelectLogo = onSelectStoreLogo,
                     onClearLogo = onClearStoreLogo,
                     onSave = onSaveStoreProfile
@@ -1205,6 +1394,7 @@ private fun StoreProfileEditor(
     state: StoreProfileState,
     isBusy: Boolean,
     onFieldChanged: (StoreProfileUiField, String) -> Unit,
+    onToggleChanged: (StoreProfileToggleField, Boolean) -> Unit,
     onSelectLogo: () -> Unit,
     onClearLogo: () -> Unit,
     onSave: () -> Unit
@@ -1223,14 +1413,68 @@ private fun StoreProfileEditor(
                 errorText = state.visibleError(StoreProfileUiField.BusinessName)
             )
             SemanticTextField(
-                label = "Alamat usaha",
-                value = state.address,
-                onValueChange = { onFieldChanged(StoreProfileUiField.Address, it) },
-                placeholder = "Contoh Jl. Raya No. 10, Lembang",
-                helperText = "Tulis alamat yang akan dibaca pelanggan di struk.",
-                errorText = state.visibleError(StoreProfileUiField.Address),
+                label = "Alamat jalan",
+                value = state.streetAddress,
+                onValueChange = { onFieldChanged(StoreProfileUiField.StreetAddress, it) },
+                placeholder = "Contoh Jl. Jayagiri No. 10",
+                helperText = "Isi alamat utama yang tampil di struk dan invoice.",
+                errorText = state.visibleError(StoreProfileUiField.StreetAddress),
                 singleLine = false
             )
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                SemanticTextField(
+                    label = "RT / RW",
+                    value = state.neighborhood,
+                    onValueChange = { onFieldChanged(StoreProfileUiField.Neighborhood, it) },
+                    placeholder = "Contoh 02/05",
+                    errorText = state.visibleError(StoreProfileUiField.Neighborhood),
+                    modifier = Modifier.weight(0.55f)
+                )
+                SemanticTextField(
+                    label = "Kelurahan / Desa",
+                    value = state.village,
+                    onValueChange = { onFieldChanged(StoreProfileUiField.Village, it) },
+                    placeholder = "Contoh Jayagiri",
+                    errorText = state.visibleError(StoreProfileUiField.Village),
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                SemanticTextField(
+                    label = "Kecamatan",
+                    value = state.district,
+                    onValueChange = { onFieldChanged(StoreProfileUiField.District, it) },
+                    placeholder = "Contoh Lembang",
+                    errorText = state.visibleError(StoreProfileUiField.District),
+                    modifier = Modifier.weight(1f)
+                )
+                SemanticTextField(
+                    label = "Kota / Kabupaten",
+                    value = state.city,
+                    onValueChange = { onFieldChanged(StoreProfileUiField.City, it) },
+                    placeholder = "Contoh Bandung Barat",
+                    errorText = state.visibleError(StoreProfileUiField.City),
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                SemanticTextField(
+                    label = "Provinsi",
+                    value = state.province,
+                    onValueChange = { onFieldChanged(StoreProfileUiField.Province, it) },
+                    placeholder = "Contoh Jawa Barat",
+                    errorText = state.visibleError(StoreProfileUiField.Province),
+                    modifier = Modifier.weight(1f)
+                )
+                SemanticTextField(
+                    label = "Kode pos",
+                    value = state.postalCode,
+                    onValueChange = { onFieldChanged(StoreProfileUiField.PostalCode, it) },
+                    placeholder = "40391",
+                    errorText = state.visibleError(StoreProfileUiField.PostalCode),
+                    modifier = Modifier.width(140.dp)
+                )
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
                 SemanticTextField(
                     label = "Kode negara",
@@ -1250,15 +1494,78 @@ private fun StoreProfileEditor(
                     modifier = Modifier.weight(1f)
                 )
             }
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                SemanticTextField(
+                    label = "Email usaha",
+                    value = state.businessEmail,
+                    onValueChange = { onFieldChanged(StoreProfileUiField.BusinessEmail, it) },
+                    placeholder = "contoh@usaha.com",
+                    helperText = "Opsional, dipakai untuk invoice atau dokumen usaha.",
+                    errorText = state.visibleError(StoreProfileUiField.BusinessEmail),
+                    modifier = Modifier.weight(1f)
+                )
+                SemanticTextField(
+                    label = "NIB / NPWP / ID legal",
+                    value = state.legalId,
+                    onValueChange = { onFieldChanged(StoreProfileUiField.LegalId, it) },
+                    placeholder = "Opsional",
+                    helperText = "Simpan satu identitas legal yang paling sering dipakai.",
+                    errorText = state.visibleError(StoreProfileUiField.LegalId),
+                    modifier = Modifier.weight(1f)
+                )
+            }
             SemanticTextField(
                 label = "Catatan struk",
                 value = state.receiptNote,
                 onValueChange = { onFieldChanged(StoreProfileUiField.ReceiptNote, it) },
                 placeholder = "Contoh Terima kasih sudah berbelanja",
-                helperText = "Opsional. Dipakai sebagai footer struk.",
+                helperText = "Dipakai sebagai footer struk. Maksimal 140 karakter.",
                 errorText = state.visibleError(StoreProfileUiField.ReceiptNote),
                 singleLine = false
             )
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                tonalElevation = 0.dp,
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text("Tampilan struk", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Tampilkan logo")
+                        Checkbox(
+                            checked = state.showLogoOnReceipt,
+                            onCheckedChange = { onToggleChanged(StoreProfileToggleField.ShowLogoOnReceipt, it) }
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Tampilkan alamat")
+                        Checkbox(
+                            checked = state.showAddressOnReceipt,
+                            onCheckedChange = { onToggleChanged(StoreProfileToggleField.ShowAddressOnReceipt, it) }
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Tampilkan telepon")
+                        Checkbox(
+                            checked = state.showPhoneOnReceipt,
+                            onCheckedChange = { onToggleChanged(StoreProfileToggleField.ShowPhoneOnReceipt, it) }
+                        )
+                    }
+                }
+            }
         }
 
         Column(
@@ -1312,6 +1619,8 @@ private fun StoreProfilePreviewCard(
             .trim()
             .ifBlank { "Belum diisi" }
     )
+    SummaryRow("Email", profile.businessEmail.ifBlank { "Opsional" })
+    SummaryRow("ID legal", profile.legalId.ifBlank { "Opsional" })
     SummaryRow("Catatan struk", profile.receiptNote.ifBlank { "Tidak ada catatan tambahan" })
     Surface(
         shape = RoundedCornerShape(10.dp),
@@ -1324,11 +1633,21 @@ private fun StoreProfilePreviewCard(
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(profile.businessName.ifBlank { shell.storeName ?: "Nama usaha" }, fontWeight = FontWeight.Bold)
-            Text(profile.address.ifBlank { "Alamat usaha akan muncul di sini." }, style = MaterialTheme.typography.bodySmall)
-            Text(
-                listOf(profile.phoneCountryCode, profile.phoneNumber).joinToString(" ") { it.trim() }.trim().ifBlank { "Nomor telepon usaha" },
-                style = MaterialTheme.typography.bodySmall
-            )
+            if (profile.showAddressOnReceipt) {
+                Text(profile.address.ifBlank { "Alamat usaha akan muncul di sini." }, style = MaterialTheme.typography.bodySmall)
+            }
+            if (profile.showPhoneOnReceipt) {
+                Text(
+                    listOf(profile.phoneCountryCode, profile.phoneNumber).joinToString(" ") { it.trim() }.trim().ifBlank { "Nomor telepon usaha" },
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+            if (profile.businessEmail.isNotBlank()) {
+                Text(profile.businessEmail, style = MaterialTheme.typography.bodySmall)
+            }
+            if (profile.legalId.isNotBlank()) {
+                Text("ID legal: ${profile.legalId}", style = MaterialTheme.typography.bodySmall)
+            }
             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
             Text("Preview struk", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
             Text(
