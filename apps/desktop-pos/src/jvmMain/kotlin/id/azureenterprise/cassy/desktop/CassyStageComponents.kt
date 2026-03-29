@@ -563,7 +563,6 @@ fun LoginStage(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
-                        .verticalScroll(rememberScrollState())
                         .padding(horizontal = 36.dp, vertical = 32.dp),
                     verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally

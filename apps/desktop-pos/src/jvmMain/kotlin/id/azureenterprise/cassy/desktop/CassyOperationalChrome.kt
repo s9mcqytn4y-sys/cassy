@@ -33,49 +33,51 @@ fun CassyOperationalRail(
     val primaryWorkspaces = state.availableWorkspaces.filter { it in PRIMARY_WORKSPACES }
     val secondaryWorkspaces = state.availableWorkspaces.filter { it in SECONDARY_WORKSPACES }
     NavigationRail(
-        modifier = Modifier.width(if (expanded) 112.dp else 76.dp),
+        modifier = Modifier.width(if (expanded) 120.dp else 80.dp),
         containerColor = MaterialTheme.colorScheme.surface,
         header = {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(top = 8.dp)
+                modifier = Modifier.padding(top = 12.dp)
             ) {
-                IconButton(onClick = onToggleExpanded) {
-                    Icon(
-                        imageVector = if (expanded) Icons.Default.ChevronLeft else Icons.Default.Menu,
-                        contentDescription = if (expanded) "Sembunyikan sidebar" else "Tampilkan sidebar"
-                    )
-                }
                 Image(
                     painter = painterResource(CASSY_BRAND_ICON_RESOURCE),
                     contentDescription = "Logo Cassy",
-                    modifier = Modifier.width(if (expanded) 44.dp else 38.dp)
+                    modifier = Modifier.size(if (expanded) 48.dp else 40.dp)
                 )
                 if (expanded) {
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        "Cassy POS",
+                        "CASSY POS",
                         style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 1.sp,
+                        color = MaterialTheme.colorScheme.primary
                     )
                 }
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(16.dp))
+                IconButton(
+                    onClick = onToggleExpanded,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = if (expanded) Icons.Default.MenuOpen else Icons.Default.Menu,
+                        contentDescription = if (expanded) "Sembunyikan sidebar" else "Tampilkan sidebar",
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Spacer(modifier = Modifier.height(16.dp))
             }
         }
     ) {
         if (stage == DesktopStage.Workspace) {
-            primaryWorkspaces.forEach { workspace ->
-                RailItemV2(
-                    selected = workspace == selectedWorkspace,
-                    icon = workspace.toOperationalIcon(),
-                    label = workspace.shortLabel,
-                    expanded = expanded,
-                    onClick = { onSelectWorkspace(workspace) }
-                )
-            }
-            if (secondaryWorkspaces.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                secondaryWorkspaces.forEach { workspace ->
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                primaryWorkspaces.forEach { workspace ->
                     RailItemV2(
                         selected = workspace == selectedWorkspace,
                         icon = workspace.toOperationalIcon(),
@@ -83,6 +85,32 @@ fun CassyOperationalRail(
                         expanded = expanded,
                         onClick = { onSelectWorkspace(workspace) }
                     )
+                }
+            }
+
+            if (secondaryWorkspaces.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = if (expanded) 24.dp else 16.dp),
+                    thickness = 1.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    secondaryWorkspaces.forEach { workspace ->
+                        RailItemV2(
+                            selected = workspace == selectedWorkspace,
+                            icon = workspace.toOperationalIcon(),
+                            label = workspace.shortLabel,
+                            expanded = expanded,
+                            onClick = { onSelectWorkspace(workspace) }
+                        )
+                    }
                 }
             }
         }
@@ -104,7 +132,7 @@ fun CassyOperationalRail(
             onClick = onLogout,
             tone = UiTone.Danger
         )
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(16.dp))
     }
 }
 
@@ -120,10 +148,12 @@ private fun RailItemV2(
     NavigationRailItem(
         selected = selected,
         onClick = onClick,
+        modifier = Modifier.padding(vertical = 2.dp),
         icon = {
             Icon(
                 imageVector = icon,
                 contentDescription = label,
+                modifier = Modifier.size(22.dp),
                 tint = if (selected) {
                     MaterialTheme.colorScheme.primary
                 } else if (tone == UiTone.Danger) {
@@ -138,7 +168,8 @@ private fun RailItemV2(
                 Text(
                     label,
                     fontSize = 11.sp,
-                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                    maxLines = 1
                 )
             }
         } else {
@@ -146,7 +177,9 @@ private fun RailItemV2(
         },
         colors = NavigationRailItemDefaults.colors(
             selectedIconColor = MaterialTheme.colorScheme.primary,
-            indicatorColor = MaterialTheme.colorScheme.primaryContainer
+            indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
+            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
         )
     )
 }
@@ -201,12 +234,29 @@ fun CassyOperationalTopBar(
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Text(text = state.workspaceTitle, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
 
-                    // Breadcrumb Context
-                    Text(
-                        text = "${state.storeName ?: "Outlet"}  •  ${state.terminalName ?: "Terminal"}  •  ${state.operatorName ?: "Operator"}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    // Compact Identity Info (Deduplicated)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        val identityLabel = remember(state.storeName, state.terminalName) {
+                            val store = state.storeName ?: "Outlet"
+                            val terminal = state.terminalName ?: "Terminal"
+                            if (store.equals(terminal, ignoreCase = true)) store else "$store • $terminal"
+                        }
+                        Text(
+                            text = identityLabel,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        VerticalDivider(modifier = Modifier.height(12.dp), thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                            Text(
+                                text = state.operatorName ?: "Operator",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -302,8 +352,13 @@ fun CassyOperationalFooter(
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            val identity = remember(shell.storeName, shell.terminalName) {
+                val store = shell.storeName ?: "Outlet"
+                val terminal = shell.terminalName ?: "Terminal"
+                if (store.equals(terminal, ignoreCase = true)) store else "$store | $terminal"
+            }
             Text(
-                "${shell.storeName ?: "Outlet"} | ${shell.terminalName ?: "Terminal"} | Ctrl+/ bantuan",
+                "$identity | Ctrl+/ bantuan",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
