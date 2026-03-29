@@ -73,7 +73,12 @@ data class OperationalControlSnapshot(
     val businessDayId: String?,
     val shiftId: String?,
     val pendingApprovalCount: Int,
-    val decisions: List<OperationDecision>
+    val decisions: List<OperationDecision>,
+    val totalSales: Double = 0.0,
+    val transactionCount: Int = 0,
+    val averageBasket: Double = 0.0,
+    val pendingApprovals: List<PendingApprovalSummary> = emptyList(),
+    val activeShifts: List<ActiveShiftSummary> = emptyList()
 )
 
 sealed interface StartShiftExecutionResult {
@@ -241,10 +246,21 @@ sealed interface ShiftCloseExecutionResult {
 
 data class PendingApprovalSummary(
     val id: String,
-    val operationType: OperationType,
+    val type: OperationType,
     val title: String,
     val detail: String,
-    val amount: Double?
+    val amount: Double?,
+    val requestedBy: String = "Operator",
+    val formattedTimestamp: String = "-"
+)
+
+data class ActiveShiftSummary(
+    val cashierId: String,
+    val cashierName: String,
+    val formattedStartTime: String,
+    val currentSales: Double,
+    val expectedCash: Double,
+    val durationHours: Double
 )
 
 data class PendingTransactionSummary(

@@ -15,7 +15,8 @@ enum class DesktopWorkspace(
     Inventory(title = "Inventori", shortLabel = "Inventori"),
     Operations(title = "Operasional", shortLabel = "Operasional"),
     Reporting(title = "Laporan", shortLabel = "Laporan"),
-    System(title = "Sistem", shortLabel = "Sistem")
+    System(title = "Sistem", shortLabel = "Sistem"),
+    Settings(title = "Pengaturan", shortLabel = "Setelan")
 }
 
 enum class DesktopInventoryRoute(
@@ -23,6 +24,9 @@ enum class DesktopInventoryRoute(
     val shortLabel: String
 ) {
     StockOverview(title = "Ringkasan Stok", shortLabel = "Stok"),
+    StockCount(title = "Stok Opname", shortLabel = "Opname"),
+    Adjustment(title = "Penyesuaian", shortLabel = "Koreksi"),
+    Discrepancy(title = "Discrepancy", shortLabel = "Selisih"),
     MasterData(title = "Data Produk", shortLabel = "Produk")
 }
 
@@ -36,6 +40,11 @@ enum class DesktopOperationsRoute(
     CloseDay(title = "Tutup Hari", shortLabel = "Hari"),
     SyncCenter(title = "Sinkronisasi", shortLabel = "Sinkron"),
     Diagnostics(title = "Diagnostik", shortLabel = "Cek")
+}
+
+enum class DesktopSettingsRoute {
+    StoreProfile,
+    System
 }
 
 fun availableWorkspacesFor(
@@ -55,6 +64,7 @@ fun availableWorkspacesFor(
     if (role != OperatorRole.CASHIER) {
         workspaces += DesktopWorkspace.Reporting
         workspaces += DesktopWorkspace.System
+        workspaces += DesktopWorkspace.Settings
     }
     return workspaces.distinct()
 }

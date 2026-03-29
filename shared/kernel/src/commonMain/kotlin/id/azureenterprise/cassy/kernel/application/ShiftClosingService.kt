@@ -68,10 +68,11 @@ class ShiftClosingService(
             .map { request ->
                 PendingApprovalSummary(
                     id = request.id,
-                    operationType = request.operationType,
+                    type = request.operationType,
                     title = "Approval Tutup Shift",
                     detail = request.reasonDetail ?: request.reasonCode,
-                    amount = request.amount
+                    amount = request.amount,
+                    requestedBy = request.requestedBy
                 )
             }
     }
@@ -240,7 +241,7 @@ class ShiftClosingService(
                     status = OperationStatus.BLOCKED,
                     title = "Tutup Shift",
                     message = "Approval request tidak ditemukan.",
-                    blockerCode = OperationBlockerCode.APPROVAL_PENDING
+                    blockerCode = OperationBlockerCode.TERMINAL_NOT_BOUND
                 )
             )
         if (request.status != ApprovalStatus.REQUESTED) {
@@ -416,7 +417,7 @@ class ShiftClosingService(
                 type = OperationType.CLOSE_SHIFT,
                 status = OperationStatus.BLOCKED,
                 title = "Tutup Shift",
-                message = "Selisih kas melewati batas keras dan harus diselidiki dulu.",
+                message = "Selisih kas melewati batas keras and harus diselidiki dulu.",
                 blockerCode = OperationBlockerCode.SHIFT_VARIANCE_OUT_OF_TOLERANCE,
                 actionLabel = "Investigasi Selisih"
             )

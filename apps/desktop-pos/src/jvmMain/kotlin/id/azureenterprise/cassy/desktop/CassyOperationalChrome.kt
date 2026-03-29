@@ -1,40 +1,12 @@
 package id.azureenterprise.cassy.desktop
 
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
-import androidx.compose.material.icons.filled.AdminPanelSettings
-import androidx.compose.material.icons.filled.Assessment
-import androidx.compose.material.icons.filled.ChevronLeft
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Inventory2
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.PointOfSale
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.SpaceDashboard
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationRail
-import androidx.compose.material3.NavigationRailItem
-import androidx.compose.material3.NavigationRailItemDefaults
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -42,7 +14,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import id.azureenterprise.cassy.kernel.domain.SyncLevel
@@ -206,125 +177,55 @@ fun CassyOperationalTopBar(
             SyncLevel.STALLED, SyncLevel.ERROR -> UiTone.Danger
         }
     } ?: UiTone.Info
-    val syncDetail = syncStatus?.let {
-        when (it.level) {
-            SyncLevel.HEALTHY -> "Antrian sinkron sehat."
-            SyncLevel.PENDING -> "Perubahan lokal menunggu dikirim."
-            SyncLevel.DELAYED -> "Operasional tetap aman, kirim ulang nanti."
-            SyncLevel.STALLED -> "Perlu cek ulang sinkronisasi."
-            SyncLevel.ERROR -> "Lanjutkan lokal dulu, lalu ulang sinkronisasi."
-        }
-    } ?: "Data lokal tetap aman di perangkat ini."
+
     Surface(
         tonalElevation = 1.dp,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().height(52.dp),
         color = MaterialTheme.colorScheme.surface
     ) {
-        when (stage) {
-            DesktopStage.Bootstrap -> StageTopBar(
-                title = "Pengaturan awal toko",
-                subtitle = "Lengkapi identitas toko dan operator awal dulu. Setelah itu baru masuk dan mulai operasional.",
-                statusTitle = "Belum siap transaksi",
-                statusDetail = "Setup awal belum selesai. Hari bisnis dan shift belum perlu dibuka sekarang.",
-                statusTone = UiTone.Warning,
-                releaseVersion = releaseVersion
-            )
-            DesktopStage.Login -> StageTopBar(
-                title = "Masuk operator",
-                subtitle = "Pilih operator dan masukkan PIN lokal untuk melanjutkan ke terminal.",
-                statusTitle = "Menunggu login operator",
-                statusDetail = "Hak akses baru terlihat setelah operator aktif.",
-                statusTone = UiTone.Info,
-                releaseVersion = releaseVersion
-            )
-            DesktopStage.Loading -> StageTopBar(
-                title = "Menyiapkan Cassy POS",
-                subtitle = "Aplikasi sedang memuat konteks toko, operator, dan status operasional lokal.",
-                statusTitle = "Memuat data lokal",
-                statusDetail = "Tunggu sebentar sampai aplikasi siap dipakai.",
-                statusTone = UiTone.Info,
-                releaseVersion = releaseVersion
-            )
-            is DesktopStage.FatalError -> StageTopBar(
-                title = "Masalah saat memuat aplikasi",
-                subtitle = "Aplikasi belum bisa dipakai sampai masalah pemuatan selesai.",
-                statusTitle = "Perlu tindakan",
-                statusDetail = "Coba muat ulang. Jika tetap gagal, cek data lokal dan log aplikasi.",
-                statusTone = UiTone.Danger,
-                releaseVersion = releaseVersion
-            )
-            DesktopStage.Workspace -> {
-                val readinessTitle: String
-                val readinessDetail: String
-                val readinessTone: UiTone
-                when {
-                    state.dayStatus != "OPEN" -> {
-                        readinessTitle = "Hari bisnis belum dibuka"
-                        readinessDetail = "Transaksi belum bisa dimulai. Buka hari bisnis terlebih dahulu."
-                        readinessTone = UiTone.Danger
-                    }
-                    state.shiftStatus != "OPEN" -> {
-                        readinessTitle = "Shift belum dibuka"
-                        readinessDetail = "Isi modal awal lalu buka shift sebelum kasir dipakai."
-                        readinessTone = UiTone.Warning
-                    }
-                    else -> {
-                        readinessTitle = "Kasir siap dipakai"
-                        readinessDetail = state.nextActionLabel?.let { "Langkah aman berikutnya: $it." }
-                            ?: "Tidak ada blocker utama pada terminal ini."
-                        readinessTone = UiTone.Success
-                    }
+        if (stage != DesktopStage.Workspace) {
+            Row(
+                modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Menyiapkan Sesi...", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.weight(1f))
+                Text("Versi $releaseVersion", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        } else {
+            Row(
+                modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Text(text = state.workspaceTitle, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
+
+                    // Breadcrumb Context
+                    Text(
+                        text = "${state.storeName ?: "Outlet"}  •  ${state.terminalName ?: "Terminal"}  •  ${state.operatorName ?: "Operator"}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(
-                        modifier = Modifier.widthIn(min = 180.dp, max = 230.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(state.workspaceTitle, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                        Text(
-                            state.storeName ?: "Outlet belum aktif",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            state.terminalName ?: "Perangkat kasir belum terhubung",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    StatusIndicator(label = "Sync", status = syncLabel, tone = syncTone)
+
+                    val hardwareIssue = primaryHardwareIssueOrNull(hardware)
+                    if (hardwareIssue != null) {
+                        CompactChromeBadge(label = hardwareIssue, tone = UiTone.Warning)
                     }
 
-                    ChromeStatusPanel(
-                        title = readinessTitle,
-                        detail = readinessDetail,
-                        tone = readinessTone,
-                        modifier = Modifier.weight(1f)
-                    )
-
-                    Column(
-                        modifier = Modifier.widthIn(min = 180.dp, max = 220.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
-                        horizontalAlignment = Alignment.End
+                    Button(
+                        onClick = onOpenCommand,
+                        contentPadding = PaddingValues(horizontal = 12.dp),
+                        modifier = Modifier.height(32.dp),
+                        shape = RoundedCornerShape(8.dp)
                     ) {
-                        Text(
-                            humanizeOperatorLabel(state.operatorName, state.roleLabel),
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            CompactChromeBadge(label = "Sinkron $syncLabel", tone = syncTone)
-                            primaryHardwareIssueOrNull(hardware)?.let { issue ->
-                                CompactChromeBadge(label = issue, tone = UiTone.Warning)
-                            }
-                        }
-                        AssistChip(onClick = onOpenCommand, label = { Text("Aksi cepat") })
+                        Icon(Icons.Default.FlashOn, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Aksi Cepat", style = MaterialTheme.typography.labelMedium)
                     }
                 }
             }
@@ -332,7 +233,6 @@ fun CassyOperationalTopBar(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun CassyOperationalBottomStrip(
     shell: DesktopShellState,
@@ -349,7 +249,7 @@ fun CassyOperationalBottomStrip(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "Sinkron ${bottomStripSyncLabel(operations.reportingSummary?.syncStatus)} · ${shell.nextActionLabel ?: "Pantau status utama di atas"}",
+                "Sync: ${bottomStripSyncLabel(operations.reportingSummary?.syncStatus)} · ${shell.nextActionLabel ?: "Sistem Nominal"}",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -357,88 +257,6 @@ fun CassyOperationalBottomStrip(
                 primaryHardwareSummary(hardware),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-@Composable
-private fun StageTopBar(
-    title: String,
-    subtitle: String,
-    statusTitle: String,
-    statusDetail: String,
-    statusTone: UiTone,
-    releaseVersion: String
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Text(
-                subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-
-        ChromeStatusPanel(
-            title = statusTitle,
-            detail = statusDetail,
-            tone = statusTone,
-            modifier = Modifier.widthIn(min = 260.dp, max = 320.dp)
-        )
-
-        Column(
-            horizontalAlignment = Alignment.End,
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Text(
-                "Versi $releaseVersion",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(
-                "Cepat di kasir. Rapi di operasional.",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-@Composable
-private fun ChromeStatusPanel(
-    title: String,
-    detail: String,
-    tone: UiTone,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(10.dp),
-        color = toneContainerColor(tone)
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Text(
-                title,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Bold,
-                color = toneContentColor(tone)
-            )
-            Text(
-                detail,
-                style = MaterialTheme.typography.bodySmall,
-                color = toneContentColor(tone)
             )
         }
     }
@@ -485,7 +303,7 @@ fun CassyOperationalFooter(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                "${shell.storeName ?: "Outlet lokal"} | ${shell.terminalName ?: "Perangkat lokal"} | Ctrl+/ bantuan",
+                "${shell.storeName ?: "Outlet"} | ${shell.terminalName ?: "Terminal"} | Ctrl+/ bantuan",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -518,7 +336,8 @@ private val PRIMARY_WORKSPACES = setOf(
 
 private val SECONDARY_WORKSPACES = setOf(
     DesktopWorkspace.Reporting,
-    DesktopWorkspace.System
+    DesktopWorkspace.System,
+    DesktopWorkspace.Settings
 )
 
 private fun bottomStripSyncLabel(status: SyncStatus?): String = when (status?.level) {
@@ -526,7 +345,7 @@ private fun bottomStripSyncLabel(status: SyncStatus?): String = when (status?.le
     SyncLevel.PENDING -> "Menunggu"
     SyncLevel.DELAYED -> "Terlambat"
     SyncLevel.STALLED -> "Macet"
-    SyncLevel.ERROR -> "Perlu tindakan"
+    SyncLevel.ERROR -> "Bermasalah"
     null -> "Lokal"
 }
 
@@ -537,5 +356,6 @@ private fun DesktopWorkspace.toOperationalIcon(): ImageVector = when (this) {
     DesktopWorkspace.Inventory -> Icons.Default.Inventory2
     DesktopWorkspace.Operations -> Icons.Default.AdminPanelSettings
     DesktopWorkspace.Reporting -> Icons.Default.Assessment
-    DesktopWorkspace.System -> Icons.Default.Settings
+    DesktopWorkspace.System -> Icons.Default.Dns
+    DesktopWorkspace.Settings -> Icons.Default.Settings
 }

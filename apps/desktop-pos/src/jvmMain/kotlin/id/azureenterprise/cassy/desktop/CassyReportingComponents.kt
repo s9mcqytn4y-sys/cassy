@@ -1,12 +1,13 @@
 package id.azureenterprise.cassy.desktop
 
-import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.EventNote
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -25,9 +26,63 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 
 /**
- * R5 Hardened Reporting Components.
- * Ensures truthful visibility of operational issues, blocks, and pending states.
+ * CassyReportingComponents: Root component for Reporting workspace.
  */
+@Composable
+fun CassyReportingComponents(
+    state: OperationsState,
+    onExportReport: () -> Unit,
+    isBusy: Boolean
+) {
+    WorkspacePage("Laporan Operasional", "Analisa performa penjualan dan kesehatan terminal.") {
+        val summary = state.reportingSummary
+        if (summary == null) {
+            WorkspaceCard("Ringkasan Belum Tersedia") {
+                Text("Data hari bisnis aktif belum siap untuk dianalisa.")
+            }
+            return@WorkspacePage
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(20.dp), modifier = Modifier.fillMaxWidth()) {
+            WorkspaceCard("Statistik Hari Ini", Modifier.weight(1f)) {
+                SummaryRowV2("Transaksi Berhasil", "${summary.transactionCount}")
+                SummaryRowV2("Void / Retur", "${summary.voidedSaleCount}")
+                SummaryRowV2("Persetujuan Tunda", "${summary.pendingApprovalCount}")
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                SummaryRowV2("Estimasi Kas Akhir", "Rp ${summary.netCashMovement.toInt()}")
+            }
+
+            WorkspaceCard("Ekspor Data", Modifier.weight(1f)) {
+                Text(
+                    "Ekspor mengikuti snapshot lokal desktop. Data yang keluar harus dibaca sebagai operational truth terminal saat ini.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(8.dp))
+                SummaryRowV2("Format Output", "Bundle CSV")
+                SummaryRowV2("Target Folder", state.reportingExportPath ?: "Default App Data")
+
+                Button(
+                    onClick = onExportReport,
+                    enabled = !isBusy,
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                ) {
+                    if (isBusy) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(10.dp))
+                        Text("Mengekspor...")
+                    } else {
+                        Text("Unduh Laporan Hari Ini")
+                    }
+                }
+            }
+        }
+
+        WorkspaceCard("Antrian Isu Operasional") {
+            OperationalIssueList(issues = summary.issues, modifier = Modifier.heightIn(max = 400.dp))
+        }
+    }
+}
 
 @Composable
 fun OperationalIssueCard(
@@ -35,48 +90,46 @@ fun OperationalIssueCard(
     modifier: Modifier = Modifier
 ) {
     val backgroundColor = when (issue.severity) {
-        IssueSeverity.CRITICAL -> toneContainerColor(UiTone.Danger)
-        IssueSeverity.WARNING -> toneContainerColor(UiTone.Warning)
-        IssueSeverity.INFO -> MaterialTheme.colorScheme.surfaceVariant
+        IssueSeverity.CRITICAL -> toneContainerColor(UiTone.Danger).copy(alpha = 0.2f)
+        IssueSeverity.WARNING -> toneContainerColor(UiTone.Warning).copy(alpha = 0.2f)
+        IssueSeverity.INFO -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
     }
 
     val contentColor = when (issue.severity) {
-        IssueSeverity.CRITICAL -> MaterialTheme.colorScheme.onErrorContainer
+        IssueSeverity.CRITICAL -> MaterialTheme.colorScheme.error
         IssueSeverity.WARNING -> toneColor(UiTone.Warning)
         IssueSeverity.INFO -> MaterialTheme.colorScheme.onSurfaceVariant
     }
 
-    // Using basic icons available in the standard Material set to avoid dependency issues
     val icon = when (issue.type) {
-        OperationalIssueType.SYNC_STATUS -> Icons.Default.Refresh
+        OperationalIssueType.SYNC_STATUS -> Icons.Default.Sync
         OperationalIssueType.PENDING_APPROVAL -> Icons.Default.Lock
-        OperationalIssueType.OPERATIONAL_BLOCKER -> Icons.Default.Warning
-        OperationalIssueType.DISCREPANCY -> Icons.Default.Info
-        OperationalIssueType.HARDWARE_UNAVAILABLE -> Icons.Default.Build
-        OperationalIssueType.STATE_UNAVAILABLE -> Icons.Default.Info // Fallback to Info
-        OperationalIssueType.PENDING_TRANSACTION -> Icons.Default.ShoppingCart
-        OperationalIssueType.OPEN_WORK_UNIT -> Icons.Default.DateRange
+        OperationalIssueType.OPERATIONAL_BLOCKER -> Icons.Default.Block
+        OperationalIssueType.DISCREPANCY -> Icons.Default.Difference
+        OperationalIssueType.HARDWARE_UNAVAILABLE -> Icons.Default.PrintDisabled
+        OperationalIssueType.STATE_UNAVAILABLE -> Icons.Default.ErrorOutline
+        OperationalIssueType.PENDING_TRANSACTION -> Icons.Default.PendingActions
+        OperationalIssueType.OPEN_WORK_UNIT -> Icons.AutoMirrored.Filled.EventNote
     }
 
-    Card(
+    Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(10.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = backgroundColor,
-            contentColor = contentColor
-        )
+        shape = RoundedCornerShape(12.dp),
+        color = backgroundColor,
+        border = BorderStroke(1.dp, contentColor.copy(alpha = 0.15f))
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.Top
+            verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                modifier = Modifier.size(24.dp).padding(top = 2.dp)
+                tint = contentColor,
+                modifier = Modifier.size(24.dp)
             )
-            Spacer(modifier = Modifier.width(16.dp))
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -101,10 +154,10 @@ fun OperationalIssueCard(
                         }
                     }
                 }
-                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = issue.description,
-                    style = MaterialTheme.typography.bodySmall
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 if (issue.actor != null || issue.timestamp != null || issue.reasonCode != null) {
@@ -117,10 +170,10 @@ fun OperationalIssueCard(
                             MetadataChip(icon = Icons.Default.Person, text = it)
                         }
                         issue.timestamp?.let {
-                            MetadataChip(icon = Icons.Default.Notifications, text = formatTimestamp(it))
+                            MetadataChip(icon = Icons.Default.Schedule, text = formatTimestamp(it))
                         }
                         issue.reasonCode?.let {
-                            MetadataChip(icon = Icons.Default.Info, text = it)
+                            MetadataChip(icon = Icons.Default.Tag, text = it)
                         }
                     }
                 }
@@ -132,8 +185,8 @@ fun OperationalIssueCard(
 @Composable
 private fun MetadataChip(icon: ImageVector, text: String) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(12.dp))
-        Text(text = text, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium)
+        Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(text = text, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -165,7 +218,7 @@ fun OperationalIssueList(
                 Text(
                     "Tidak ada masalah atau tindakan tertunda.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
@@ -174,8 +227,7 @@ fun OperationalIssueList(
             issues.sortedByDescending { it.severity }
         }
         LazyColumn(
-            modifier = modifier.fillMaxSize(),
-            contentPadding = PaddingValues(16.dp),
+            modifier = modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             items(sortedIssues) { issue ->

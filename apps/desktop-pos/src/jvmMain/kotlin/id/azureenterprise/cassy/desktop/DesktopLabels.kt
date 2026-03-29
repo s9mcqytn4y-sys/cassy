@@ -42,6 +42,7 @@ object DesktopLabels {
             CashierMilestone.ScanBarang -> "Mulai dengan scan barang atau cari SKU bila barcode tidak terbaca."
             CashierMilestone.ReviewKeranjang -> "Periksa jumlah, subtotal, dan total sebelum lanjut."
             CashierMilestone.Member -> "Tambahkan member bila ada, atau lewati langkah ini."
+            CashierMilestone.Donasi -> "Tawarkan donasi bila pelanggan ingin berpartisipasi."
             CashierMilestone.Pembayaran -> "Terima pembayaran, cek kembalian, lalu selesaikan transaksi."
             CashierMilestone.Selesai -> "Transaksi selesai. Cetak struk atau mulai transaksi berikutnya."
         }
@@ -50,7 +51,8 @@ object DesktopLabels {
             CashierMilestone.ScanBarang -> "Scan barang untuk mulai transaksi."
             CashierMilestone.ReviewKeranjang -> "Periksa jumlah dan total sebelum lanjut."
             CashierMilestone.Member -> "Tambahkan member bila ada, atau lewati."
-            CashierMilestone.Pembayaran -> "Terima pembayaran dan cek kembalian."
+            CashierMilestone.Donasi -> "Input nominal donasi bila ada."
+            CashierMilestone.Pembayaran -> "Terima pembayaran and cek kembalian."
             CashierMilestone.Selesai -> "Transaksi selesai. Siap mulai transaksi berikutnya."
         }
     }

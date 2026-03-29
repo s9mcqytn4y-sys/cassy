@@ -30,7 +30,7 @@ class CashControlService(
             .map { request ->
                 PendingApprovalSummary(
                     id = request.id,
-                    operationType = request.operationType,
+                    type = request.operationType,
                     title = request.operationType.toTitle(),
                     detail = buildString {
                         append(request.reasonCode)
@@ -39,7 +39,8 @@ class CashControlService(
                             append(it)
                         }
                     },
-                    amount = request.amount
+                    amount = request.amount,
+                    requestedBy = request.requestedBy
                 )
             }
     }
