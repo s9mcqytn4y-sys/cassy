@@ -1,2 +1,87 @@
+# ==============================================================================
+# CASSY AI EXCLUSION PROFILE (v2.0)
+# Tujuan: Mengurangi noise indexing, melindungi context, & menjaga AI tetap fokus.
+# ==============================================================================
 
+# --- [ NOISE & CACHE ] ---
+.gradle/
+.kotlin/
+.navigation/
+.idea/libraries/
+.idea/caches/
+**/build/
+**/bin/
+**/out/
+**/gen/
+**/compose-desktop-build/
+node_modules/
+.DS_Store
+Thumbs.db
 
+# --- [ RUNTIME & LOCAL STATE ] ---
+# Database lokal sangat noisy karena sering berubah saat dev/smoke run.
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+.sandbox/
+captures/
+*.log
+
+# --- [ BINARY ARTIFACTS ] ---
+# File biner besar dan tidak berguna untuk reasoning teks.
+*.apk
+*.ap_
+*.dex
+*.class
+*.jar
+*.exe
+*.msi
+*.dmg
+*.pkg
+*.zip
+*.7z
+*.tar.gz
+
+# --- [ SENSITIVE & SECRETS ] ---
+local.properties
+secrets.properties
+*.jks
+*.keystore
+*.p12
+.env*
+
+# --- [ MEDIA & ASSETS NOISE ] ---
+# Kecuali asset yang mendefinisikan skema atau meta-data.
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.ico
+*.mp4
+*.pdf
+
+# --- [ EXCEPTIONS: SOURCE OF TRUTH ] ---
+# Pastikan AI TETAP bisa membaca area kritikal ini.
+!docs/**
+!docs/**/*.md
+!.agent/**
+!.agent/**/*.md
+!.github/**
+!.github/**/*.yml
+!.github/**/*.md
+!tooling/scripts/**
+!AGENTS.md
+!GEMINI.md
+!README.md
+!README_INSTALLATION.md
+!settings.gradle.kts
+!build.gradle.kts
+!gradle/libs.versions.toml
+
+# ==============================================================================
+# Cassy: Desktop-first, Local-first Retail Core.
+# AI harus fokus pada logic multiplatform (shared) dan desktop shell (apps).
+# ==============================================================================

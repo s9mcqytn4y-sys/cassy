@@ -1,0 +1,25 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "java",
+            "name": "Cassy: Debug Desktop POS",
+            "request": "launch",
+            "mainClass": "id.azureenterprise.cassy.desktop.MainKt",
+            "projectName": "apps:desktop-pos",
+            "vmArgs": "-Dcassy.release.version=0.2.0-debug -Dcassy.runtime.channel=dev -Dcassy.display.name='Cassy Debug'",
+            "env": {
+                "CASSY_DATA_DIR": "${workspaceFolder}/.sandbox/desktop-debug"
+            }
+        },
+        {
+            "type": "java",
+            "name": "Cassy: Debug Smoke Mode",
+            "request": "launch",
+            "mainClass": "id.azureenterprise.cassy.desktop.MainKt",
+            "projectName": "apps:desktop-pos",
+            "args": "--smoke-run",
+            "vmArgs": "-Dcassy.data.dir=${workspaceFolder}/.sandbox/desktop-smoke"
+        }
+    ]
+}

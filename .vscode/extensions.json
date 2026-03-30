@@ -1,0 +1,10 @@
+{
+    "recommendations": [
+        "fwcd.kotlin",
+        "vscjava.vscode-java-pack",
+        "ms-azuretools.vscode-docker",
+        "ms-vscode.powershell",
+        "naco-siren.gradle-language",
+        "sumneko.lua"
+    ]
+}

@@ -2,108 +2,93 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "Cassy Desktop Reset Sandbox Data",
+            "label": "Cassy: Desktop Run",
+            "type": "shell",
+            "group": "run",
+            "command": ".\\gradlew :apps:desktop-pos:run",
+            "presentation": { "reveal": "always", "panel": "new" },
+            "problemMatcher": []
+        },
+        {
+            "label": "Cassy: Desktop Smoke (Source)",
+            "type": "shell",
+            "group": "test",
+            "command": ".\\gradlew",
+            "args": [
+                ":apps:desktop-pos:smokeRun",
+                "--no-configuration-cache",
+                "--console=plain"
+            ],
+            "problemMatcher": []
+        },
+        {
+            "label": "Cassy: Sandbox Run",
+            "type": "shell",
+            "group": "run",
+            "command": "powershell",
+            "args": [
+                "-ExecutionPolicy", "Bypass",
+                "-File", "tooling/scripts/Invoke-DesktopSandbox.ps1"
+            ],
+            "problemMatcher": []
+        },
+        {
+            "label": "Cassy: Sandbox Reset",
             "type": "shell",
             "command": "powershell",
             "args": [
-                "-ExecutionPolicy",
-                "Bypass",
-                "-File",
-                "tooling/scripts/Invoke-DesktopSandbox.ps1",
+                "-ExecutionPolicy", "Bypass",
+                "-File", "tooling/scripts/Invoke-DesktopSandbox.ps1",
                 "-ResetDemo"
             ],
             "problemMatcher": []
         },
         {
-            "label": "Cassy Desktop Run Sandbox",
+            "label": "Cassy: Verify Core (Shared & Android)",
             "type": "shell",
-            "command": "powershell",
-            "args": [
-                "-ExecutionPolicy",
-                "Bypass",
-                "-File",
-                "tooling/scripts/Invoke-DesktopSandbox.ps1"
-            ],
-            "problemMatcher": []
-        },
-        {
-            "label": "Cassy Desktop Smoke Run",
-            "type": "shell",
-            "command": "powershell",
-            "args": [
-                "-ExecutionPolicy",
-                "Bypass",
-                "-File",
-                "tooling/scripts/Invoke-DesktopSandbox.ps1",
-                "-SmokeRun",
-                "-DataRoot",
-                "${workspaceFolder}\\.sandbox\\desktop-smoke"
-            ],
-            "problemMatcher": []
-        },
-        {
-            "label": "Cassy Desktop Source Smoke",
-            "type": "shell",
-            "command": ".\\gradlew",
-            "args": [
-                "-Dcassy.data.dir=${workspaceFolder}\\.sandbox\\desktop-smoke",
-                ":apps:desktop-pos:smokeRun",
-                "--no-configuration-cache",
-                "--console=plain"
-            ],
-            "problemMatcher": []
-        },
-        {
-            "label": "Cassy Core Verify",
-            "type": "shell",
-            "command": ".\\gradlew",
-            "args": [
-                "build",
-                "test",
-                "detekt",
-                ":apps:android-pos:lintDebug",
-                "--no-configuration-cache",
-                "--console=plain"
-            ],
-            "problemMatcher": []
-        },
-        {
-            "label": "Cassy R3 Hardened Gate",
-            "type": "shell",
+            "group": "test",
             "command": ".\\gradlew",
             "args": [
                 ":shared:kernel:allTests",
-                ":shared:sales:desktopTest",
-                ":shared:inventory:desktopTest",
-                ":shared:inventory:verifyCommonMainInventoryDatabaseMigration",
-                ":apps:desktop-pos:test",
-                ":apps:desktop-pos:smokeRun",
-                "--no-configuration-cache",
-                "--console=plain"
+                ":shared:sales:allTests",
+                ":shared:inventory:allTests",
+                ":shared:masterdata:allTests",
+                ":apps:android-pos:lintDebug",
+                "--no-configuration-cache"
             ],
             "problemMatcher": []
         },
         {
-            "label": "Cassy Windows Package",
+            "label": "Cassy: Windows Package MSI",
             "type": "shell",
+            "group": "build",
             "command": ".\\gradlew",
             "args": [
                 ":apps:desktop-pos:createDistributable",
-                ":apps:desktop-pos:packageDistributionForCurrentOS",
-                "--no-configuration-cache",
-                "--console=plain"
+                ":apps:desktop-pos:packageMsi",
+                "--no-configuration-cache"
             ],
             "problemMatcher": []
         },
         {
-            "label": "Cassy Windows Distribution Smoke",
+            "label": "Cassy: Distribution Evidence",
             "type": "shell",
             "command": "powershell",
             "args": [
-                "-ExecutionPolicy",
-                "Bypass",
-                "-File",
-                "tooling/scripts/Invoke-DesktopDistributionSmoke.ps1"
+                "-ExecutionPolicy", "Bypass",
+                "-File", "tooling/scripts/Invoke-DesktopDistributionSmoke.ps1"
+            ],
+            "problemMatcher": []
+        },
+        {
+            "label": "Cassy: DB Migration Verify",
+            "type": "shell",
+            "command": ".\\gradlew",
+            "args": [
+                ":shared:kernel:verifyCommonMainKernelDatabaseMigration",
+                ":shared:inventory:verifyCommonMainInventoryDatabaseMigration",
+                ":shared:masterdata:verifyCommonMainMasterDataDatabaseMigration",
+                ":shared:sales:verifyCommonMainSalesDatabaseMigration"
             ],
             "problemMatcher": []
         }

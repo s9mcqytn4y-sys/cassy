@@ -1,4 +1,4 @@
-# Cassy Agent Control Plane
+# Cassy Agent Control Plane (v2 - Read-biased Git)
 
 Folder ini adalah **Source of Truth** untuk perilaku, konteks, dan instruksi khusus bagi AI Agent (Gemini, Claude, dsb.) yang bekerja di repository Cassy.
 
@@ -14,9 +14,9 @@ Folder ini adalah **Source of Truth** untuk perilaku, konteks, dan instruksi khu
 1. **Evidence-based**: Agent tidak boleh berasumsi. Selalu verifikasi file atau status repo.
 2. **Safety-first**: Dilarang melakukan destructive action tanpa konfirmasi manual.
 3. **Local-first**: Prioritas pada stabilitas SQLite dan offline-readiness.
-4. **Context-aware**: Selalu rujuk `docs/` sebelum mengusulkan perubahan arsitektur.
+4. **Read-biased Git**: Agent fokus pada audit dan diffing. Staging/commit dilakukan secara manual oleh user.
 
 ## Cara Menggunakan
 
 Saat memulai session baru dengan Agent, berikan instruksi:
-> "Baca .agent/README.md dan gunakan konteks di dalam folder .agent/ sebagai panduan kerja Anda."
+> "Baca .agent/README.md dan gunakan konteks di dalam folder .agent/ sebagai panduan kerja Anda. Perhatikan bahwa kapabilitas Git MCP bersifat read-only untuk audit."
