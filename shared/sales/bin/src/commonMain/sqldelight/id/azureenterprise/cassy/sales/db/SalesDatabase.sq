@@ -1,0 +1,291 @@
+CREATE TABLE Sale (
+    id TEXT NOT NULL PRIMARY KEY,
+    localNumber TEXT NOT NULL,
+    shiftId TEXT NOT NULL,
+    terminalId TEXT NOT NULL,
+    timestamp INTEGER NOT NULL,
+    totalAmount REAL NOT NULL CHECK (totalAmount >= 0),
+    taxAmount REAL NOT NULL CHECK (taxAmount >= 0),
+    discountAmount REAL NOT NULL CHECK (discountAmount >= 0),
+    finalAmount REAL NOT NULL CHECK (finalAmount >= 0),
+    status TEXT NOT NULL CHECK (status IN ('PENDING', 'COMPLETED', 'CANCELLED', 'SUSPENDED')),
+    suspendedAt INTEGER
+);
+
+CREATE TABLE SaleItem (
+    id TEXT NOT NULL PRIMARY KEY,
+    saleId TEXT NOT NULL,
+    productId TEXT NOT NULL,
+    productName TEXT NOT NULL CHECK (length(trim(productName)) > 0),
+    unitPrice REAL NOT NULL CHECK (unitPrice >= 0),
+    quantity REAL NOT NULL CHECK (quantity > 0),
+    totalPrice REAL NOT NULL CHECK (totalPrice >= 0),
+    taxAmount REAL NOT NULL CHECK (taxAmount >= 0),
+    discountAmount REAL NOT NULL CHECK (discountAmount >= 0),
+    FOREIGN KEY(saleId) REFERENCES Sale(id) ON DELETE CASCADE
+);
+
+CREATE TABLE SalePayment (
+    id TEXT NOT NULL PRIMARY KEY,
+    saleId TEXT NOT NULL,
+    method TEXT NOT NULL CHECK (method IN ('CASH', 'CARD', 'QRIS')),
+    amount REAL NOT NULL CHECK (amount > 0),
+    status TEXT NOT NULL CHECK (status IN ('PENDING', 'SUCCESS', 'FAILED', 'CANCELLED')),
+    statusReasonCode TEXT,
+    statusDetailMessage TEXT,
+    providerReference TEXT,
+    timestamp INTEGER NOT NULL,
+    FOREIGN KEY(saleId) REFERENCES Sale(id) ON DELETE CASCADE,
+    CHECK (status NOT IN ('PENDING', 'FAILED') OR statusReasonCode IS NOT NULL)
+);
+
+CREATE TABLE ReceiptSnapshot (
+    saleId TEXT NOT NULL PRIMARY KEY,
+    content TEXT NOT NULL CHECK (length(trim(content)) > 0), -- JSON structured snapshot
+    snapshotVersion INTEGER NOT NULL CHECK (snapshotVersion >= 1),
+    templateId TEXT NOT NULL CHECK (length(trim(templateId)) > 0),
+    paperWidthMm INTEGER NOT NULL CHECK (paperWidthMm IN (58, 80)),
+    createdAt INTEGER NOT NULL,
+    FOREIGN KEY(saleId) REFERENCES Sale(id) ON DELETE CASCADE
+);
+
+CREATE TABLE FinalizationBundle (
+    saleId TEXT NOT NULL PRIMARY KEY,
+    paymentId TEXT NOT NULL,
+    state TEXT NOT NULL CHECK (state IN ('PREPARED', 'APPLYING', 'COMPLETED')),
+    receiptContent TEXT NOT NULL CHECK (length(trim(receiptContent)) > 0),
+    paymentStatus TEXT NOT NULL CHECK (paymentStatus IN ('PENDING', 'SUCCESS', 'FAILED', 'CANCELLED')),
+    paymentDetailCode TEXT,
+    paymentDetailMessage TEXT,
+    providerReference TEXT,
+    inventoryContent TEXT NOT NULL CHECK (length(trim(inventoryContent)) > 0),
+    auditId TEXT NOT NULL,
+    auditMessage TEXT NOT NULL,
+    eventId TEXT NOT NULL,
+    eventType TEXT NOT NULL,
+    eventPayload TEXT NOT NULL,
+    lastError TEXT,
+    preparedAt INTEGER NOT NULL,
+    updatedAt INTEGER NOT NULL,
+    FOREIGN KEY(saleId) REFERENCES Sale(id) ON DELETE CASCADE,
+    FOREIGN KEY(paymentId) REFERENCES SalePayment(id) ON DELETE CASCADE,
+    CHECK (paymentStatus NOT IN ('PENDING', 'FAILED') OR paymentDetailCode IS NOT NULL)
+);
+
+CREATE TABLE SaleVoid (
+    id TEXT NOT NULL PRIMARY KEY,
+    saleId TEXT NOT NULL UNIQUE,
+    businessDayId TEXT NOT NULL,
+    shiftId TEXT NOT NULL,
+    terminalId TEXT NOT NULL,
+    localNumber TEXT NOT NULL,
+    paymentMethod TEXT NOT NULL CHECK (paymentMethod IN ('CASH', 'CARD', 'QRIS')),
+    originalAmount REAL NOT NULL CHECK (originalAmount >= 0),
+    cashRefundMovementId TEXT,
+    inventoryImpactClassification TEXT NOT NULL,
+    inventoryFollowUpNote TEXT,
+    reasonCode TEXT NOT NULL,
+    reasonDetail TEXT,
+    voidedBy TEXT NOT NULL,
+    createdAt INTEGER NOT NULL,
+    FOREIGN KEY(saleId) REFERENCES Sale(id) ON DELETE CASCADE
+);
+
+CREATE TABLE ActiveBasket (
+    id INTEGER PRIMARY KEY CHECK (id = 1), -- Single row enforcement
+    content TEXT NOT NULL, -- JSON serialized Basket
+    updatedAt INTEGER NOT NULL
+);
+
+CREATE UNIQUE INDEX Sale_terminal_local_unique_idx ON Sale(terminalId, localNumber);
+CREATE INDEX Sale_shift_timestamp_idx ON Sale(shiftId, timestamp);
+CREATE INDEX Sale_status_timestamp_idx ON Sale(status, timestamp);
+CREATE UNIQUE INDEX SaleItem_sale_product_unique_idx ON SaleItem(saleId, productId);
+CREATE INDEX SalePayment_sale_timestamp_idx ON SalePayment(saleId, timestamp);
+CREATE INDEX SalePayment_status_timestamp_idx ON SalePayment(status, timestamp);
+CREATE INDEX ReceiptSnapshot_createdAt_idx ON ReceiptSnapshot(createdAt);
+CREATE INDEX ReceiptSnapshot_template_createdAt_idx ON ReceiptSnapshot(templateId, createdAt);
+CREATE INDEX FinalizationBundle_state_updatedAt_idx ON FinalizationBundle(state, updatedAt);
+CREATE INDEX SaleVoid_shift_createdAt_idx ON SaleVoid(shiftId, createdAt);
+CREATE INDEX SaleVoid_businessDay_createdAt_idx ON SaleVoid(businessDayId, createdAt);
+
+-- Queries
+insertSale:
+INSERT INTO Sale(id, localNumber, shiftId, terminalId, timestamp, totalAmount, taxAmount, discountAmount, finalAmount, status)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+insertSaleItem:
+INSERT INTO SaleItem(id, saleId, productId, productName, unitPrice, quantity, totalPrice, taxAmount, discountAmount)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+insertSalePayment:
+INSERT INTO SalePayment(id, saleId, method, amount, status, statusReasonCode, statusDetailMessage, providerReference, timestamp)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+updateSaleStatus:
+UPDATE Sale SET status = ?, suspendedAt = ? WHERE id = ?;
+
+updatePaymentStatus:
+UPDATE SalePayment SET status = ?, statusReasonCode = ?, statusDetailMessage = ?, providerReference = ? WHERE id = ?;
+
+getSaleById:
+SELECT * FROM Sale WHERE id = ? LIMIT 1;
+
+getSalePayments:
+SELECT * FROM SalePayment WHERE saleId = ? ORDER BY timestamp DESC;
+
+getCompletedSales:
+SELECT * FROM Sale
+WHERE status = 'COMPLETED' AND id NOT IN (SELECT saleId FROM SaleVoid)
+ORDER BY timestamp DESC;
+
+getRecentSales:
+SELECT
+    s.id,
+    s.localNumber,
+    s.terminalId,
+    s.finalAmount,
+    CASE WHEN sv.saleId IS NOT NULL THEN 'VOIDED' ELSE s.status END AS status,
+    sp.method,
+    sp.status AS paymentStatus,
+    sp.statusReasonCode,
+    sp.statusDetailMessage,
+    sp.providerReference,
+    rs.createdAt AS finalizedAtEpochMs,
+    sv.createdAt AS voidedAtEpochMs
+FROM Sale s
+INNER JOIN SalePayment sp ON sp.saleId = s.id
+LEFT JOIN ReceiptSnapshot rs ON rs.saleId = s.id
+LEFT JOIN SaleVoid sv ON sv.saleId = s.id
+WHERE s.status = 'COMPLETED'
+ORDER BY COALESCE(sv.createdAt, rs.createdAt, s.timestamp) DESC
+LIMIT ?;
+
+countPendingSalesByShift:
+SELECT COUNT(*) FROM Sale
+WHERE shiftId = ? AND status = 'PENDING';
+
+listPendingSalesByShift:
+SELECT id, localNumber, finalAmount FROM Sale
+WHERE shiftId = ? AND status = 'PENDING'
+ORDER BY timestamp DESC;
+
+getShiftPaymentMethodSummary:
+SELECT sp.method, COALESCE(SUM(sp.amount), 0.0) AS totalAmount, COUNT(*) AS paymentCount
+FROM SalePayment sp
+INNER JOIN Sale s ON s.id = sp.saleId
+WHERE s.shiftId = ? AND s.status = 'COMPLETED' AND sp.status = 'SUCCESS'
+  AND s.id NOT IN (SELECT saleId FROM SaleVoid)
+GROUP BY sp.method;
+
+getMultiShiftPaymentMethodSummary:
+SELECT sp.method, COALESCE(SUM(sp.amount), 0.0) AS totalAmount, COUNT(*) AS paymentCount
+FROM SalePayment sp
+INNER JOIN Sale s ON s.id = sp.saleId
+WHERE s.shiftId IN ? AND s.status = 'COMPLETED' AND sp.status = 'SUCCESS'
+  AND s.id NOT IN (SELECT saleId FROM SaleVoid)
+GROUP BY sp.method;
+
+getShiftVoidSummary:
+SELECT
+    COUNT(*) AS voidCount,
+    COALESCE(SUM(originalAmount), 0.0) AS totalAmount,
+    MAX(createdAt) AS latestVoidedAt
+FROM SaleVoid
+WHERE shiftId = ?;
+
+getMultiShiftVoidSummary:
+SELECT
+    COUNT(*) AS voidCount,
+    COALESCE(SUM(originalAmount), 0.0) AS totalAmount,
+    MAX(createdAt) AS latestVoidedAt
+FROM SaleVoid
+WHERE shiftId IN ?;
+
+listPendingSalesByMultiShift:
+SELECT id, localNumber, finalAmount FROM Sale
+WHERE shiftId IN ? AND status = 'PENDING'
+ORDER BY timestamp DESC;
+
+getSaleWithItems:
+SELECT s.*, si.* FROM Sale s
+LEFT JOIN SaleItem si ON s.id = si.saleId
+WHERE s.id = ?;
+
+getSaleItems:
+SELECT * FROM SaleItem WHERE saleId = ? ORDER BY id ASC;
+
+insertReceiptSnapshot:
+INSERT INTO ReceiptSnapshot(saleId, content, snapshotVersion, templateId, paperWidthMm, createdAt)
+VALUES (?, ?, ?, ?, ?, ?);
+
+getReceiptSnapshot:
+SELECT * FROM ReceiptSnapshot WHERE saleId = ?;
+
+getSaleVoidBySaleId:
+SELECT * FROM SaleVoid WHERE saleId = ? LIMIT 1;
+
+insertSaleVoid:
+INSERT INTO SaleVoid(
+    id,
+    saleId,
+    businessDayId,
+    shiftId,
+    terminalId,
+    localNumber,
+    paymentMethod,
+    originalAmount,
+    cashRefundMovementId,
+    inventoryImpactClassification,
+    inventoryFollowUpNote,
+    reasonCode,
+    reasonDetail,
+    voidedBy,
+    createdAt
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+insertOrIgnoreFinalizationBundle:
+INSERT OR IGNORE INTO FinalizationBundle(
+    saleId,
+    paymentId,
+    state,
+    receiptContent,
+    paymentStatus,
+    paymentDetailCode,
+    paymentDetailMessage,
+    providerReference,
+    inventoryContent,
+    auditId,
+    auditMessage,
+    eventId,
+    eventType,
+    eventPayload,
+    lastError,
+    preparedAt,
+    updatedAt
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+updateFinalizationBundleState:
+UPDATE FinalizationBundle
+SET state = ?, lastError = ?, updatedAt = ?
+WHERE saleId = ?;
+
+getFinalizationBundle:
+SELECT * FROM FinalizationBundle WHERE saleId = ? LIMIT 1;
+
+getIncompleteFinalizationBundles:
+SELECT * FROM FinalizationBundle
+WHERE state != 'COMPLETED'
+ORDER BY updatedAt ASC;
+
+insertOrUpdateActiveBasket:
+INSERT OR REPLACE INTO ActiveBasket(id, content, updatedAt)
+VALUES (1, ?, ?);
+
+getActiveBasket:
+SELECT content FROM ActiveBasket WHERE id = 1;
+
+clearActiveBasket:
+DELETE FROM ActiveBasket WHERE id = 1;

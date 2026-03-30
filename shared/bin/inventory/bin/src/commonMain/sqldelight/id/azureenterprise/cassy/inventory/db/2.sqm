@@ -1,0 +1,193 @@
+ALTER TABLE InventoryBalance RENAME TO InventoryBalance_legacy;
+ALTER TABLE StockLedger RENAME TO StockLedger_legacy;
+
+CREATE TABLE InventoryBalance (
+    productId TEXT NOT NULL PRIMARY KEY,
+    quantity REAL NOT NULL DEFAULT 0,
+    rotationPolicy TEXT NOT NULL DEFAULT 'FIFO',
+    lastLedgerEntryId TEXT,
+    lastUpdatedAt INTEGER NOT NULL
+);
+
+CREATE TABLE StockLedgerEntry (
+    id TEXT NOT NULL PRIMARY KEY,
+    productId TEXT NOT NULL,
+    quantityDelta REAL NOT NULL,
+    mutationType TEXT NOT NULL,
+    sourceType TEXT NOT NULL,
+    sourceId TEXT NOT NULL,
+    sourceLineId TEXT NOT NULL DEFAULT '',
+    reasonCode TEXT,
+    reasonDetail TEXT,
+    actorId TEXT,
+    terminalId TEXT NOT NULL,
+    status TEXT NOT NULL,
+    createdAt INTEGER NOT NULL
+);
+
+CREATE TABLE InventoryDiscrepancyReview (
+    id TEXT NOT NULL PRIMARY KEY,
+    productId TEXT NOT NULL,
+    bookQuantity REAL NOT NULL,
+    countedQuantity REAL NOT NULL,
+    varianceQuantity REAL NOT NULL,
+    status TEXT NOT NULL,
+    approvalMode TEXT NOT NULL,
+    sourceType TEXT NOT NULL,
+    sourceId TEXT NOT NULL,
+    sourceLineId TEXT NOT NULL DEFAULT '',
+    reasonCode TEXT,
+    reasonDetail TEXT,
+    requestedBy TEXT NOT NULL,
+    resolvedBy TEXT,
+    terminalId TEXT NOT NULL,
+    createdAt INTEGER NOT NULL,
+    resolvedAt INTEGER,
+    resolutionNote TEXT,
+    relatedLedgerEntryId TEXT
+);
+
+CREATE TABLE InventoryLayer (
+    id TEXT NOT NULL PRIMARY KEY,
+    productId TEXT NOT NULL,
+    sourceType TEXT NOT NULL,
+    sourceId TEXT NOT NULL,
+    sourceLineId TEXT NOT NULL DEFAULT '',
+    acquiredQuantity REAL NOT NULL,
+    remainingQuantity REAL NOT NULL,
+    acquiredAt INTEGER NOT NULL,
+    expiryAt INTEGER,
+    rotationPolicy TEXT NOT NULL,
+    status TEXT NOT NULL
+);
+
+INSERT INTO InventoryBalance(productId, quantity, rotationPolicy, lastLedgerEntryId, lastUpdatedAt)
+SELECT productId, quantity, 'FIFO', NULL, lastUpdatedAt
+FROM InventoryBalance_legacy;
+
+INSERT INTO StockLedgerEntry(
+    id,
+    productId,
+    quantityDelta,
+    mutationType,
+    sourceType,
+    sourceId,
+    sourceLineId,
+    reasonCode,
+    reasonDetail,
+    actorId,
+    terminalId,
+    status,
+    createdAt
+)
+SELECT
+    id,
+    productId,
+    quantity,
+    CASE type
+        WHEN 'SALE' THEN 'SALE_COMPLETION'
+        WHEN 'RETURN' THEN 'STOCK_ADJUSTMENT'
+        WHEN 'ADJUSTMENT' THEN 'STOCK_ADJUSTMENT'
+        WHEN 'RECEIVING' THEN 'MIGRATION_BASELINE'
+        ELSE 'MIGRATION_BASELINE'
+    END,
+    CASE type
+        WHEN 'SALE' THEN 'SALE_FINALIZATION'
+        WHEN 'RETURN' THEN 'RETURN_COMPLETION'
+        WHEN 'ADJUSTMENT' THEN 'LEGACY_IMPORTED'
+        WHEN 'RECEIVING' THEN 'LEGACY_IMPORTED'
+        ELSE 'LEGACY_IMPORTED'
+    END,
+    COALESCE(referenceId, id),
+    '',
+    CASE WHEN type = 'ADJUSTMENT' THEN 'MANUAL_CORRECTION' ELSE NULL END,
+    'Imported dari schema inventory legacy',
+    NULL,
+    terminalId,
+    'FINAL',
+    timestamp
+FROM StockLedger_legacy;
+
+INSERT INTO InventoryLayer(
+    id,
+    productId,
+    sourceType,
+    sourceId,
+    sourceLineId,
+    acquiredQuantity,
+    remainingQuantity,
+    acquiredAt,
+    expiryAt,
+    rotationPolicy,
+    status
+)
+SELECT
+    'layer_migration_' || productId,
+    productId,
+    'MIGRATION_BALANCE_BASELINE',
+    productId,
+    '',
+    quantity,
+    quantity,
+    lastUpdatedAt,
+    NULL,
+    'FIFO',
+    'OPEN'
+FROM InventoryBalance_legacy
+WHERE quantity > 0;
+
+INSERT INTO InventoryDiscrepancyReview(
+    id,
+    productId,
+    bookQuantity,
+    countedQuantity,
+    varianceQuantity,
+    status,
+    approvalMode,
+    sourceType,
+    sourceId,
+    sourceLineId,
+    reasonCode,
+    reasonDetail,
+    requestedBy,
+    resolvedBy,
+    terminalId,
+    createdAt,
+    resolvedAt,
+    resolutionNote,
+    relatedLedgerEntryId
+)
+SELECT
+    'disc_migration_negative_' || productId,
+    productId,
+    quantity,
+    0,
+    0 - quantity,
+    'INVESTIGATION_REQUIRED',
+    'LIGHT_PIN',
+    'MIGRATION_BALANCE_BASELINE',
+    productId,
+    '',
+    'MANUAL_CORRECTION',
+    'Saldo legacy negatif membutuhkan investigasi manual sebelum koreksi stok berikutnya.',
+    'SYSTEM_MIGRATION',
+    NULL,
+    'SYSTEM',
+    lastUpdatedAt,
+    NULL,
+    NULL,
+    NULL
+FROM InventoryBalance_legacy
+WHERE quantity < 0;
+
+DROP TABLE StockLedger_legacy;
+DROP TABLE InventoryBalance_legacy;
+
+CREATE INDEX IF NOT EXISTS InventoryBalance_updated_idx ON InventoryBalance(lastUpdatedAt DESC);
+CREATE INDEX IF NOT EXISTS StockLedgerEntry_product_timestamp_idx ON StockLedgerEntry(productId, createdAt DESC);
+CREATE INDEX IF NOT EXISTS StockLedgerEntry_source_idx ON StockLedgerEntry(sourceType, sourceId, sourceLineId);
+CREATE UNIQUE INDEX IF NOT EXISTS StockLedgerEntry_source_mutation_uidx ON StockLedgerEntry(productId, mutationType, sourceType, sourceId, sourceLineId);
+CREATE INDEX IF NOT EXISTS InventoryDiscrepancyReview_product_status_idx ON InventoryDiscrepancyReview(productId, status, createdAt DESC);
+CREATE INDEX IF NOT EXISTS InventoryDiscrepancyReview_status_idx ON InventoryDiscrepancyReview(status, createdAt DESC);
+CREATE INDEX IF NOT EXISTS InventoryLayer_product_status_acquired_idx ON InventoryLayer(productId, status, acquiredAt ASC);
+CREATE INDEX IF NOT EXISTS InventoryLayer_product_status_expiry_idx ON InventoryLayer(productId, status, expiryAt ASC);

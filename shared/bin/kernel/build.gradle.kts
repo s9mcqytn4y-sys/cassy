@@ -1,0 +1,46 @@
+plugins {
+    id("cassy.kmp.shared")
+    alias(libs.plugins.sqlDelight)
+}
+
+sqldelight {
+    databases {
+        create("KernelDatabase") {
+            packageName.set("id.azureenterprise.cassy.kernel.db")
+            module(project(":tooling:sqlite-worker-init"))
+        }
+    }
+}
+
+kotlin {
+    sourceSets {
+        commonMain.dependencies {
+            implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.kotlinx.datetime)
+            api(libs.koin.core)
+            api(libs.sqldelight.runtime)
+        }
+
+        commonTest.dependencies {
+            implementation(libs.kotlin.test)
+            implementation(libs.kotlinx.coroutines.test)
+        }
+
+        androidMain.dependencies {
+            implementation(libs.sqldelight.android.driver)
+        }
+
+        val desktopMain by getting {
+            dependencies {
+                implementation(libs.sqldelight.sqlite.driver)
+            }
+        }
+
+        val desktopTest by getting {
+            dependencies {
+                implementation(libs.kotlin.test)
+                implementation(libs.sqldelight.sqlite.driver)
+            }
+        }
+    }
+}

@@ -1,0 +1,93 @@
+PRAGMA foreign_keys = 0;
+
+ALTER TABLE Sale RENAME TO Sale_legacy;
+
+CREATE TABLE Sale (
+    id TEXT NOT NULL PRIMARY KEY,
+    localNumber TEXT NOT NULL,
+    shiftId TEXT NOT NULL,
+    terminalId TEXT NOT NULL,
+    timestamp INTEGER NOT NULL,
+    totalAmount REAL NOT NULL CHECK (totalAmount >= 0),
+    taxAmount REAL NOT NULL CHECK (taxAmount >= 0),
+    discountAmount REAL NOT NULL CHECK (discountAmount >= 0),
+    finalAmount REAL NOT NULL CHECK (finalAmount >= 0),
+    status TEXT NOT NULL CHECK (status IN ('PENDING', 'COMPLETED', 'CANCELLED', 'SUSPENDED')),
+    suspendedAt INTEGER
+);
+
+INSERT INTO Sale(id, localNumber, shiftId, terminalId, timestamp, totalAmount, taxAmount, discountAmount, finalAmount, status, suspendedAt)
+SELECT id, localNumber, shiftId, terminalId, timestamp, totalAmount, taxAmount, discountAmount, finalAmount, status, suspendedAt
+FROM Sale_legacy;
+
+ALTER TABLE SaleItem RENAME TO SaleItem_legacy;
+
+CREATE TABLE SaleItem (
+    id TEXT NOT NULL PRIMARY KEY,
+    saleId TEXT NOT NULL,
+    productId TEXT NOT NULL,
+    unitPrice REAL NOT NULL CHECK (unitPrice >= 0),
+    quantity REAL NOT NULL CHECK (quantity > 0),
+    totalPrice REAL NOT NULL CHECK (totalPrice >= 0),
+    taxAmount REAL NOT NULL CHECK (taxAmount >= 0),
+    discountAmount REAL NOT NULL CHECK (discountAmount >= 0),
+    FOREIGN KEY(saleId) REFERENCES Sale(id) ON DELETE CASCADE
+);
+
+INSERT INTO SaleItem(id, saleId, productId, unitPrice, quantity, totalPrice, taxAmount, discountAmount)
+SELECT id, saleId, productId, unitPrice, quantity, totalPrice, taxAmount, discountAmount
+FROM SaleItem_legacy;
+
+DROP TABLE SaleItem_legacy;
+
+ALTER TABLE SalePayment RENAME TO SalePayment_legacy;
+
+CREATE TABLE SalePayment (
+    id TEXT NOT NULL PRIMARY KEY,
+    saleId TEXT NOT NULL,
+    method TEXT NOT NULL CHECK (method IN ('CASH', 'CARD', 'QRIS')),
+    amount REAL NOT NULL CHECK (amount > 0),
+    status TEXT NOT NULL CHECK (status IN ('PENDING', 'SUCCESS', 'FAILED', 'CANCELLED')),
+    statusReasonCode TEXT,
+    statusDetailMessage TEXT,
+    providerReference TEXT,
+    timestamp INTEGER NOT NULL,
+    FOREIGN KEY(saleId) REFERENCES Sale(id) ON DELETE CASCADE,
+    CHECK (status NOT IN ('PENDING', 'FAILED') OR statusReasonCode IS NOT NULL)
+);
+
+INSERT INTO SalePayment(id, saleId, method, amount, status, statusReasonCode, statusDetailMessage, providerReference, timestamp)
+SELECT id, saleId, method, amount, status, statusReasonCode, statusDetailMessage, providerReference, timestamp
+FROM SalePayment_legacy;
+
+DROP TABLE SalePayment_legacy;
+
+ALTER TABLE ReceiptSnapshot RENAME TO ReceiptSnapshot_legacy;
+
+CREATE TABLE ReceiptSnapshot (
+    saleId TEXT NOT NULL PRIMARY KEY,
+    content TEXT NOT NULL CHECK (length(trim(content)) > 0),
+    snapshotVersion INTEGER NOT NULL CHECK (snapshotVersion >= 1),
+    templateId TEXT NOT NULL CHECK (length(trim(templateId)) > 0),
+    paperWidthMm INTEGER NOT NULL CHECK (paperWidthMm IN (58, 80)),
+    createdAt INTEGER NOT NULL,
+    FOREIGN KEY(saleId) REFERENCES Sale(id) ON DELETE CASCADE
+);
+
+INSERT INTO ReceiptSnapshot(saleId, content, snapshotVersion, templateId, paperWidthMm, createdAt)
+SELECT saleId, content, 1, 'thermal-80mm-v1', 80, createdAt
+FROM ReceiptSnapshot_legacy;
+
+DROP TABLE ReceiptSnapshot_legacy;
+DROP TABLE Sale_legacy;
+
+CREATE UNIQUE INDEX Sale_terminal_local_unique_idx ON Sale(terminalId, localNumber);
+CREATE INDEX Sale_shift_timestamp_idx ON Sale(shiftId, timestamp);
+CREATE INDEX Sale_status_timestamp_idx ON Sale(status, timestamp);
+CREATE UNIQUE INDEX SaleItem_sale_product_unique_idx ON SaleItem(saleId, productId);
+CREATE INDEX SalePayment_sale_timestamp_idx ON SalePayment(saleId, timestamp);
+CREATE INDEX SalePayment_status_timestamp_idx ON SalePayment(status, timestamp);
+CREATE INDEX ReceiptSnapshot_createdAt_idx ON ReceiptSnapshot(createdAt);
+CREATE INDEX ReceiptSnapshot_template_createdAt_idx ON ReceiptSnapshot(templateId, createdAt);
+
+PRAGMA foreign_keys = 1;

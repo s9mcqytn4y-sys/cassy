@@ -1,0 +1,2 @@
+-- DEPRECATED: Use KernelDatabase.sq instead.
+-- This file is emptied to avoid conflict during migration.

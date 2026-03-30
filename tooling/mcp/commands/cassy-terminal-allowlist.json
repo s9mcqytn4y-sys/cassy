@@ -1,0 +1,52 @@
+{
+  "allowlist": [
+    {
+      "command": "./gradlew",
+      "args": [":shared:kernel:test"],
+      "description": "Run unit tests for shared kernel",
+      "status": "verified"
+    },
+    {
+      "command": "./gradlew",
+      "args": [":shared:sales:test"],
+      "description": "Run unit tests for shared sales",
+      "status": "verified"
+    },
+    {
+      "command": "./gradlew",
+      "args": ["generateSqlDelightInterface"],
+      "description": "Generate SQLDelight interfaces",
+      "status": "verified"
+    },
+    {
+      "command": "./gradlew",
+      "args": [":apps:desktop-pos:packageRelease"],
+      "description": "Package desktop application for release",
+      "status": "verified"
+    },
+    {
+      "command": "./gradlew",
+      "args": ["--version"],
+      "description": "Check Gradle version",
+      "status": "verified"
+    },
+    {
+      "command": "git",
+      "args": ["status"],
+      "description": "Check git status",
+      "status": "verified"
+    },
+    {
+      "command": "git",
+      "args": ["diff"],
+      "description": "Check git diff",
+      "status": "verified"
+    },
+    {
+      "command": "adb",
+      "args": ["devices"],
+      "description": "List connected Android devices",
+      "status": "probable"
+    }
+  ]
+}

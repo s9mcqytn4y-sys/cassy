@@ -1,0 +1,76 @@
+CREATE TABLE IF NOT EXISTS ReasonCode (
+    code TEXT NOT NULL PRIMARY KEY,
+    category TEXT NOT NULL,
+    title TEXT NOT NULL,
+    requiresApproval INTEGER NOT NULL DEFAULT 0,
+    isActive INTEGER NOT NULL DEFAULT 1,
+    sortOrder INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS ApprovalRequest (
+    id TEXT NOT NULL PRIMARY KEY,
+    operationType TEXT NOT NULL,
+    entityId TEXT NOT NULL,
+    businessDayId TEXT NOT NULL,
+    shiftId TEXT,
+    terminalId TEXT NOT NULL,
+    amount REAL,
+    reasonCode TEXT NOT NULL,
+    reasonDetail TEXT,
+    requestedBy TEXT NOT NULL,
+    approvedBy TEXT,
+    status TEXT NOT NULL,
+    requestedAt INTEGER NOT NULL,
+    decidedAt INTEGER,
+    decisionNote TEXT,
+    FOREIGN KEY(businessDayId) REFERENCES BusinessDay(id),
+    FOREIGN KEY(shiftId) REFERENCES Shift(id),
+    FOREIGN KEY(reasonCode) REFERENCES ReasonCode(code)
+);
+
+CREATE TABLE IF NOT EXISTS CashMovement (
+    id TEXT NOT NULL PRIMARY KEY,
+    businessDayId TEXT NOT NULL,
+    shiftId TEXT NOT NULL,
+    terminalId TEXT NOT NULL,
+    type TEXT NOT NULL,
+    amount REAL NOT NULL CHECK (amount > 0),
+    reasonCode TEXT NOT NULL,
+    reasonDetail TEXT,
+    approvalRequestId TEXT,
+    performedBy TEXT NOT NULL,
+    createdAt INTEGER NOT NULL,
+    FOREIGN KEY(businessDayId) REFERENCES BusinessDay(id),
+    FOREIGN KEY(shiftId) REFERENCES Shift(id),
+    FOREIGN KEY(reasonCode) REFERENCES ReasonCode(code),
+    FOREIGN KEY(approvalRequestId) REFERENCES ApprovalRequest(id)
+);
+
+CREATE TABLE IF NOT EXISTS ShiftCloseReport (
+    id TEXT NOT NULL PRIMARY KEY,
+    shiftId TEXT NOT NULL UNIQUE,
+    businessDayId TEXT NOT NULL,
+    terminalId TEXT NOT NULL,
+    openingCash REAL NOT NULL,
+    cashSalesTotal REAL NOT NULL,
+    cashInTotal REAL NOT NULL,
+    cashOutTotal REAL NOT NULL,
+    safeDropTotal REAL NOT NULL,
+    expectedCash REAL NOT NULL,
+    actualCash REAL NOT NULL,
+    variance REAL NOT NULL,
+    pendingTransactionCount INTEGER NOT NULL,
+    approvalRequestId TEXT,
+    generatedBy TEXT NOT NULL,
+    generatedAt INTEGER NOT NULL,
+    FOREIGN KEY(shiftId) REFERENCES Shift(id),
+    FOREIGN KEY(businessDayId) REFERENCES BusinessDay(id),
+    FOREIGN KEY(approvalRequestId) REFERENCES ApprovalRequest(id)
+);
+
+CREATE INDEX IF NOT EXISTS ReasonCode_category_active_sort_idx ON ReasonCode(category, isActive, sortOrder);
+CREATE INDEX IF NOT EXISTS ApprovalRequest_status_requestedAt_idx ON ApprovalRequest(status, requestedAt);
+CREATE INDEX IF NOT EXISTS ApprovalRequest_businessDay_status_idx ON ApprovalRequest(businessDayId, status);
+CREATE INDEX IF NOT EXISTS CashMovement_shift_createdAt_idx ON CashMovement(shiftId, createdAt);
+CREATE INDEX IF NOT EXISTS CashMovement_type_createdAt_idx ON CashMovement(type, createdAt);
+CREATE INDEX IF NOT EXISTS ShiftCloseReport_businessDay_generatedAt_idx ON ShiftCloseReport(businessDayId, generatedAt);

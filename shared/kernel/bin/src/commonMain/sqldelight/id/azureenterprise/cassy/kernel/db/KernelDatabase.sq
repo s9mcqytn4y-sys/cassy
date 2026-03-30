@@ -1,0 +1,399 @@
+import kotlin.Boolean;
+
+CREATE TABLE OutboxEvent (
+    id TEXT NOT NULL PRIMARY KEY,
+    timestamp INTEGER NOT NULL,
+    type TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    status TEXT NOT NULL
+);
+
+CREATE TABLE AuditLog (
+    id TEXT NOT NULL PRIMARY KEY,
+    timestamp INTEGER NOT NULL,
+    message TEXT NOT NULL,
+    level TEXT NOT NULL
+);
+
+CREATE TABLE Metadata (
+    key TEXT NOT NULL PRIMARY KEY,
+    value TEXT NOT NULL
+);
+
+CREATE TABLE TerminalBinding (
+    terminalId TEXT NOT NULL PRIMARY KEY,
+    storeId TEXT NOT NULL,
+    storeName TEXT NOT NULL,
+    terminalName TEXT NOT NULL,
+    boundAt INTEGER NOT NULL
+);
+
+CREATE TABLE OperatorAccount (
+    id TEXT NOT NULL PRIMARY KEY,
+    employeeCode TEXT NOT NULL UNIQUE,
+    displayName TEXT NOT NULL,
+    role TEXT NOT NULL,
+    pinHash TEXT NOT NULL,
+    pinSalt TEXT NOT NULL,
+    failedAttempts INTEGER NOT NULL DEFAULT 0,
+    lockedUntil INTEGER,
+    isActive INTEGER AS Boolean NOT NULL DEFAULT 1,
+    lastLoginAt INTEGER
+);
+
+CREATE TABLE AccessSession (
+    id TEXT NOT NULL PRIMARY KEY,
+    operatorId TEXT NOT NULL,
+    terminalId TEXT NOT NULL,
+    storeId TEXT NOT NULL,
+    authMode TEXT NOT NULL,
+    status TEXT NOT NULL,
+    createdAt INTEGER NOT NULL,
+    updatedAt INTEGER NOT NULL,
+    FOREIGN KEY(operatorId) REFERENCES OperatorAccount(id),
+    FOREIGN KEY(terminalId) REFERENCES TerminalBinding(terminalId)
+);
+
+CREATE TABLE BusinessDay (
+    id TEXT NOT NULL PRIMARY KEY,
+    openedAt INTEGER NOT NULL,
+    closedAt INTEGER,
+    status TEXT NOT NULL -- 'OPEN', 'CLOSED'
+);
+
+CREATE TABLE Shift (
+    id TEXT NOT NULL PRIMARY KEY,
+    businessDayId TEXT NOT NULL,
+    terminalId TEXT NOT NULL,
+    openedAt INTEGER NOT NULL,
+    openingCash REAL NOT NULL,
+    closedAt INTEGER,
+    closingCash REAL,
+    openedBy TEXT NOT NULL,
+    closedBy TEXT,
+    status TEXT NOT NULL, -- 'OPEN', 'CLOSED'
+    FOREIGN KEY(businessDayId) REFERENCES BusinessDay(id)
+);
+
+CREATE TABLE ReasonCode (
+    code TEXT NOT NULL PRIMARY KEY,
+    category TEXT NOT NULL,
+    title TEXT NOT NULL,
+    requiresApproval INTEGER AS Boolean NOT NULL DEFAULT 0,
+    isActive INTEGER AS Boolean NOT NULL DEFAULT 1,
+    sortOrder INTEGER NOT NULL
+);
+
+CREATE TABLE ApprovalRequest (
+    id TEXT NOT NULL PRIMARY KEY,
+    operationType TEXT NOT NULL,
+    entityId TEXT NOT NULL,
+    businessDayId TEXT NOT NULL,
+    shiftId TEXT,
+    terminalId TEXT NOT NULL,
+    amount REAL,
+    reasonCode TEXT NOT NULL,
+    reasonDetail TEXT,
+    requestedBy TEXT NOT NULL,
+    approvedBy TEXT,
+    status TEXT NOT NULL, -- 'REQUESTED', 'APPROVED', 'DENIED'
+    requestedAt INTEGER NOT NULL,
+    decidedAt INTEGER,
+    decisionNote TEXT,
+    FOREIGN KEY(businessDayId) REFERENCES BusinessDay(id),
+    FOREIGN KEY(shiftId) REFERENCES Shift(id),
+    FOREIGN KEY(reasonCode) REFERENCES ReasonCode(code)
+);
+
+CREATE TABLE CashMovement (
+    id TEXT NOT NULL PRIMARY KEY,
+    businessDayId TEXT NOT NULL,
+    shiftId TEXT NOT NULL,
+    terminalId TEXT NOT NULL,
+    type TEXT NOT NULL, -- 'CASH_IN', 'CASH_OUT', 'SAFE_DROP'
+    amount REAL NOT NULL CHECK (amount > 0),
+    reasonCode TEXT NOT NULL,
+    reasonDetail TEXT,
+    approvalRequestId TEXT,
+    performedBy TEXT NOT NULL,
+    createdAt INTEGER NOT NULL,
+    FOREIGN KEY(businessDayId) REFERENCES BusinessDay(id),
+    FOREIGN KEY(shiftId) REFERENCES Shift(id),
+    FOREIGN KEY(reasonCode) REFERENCES ReasonCode(code),
+    FOREIGN KEY(approvalRequestId) REFERENCES ApprovalRequest(id)
+);
+
+CREATE TABLE ShiftCloseReport (
+    id TEXT NOT NULL PRIMARY KEY,
+    shiftId TEXT NOT NULL UNIQUE,
+    businessDayId TEXT NOT NULL,
+    terminalId TEXT NOT NULL,
+    openingCash REAL NOT NULL,
+    cashSalesTotal REAL NOT NULL,
+    cashInTotal REAL NOT NULL,
+    cashOutTotal REAL NOT NULL,
+    safeDropTotal REAL NOT NULL,
+    expectedCash REAL NOT NULL,
+    actualCash REAL NOT NULL,
+    variance REAL NOT NULL,
+    pendingTransactionCount INTEGER NOT NULL,
+    approvalRequestId TEXT,
+    generatedBy TEXT NOT NULL,
+    generatedAt INTEGER NOT NULL,
+    FOREIGN KEY(shiftId) REFERENCES Shift(id),
+    FOREIGN KEY(businessDayId) REFERENCES BusinessDay(id),
+    FOREIGN KEY(approvalRequestId) REFERENCES ApprovalRequest(id)
+);
+
+CREATE INDEX OutboxEvent_status_timestamp_idx ON OutboxEvent(status, timestamp);
+CREATE INDEX AuditLog_timestamp_idx ON AuditLog(timestamp);
+CREATE INDEX OperatorAccount_active_role_name_idx ON OperatorAccount(isActive, role, displayName);
+CREATE INDEX AccessSession_status_updatedAt_idx ON AccessSession(status, updatedAt);
+CREATE UNIQUE INDEX AccessSession_active_unique_idx ON AccessSession(status) WHERE status = 'ACTIVE';
+CREATE INDEX BusinessDay_status_openedAt_idx ON BusinessDay(status, openedAt);
+CREATE UNIQUE INDEX BusinessDay_open_unique_idx ON BusinessDay(status) WHERE status = 'OPEN';
+CREATE INDEX Shift_businessDay_status_openedAt_idx ON Shift(businessDayId, status, openedAt);
+CREATE UNIQUE INDEX Shift_terminal_open_unique_idx ON Shift(terminalId) WHERE status = 'OPEN';
+CREATE INDEX ReasonCode_category_active_sort_idx ON ReasonCode(category, isActive, sortOrder);
+CREATE INDEX ApprovalRequest_status_requestedAt_idx ON ApprovalRequest(status, requestedAt);
+CREATE INDEX ApprovalRequest_businessDay_status_idx ON ApprovalRequest(businessDayId, status);
+CREATE INDEX CashMovement_shift_createdAt_idx ON CashMovement(shiftId, createdAt);
+CREATE INDEX CashMovement_type_createdAt_idx ON CashMovement(type, createdAt);
+CREATE INDEX ShiftCloseReport_businessDay_generatedAt_idx ON ShiftCloseReport(businessDayId, generatedAt);
+
+-- Queries
+insertEvent:
+INSERT INTO OutboxEvent(id, timestamp, type, payload, status)
+VALUES (?, ?, ?, ?, ?);
+
+selectAllEvents:
+SELECT * FROM OutboxEvent;
+
+selectPendingEvents:
+SELECT * FROM OutboxEvent
+WHERE status = 'PENDING'
+ORDER BY timestamp ASC;
+
+selectEventsByStatus:
+SELECT * FROM OutboxEvent
+WHERE status = ?
+ORDER BY timestamp ASC;
+
+countEventsByStatus:
+SELECT COUNT(*)
+FROM OutboxEvent
+WHERE status = ?;
+
+updateEventStatus:
+UPDATE OutboxEvent
+SET status = ?
+WHERE id = ?;
+
+updateEventsByStatus:
+UPDATE OutboxEvent
+SET status = ?
+WHERE status = ?;
+
+deleteProcessedEventsBefore:
+DELETE FROM OutboxEvent
+WHERE status = 'PROCESSED' AND timestamp < ?;
+
+deleteEvent:
+DELETE FROM OutboxEvent WHERE id = ?;
+
+insertAudit:
+INSERT INTO AuditLog(id, timestamp, message, level)
+VALUES (?, ?, ?, ?);
+
+upsertMetadata:
+INSERT OR REPLACE INTO Metadata(key, value)
+VALUES (?, ?);
+
+getMetadata:
+SELECT value FROM Metadata WHERE key = ?;
+
+upsertTerminalBinding:
+INSERT OR REPLACE INTO TerminalBinding(terminalId, storeId, storeName, terminalName, boundAt)
+VALUES (?, ?, ?, ?, ?);
+
+getTerminalBinding:
+SELECT * FROM TerminalBinding LIMIT 1;
+
+insertOperator:
+INSERT OR REPLACE INTO OperatorAccount(
+    id,
+    employeeCode,
+    displayName,
+    role,
+    pinHash,
+    pinSalt,
+    failedAttempts,
+    lockedUntil,
+    isActive,
+    lastLoginAt
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+listActiveOperators:
+SELECT * FROM OperatorAccount
+WHERE isActive = 1
+ORDER BY role DESC, displayName ASC;
+
+selectOperatorById:
+SELECT * FROM OperatorAccount WHERE id = ? LIMIT 1;
+
+updateOperatorAccessState:
+UPDATE OperatorAccount
+SET failedAttempts = ?, lockedUntil = ?, lastLoginAt = ?
+WHERE id = ?;
+
+insertAccessSession:
+INSERT INTO AccessSession(id, operatorId, terminalId, storeId, authMode, status, createdAt, updatedAt)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+
+getActiveAccessSession:
+SELECT * FROM AccessSession WHERE status = 'ACTIVE' LIMIT 1;
+
+clearActiveAccessSessions:
+UPDATE AccessSession
+SET status = ?, updatedAt = ?
+WHERE status = 'ACTIVE';
+
+-- BusinessDay & Shift Queries
+insertBusinessDay:
+INSERT INTO BusinessDay(id, openedAt, status)
+VALUES (?, ?, ?);
+
+getActiveBusinessDay:
+SELECT * FROM BusinessDay WHERE status = 'OPEN' LIMIT 1;
+
+getBusinessDayById:
+SELECT * FROM BusinessDay WHERE id = ? LIMIT 1;
+
+closeBusinessDay:
+UPDATE BusinessDay SET status = 'CLOSED', closedAt = ? WHERE id = ?;
+
+insertShift:
+INSERT INTO Shift(id, businessDayId, terminalId, openedAt, openingCash, openedBy, status)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+getActiveShift:
+SELECT * FROM Shift WHERE status = 'OPEN' AND terminalId = ? LIMIT 1;
+
+closeShift:
+UPDATE Shift SET status = 'CLOSED', closedAt = ?, closingCash = ?, closedBy = ? WHERE id = ?;
+
+getShiftById:
+SELECT * FROM Shift WHERE id = ? LIMIT 1;
+
+listShiftsByBusinessDay:
+SELECT * FROM Shift WHERE businessDayId = ?;
+
+listShiftsByBusinessDayLatestFirst:
+SELECT * FROM Shift
+WHERE businessDayId = ?
+ORDER BY openedAt DESC;
+
+countOpenShiftsByBusinessDay:
+SELECT COUNT(*) FROM Shift WHERE businessDayId = ? AND status = 'OPEN';
+
+insertOrIgnoreReasonCode:
+INSERT OR IGNORE INTO ReasonCode(code, category, title, requiresApproval, isActive, sortOrder)
+VALUES (?, ?, ?, ?, ?, ?);
+
+listActiveReasonCodesByCategory:
+SELECT * FROM ReasonCode
+WHERE category = ? AND isActive = 1
+ORDER BY sortOrder ASC, title ASC;
+
+insertApprovalRequest:
+INSERT INTO ApprovalRequest(
+    id,
+    operationType,
+    entityId,
+    businessDayId,
+    shiftId,
+    terminalId,
+    amount,
+    reasonCode,
+    reasonDetail,
+    requestedBy,
+    approvedBy,
+    status,
+    requestedAt,
+    decidedAt,
+    decisionNote
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+getApprovalRequestById:
+SELECT * FROM ApprovalRequest WHERE id = ? LIMIT 1;
+
+listPendingApprovalRequests:
+SELECT * FROM ApprovalRequest
+WHERE status = 'REQUESTED'
+ORDER BY requestedAt ASC;
+
+countPendingApprovalRequestsByBusinessDay:
+SELECT COUNT(*) FROM ApprovalRequest
+WHERE businessDayId = ? AND status = 'REQUESTED';
+
+resolveApprovalRequest:
+UPDATE ApprovalRequest
+SET status = ?, approvedBy = ?, decidedAt = ?, decisionNote = ?
+WHERE id = ?;
+
+insertCashMovement:
+INSERT INTO CashMovement(
+    id,
+    businessDayId,
+    shiftId,
+    terminalId,
+    type,
+    amount,
+    reasonCode,
+    reasonDetail,
+    approvalRequestId,
+    performedBy,
+    createdAt
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+listCashMovementsByShift:
+SELECT * FROM CashMovement
+WHERE shiftId = ?
+ORDER BY createdAt ASC;
+
+sumCashMovementAmountByShiftAndType:
+SELECT COALESCE(SUM(amount), 0.0)
+FROM CashMovement
+WHERE shiftId = ? AND type = ?;
+
+sumCashMovementAmountByMultiShiftAndType:
+SELECT COALESCE(SUM(amount), 0.0)
+FROM CashMovement
+WHERE shiftId IN ? AND type = ?;
+
+insertShiftCloseReport:
+INSERT INTO ShiftCloseReport(
+    id,
+    shiftId,
+    businessDayId,
+    terminalId,
+    openingCash,
+    cashSalesTotal,
+    cashInTotal,
+    cashOutTotal,
+    safeDropTotal,
+    expectedCash,
+    actualCash,
+    variance,
+    pendingTransactionCount,
+    approvalRequestId,
+    generatedBy,
+    generatedAt
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+getShiftCloseReport:
+SELECT * FROM ShiftCloseReport WHERE shiftId = ? LIMIT 1;

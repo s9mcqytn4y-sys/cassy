@@ -1,0 +1,224 @@
+CREATE TABLE InventoryBalance_new (
+    productId TEXT NOT NULL PRIMARY KEY,
+    quantity REAL NOT NULL DEFAULT 0,
+    rotationPolicy TEXT NOT NULL DEFAULT 'FIFO',
+    lastLedgerEntryId TEXT,
+    lastUpdatedAt INTEGER NOT NULL
+);
+
+INSERT INTO InventoryBalance_new(productId, quantity, rotationPolicy, lastLedgerEntryId, lastUpdatedAt)
+SELECT productId, quantity, rotationPolicy, lastLedgerEntryId, lastUpdatedAt
+FROM InventoryBalance;
+
+INSERT OR IGNORE INTO InventoryBalance_new(productId, quantity, rotationPolicy, lastLedgerEntryId, lastUpdatedAt)
+SELECT productId, 0, 'FIFO', NULL, createdAt
+FROM StockLedgerEntry;
+
+INSERT OR IGNORE INTO InventoryBalance_new(productId, quantity, rotationPolicy, lastLedgerEntryId, lastUpdatedAt)
+SELECT productId, 0, 'FIFO', NULL, createdAt
+FROM InventoryDiscrepancyReview;
+
+INSERT OR IGNORE INTO InventoryBalance_new(productId, quantity, rotationPolicy, lastLedgerEntryId, lastUpdatedAt)
+SELECT productId, 0, rotationPolicy, NULL, acquiredAt
+FROM InventoryLayer;
+
+CREATE TABLE StockLedgerEntry_new (
+    id TEXT NOT NULL PRIMARY KEY,
+    productId TEXT NOT NULL,
+    quantityDelta REAL NOT NULL,
+    mutationType TEXT NOT NULL,
+    sourceType TEXT NOT NULL,
+    sourceId TEXT NOT NULL,
+    sourceLineId TEXT NOT NULL DEFAULT '',
+    reasonCode TEXT,
+    reasonDetail TEXT,
+    actorId TEXT,
+    terminalId TEXT NOT NULL,
+    status TEXT NOT NULL,
+    createdAt INTEGER NOT NULL,
+    FOREIGN KEY(productId) REFERENCES InventoryBalance_new(productId) ON DELETE RESTRICT
+);
+
+INSERT INTO StockLedgerEntry_new(
+    id,
+    productId,
+    quantityDelta,
+    mutationType,
+    sourceType,
+    sourceId,
+    sourceLineId,
+    reasonCode,
+    reasonDetail,
+    actorId,
+    terminalId,
+    status,
+    createdAt
+)
+SELECT
+    id,
+    productId,
+    quantityDelta,
+    mutationType,
+    sourceType,
+    sourceId,
+    sourceLineId,
+    reasonCode,
+    reasonDetail,
+    actorId,
+    terminalId,
+    status,
+    createdAt
+FROM StockLedgerEntry;
+
+CREATE TABLE InventoryDiscrepancyReview_new (
+    id TEXT NOT NULL PRIMARY KEY,
+    productId TEXT NOT NULL,
+    bookQuantity REAL NOT NULL,
+    countedQuantity REAL NOT NULL,
+    varianceQuantity REAL NOT NULL,
+    status TEXT NOT NULL,
+    approvalMode TEXT NOT NULL,
+    sourceType TEXT NOT NULL,
+    sourceId TEXT NOT NULL,
+    sourceLineId TEXT NOT NULL DEFAULT '',
+    reasonCode TEXT,
+    reasonDetail TEXT,
+    requestedBy TEXT NOT NULL,
+    resolvedBy TEXT,
+    terminalId TEXT NOT NULL,
+    createdAt INTEGER NOT NULL,
+    resolvedAt INTEGER,
+    resolutionNote TEXT,
+    relatedLedgerEntryId TEXT,
+    FOREIGN KEY(productId) REFERENCES InventoryBalance_new(productId) ON DELETE RESTRICT,
+    FOREIGN KEY(relatedLedgerEntryId) REFERENCES StockLedgerEntry_new(id) ON DELETE SET NULL
+);
+
+INSERT INTO InventoryDiscrepancyReview_new(
+    id,
+    productId,
+    bookQuantity,
+    countedQuantity,
+    varianceQuantity,
+    status,
+    approvalMode,
+    sourceType,
+    sourceId,
+    sourceLineId,
+    reasonCode,
+    reasonDetail,
+    requestedBy,
+    resolvedBy,
+    terminalId,
+    createdAt,
+    resolvedAt,
+    resolutionNote,
+    relatedLedgerEntryId
+)
+SELECT
+    id,
+    productId,
+    bookQuantity,
+    countedQuantity,
+    varianceQuantity,
+    status,
+    approvalMode,
+    sourceType,
+    sourceId,
+    sourceLineId,
+    reasonCode,
+    reasonDetail,
+    requestedBy,
+    resolvedBy,
+    terminalId,
+    createdAt,
+    resolvedAt,
+    resolutionNote,
+    relatedLedgerEntryId
+FROM InventoryDiscrepancyReview;
+
+CREATE TABLE InventoryLayer_new (
+    id TEXT NOT NULL PRIMARY KEY,
+    productId TEXT NOT NULL,
+    sourceType TEXT NOT NULL,
+    sourceId TEXT NOT NULL,
+    sourceLineId TEXT NOT NULL DEFAULT '',
+    acquiredQuantity REAL NOT NULL,
+    remainingQuantity REAL NOT NULL,
+    acquiredAt INTEGER NOT NULL,
+    expiryAt INTEGER,
+    rotationPolicy TEXT NOT NULL,
+    status TEXT NOT NULL,
+    FOREIGN KEY(productId) REFERENCES InventoryBalance_new(productId) ON DELETE RESTRICT
+);
+
+INSERT INTO InventoryLayer_new(
+    id,
+    productId,
+    sourceType,
+    sourceId,
+    sourceLineId,
+    acquiredQuantity,
+    remainingQuantity,
+    acquiredAt,
+    expiryAt,
+    rotationPolicy,
+    status
+)
+SELECT
+    id,
+    productId,
+    sourceType,
+    sourceId,
+    sourceLineId,
+    acquiredQuantity,
+    remainingQuantity,
+    acquiredAt,
+    expiryAt,
+    rotationPolicy,
+    status
+FROM InventoryLayer;
+
+CREATE TABLE InventoryApprovalAction (
+    id TEXT NOT NULL PRIMARY KEY,
+    approvalRequestId TEXT UNIQUE,
+    actionType TEXT NOT NULL,
+    productId TEXT NOT NULL,
+    quantityDelta REAL NOT NULL,
+    discrepancyReviewId TEXT,
+    reasonCode TEXT NOT NULL,
+    reasonDetail TEXT,
+    requestedBy TEXT NOT NULL,
+    terminalId TEXT NOT NULL,
+    approvalMode TEXT NOT NULL,
+    status TEXT NOT NULL,
+    createdAt INTEGER NOT NULL,
+    decidedAt INTEGER,
+    decidedBy TEXT,
+    decisionNote TEXT,
+    appliedLedgerEntryId TEXT,
+    FOREIGN KEY(productId) REFERENCES InventoryBalance_new(productId) ON DELETE RESTRICT,
+    FOREIGN KEY(discrepancyReviewId) REFERENCES InventoryDiscrepancyReview_new(id) ON DELETE SET NULL,
+    FOREIGN KEY(appliedLedgerEntryId) REFERENCES StockLedgerEntry_new(id) ON DELETE SET NULL
+);
+
+DROP TABLE InventoryLayer;
+DROP TABLE InventoryDiscrepancyReview;
+DROP TABLE StockLedgerEntry;
+DROP TABLE InventoryBalance;
+
+ALTER TABLE InventoryBalance_new RENAME TO InventoryBalance;
+ALTER TABLE StockLedgerEntry_new RENAME TO StockLedgerEntry;
+ALTER TABLE InventoryDiscrepancyReview_new RENAME TO InventoryDiscrepancyReview;
+ALTER TABLE InventoryLayer_new RENAME TO InventoryLayer;
+
+CREATE INDEX IF NOT EXISTS InventoryBalance_updated_idx ON InventoryBalance(lastUpdatedAt DESC);
+CREATE INDEX IF NOT EXISTS StockLedgerEntry_product_timestamp_idx ON StockLedgerEntry(productId, createdAt DESC);
+CREATE INDEX IF NOT EXISTS StockLedgerEntry_source_idx ON StockLedgerEntry(sourceType, sourceId, sourceLineId);
+CREATE UNIQUE INDEX IF NOT EXISTS StockLedgerEntry_source_mutation_uidx ON StockLedgerEntry(productId, mutationType, sourceType, sourceId, sourceLineId);
+CREATE INDEX IF NOT EXISTS InventoryDiscrepancyReview_product_status_idx ON InventoryDiscrepancyReview(productId, status, createdAt DESC);
+CREATE INDEX IF NOT EXISTS InventoryDiscrepancyReview_status_idx ON InventoryDiscrepancyReview(status, createdAt DESC);
+CREATE INDEX IF NOT EXISTS InventoryLayer_product_status_acquired_idx ON InventoryLayer(productId, status, acquiredAt ASC);
+CREATE INDEX IF NOT EXISTS InventoryLayer_product_status_expiry_idx ON InventoryLayer(productId, status, expiryAt ASC);
+CREATE INDEX IF NOT EXISTS InventoryApprovalAction_status_created_idx ON InventoryApprovalAction(status, createdAt DESC);
+CREATE INDEX IF NOT EXISTS InventoryApprovalAction_product_status_idx ON InventoryApprovalAction(productId, status, createdAt DESC);

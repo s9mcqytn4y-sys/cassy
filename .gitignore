@@ -22,8 +22,7 @@ captures/
 *.ap_
 *.dex
 *.class
-bin/
-gen/
+bin/ gen/
 
 # Kotlin
 .kotlin
@@ -48,11 +47,16 @@ secrets.properties
 # Log
 *.log
 
-# Local agent/docs context that may exist on developer machines
-.agent/
-.aiexclude
-AGENTS.md
-GEMINI.md
+# Agent Control Plane
+# We allow the .agent folder to be versioned for team consistency
+!.agent/
+.agent/logs/
+.agent/tmp/
+
+# External instructions
+!.aiexclude
+!AGENTS.md
+!GEMINI.md
 CLAUDE.md
 CODEX.md
 docs/AGENTS.md

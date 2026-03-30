@@ -1,0 +1,24 @@
+CREATE TABLE FinalizationBundle (
+    saleId TEXT NOT NULL PRIMARY KEY,
+    paymentId TEXT NOT NULL,
+    state TEXT NOT NULL CHECK (state IN ('PREPARED', 'APPLYING', 'COMPLETED')),
+    receiptContent TEXT NOT NULL CHECK (length(trim(receiptContent)) > 0),
+    paymentStatus TEXT NOT NULL CHECK (paymentStatus IN ('PENDING', 'SUCCESS', 'FAILED', 'CANCELLED')),
+    paymentDetailCode TEXT,
+    paymentDetailMessage TEXT,
+    providerReference TEXT,
+    inventoryContent TEXT NOT NULL CHECK (length(trim(inventoryContent)) > 0),
+    auditId TEXT NOT NULL,
+    auditMessage TEXT NOT NULL,
+    eventId TEXT NOT NULL,
+    eventType TEXT NOT NULL,
+    eventPayload TEXT NOT NULL,
+    lastError TEXT,
+    preparedAt INTEGER NOT NULL,
+    updatedAt INTEGER NOT NULL,
+    FOREIGN KEY(saleId) REFERENCES Sale(id) ON DELETE CASCADE,
+    FOREIGN KEY(paymentId) REFERENCES SalePayment(id) ON DELETE CASCADE,
+    CHECK (paymentStatus NOT IN ('PENDING', 'FAILED') OR paymentDetailCode IS NOT NULL)
+);
+
+CREATE INDEX FinalizationBundle_state_updatedAt_idx ON FinalizationBundle(state, updatedAt);

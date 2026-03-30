@@ -1,0 +1,25 @@
+PRAGMA foreign_keys=0;
+
+CREATE TABLE SaleVoid (
+    id TEXT NOT NULL PRIMARY KEY,
+    saleId TEXT NOT NULL UNIQUE,
+    businessDayId TEXT NOT NULL,
+    shiftId TEXT NOT NULL,
+    terminalId TEXT NOT NULL,
+    localNumber TEXT NOT NULL,
+    paymentMethod TEXT NOT NULL CHECK (paymentMethod IN ('CASH', 'CARD', 'QRIS')),
+    originalAmount REAL NOT NULL CHECK (originalAmount >= 0),
+    cashRefundMovementId TEXT,
+    inventoryImpactClassification TEXT NOT NULL,
+    inventoryFollowUpNote TEXT,
+    reasonCode TEXT NOT NULL,
+    reasonDetail TEXT,
+    voidedBy TEXT NOT NULL,
+    createdAt INTEGER NOT NULL,
+    FOREIGN KEY(saleId) REFERENCES Sale(id) ON DELETE CASCADE
+);
+
+CREATE INDEX SaleVoid_shift_createdAt_idx ON SaleVoid(shiftId, createdAt);
+CREATE INDEX SaleVoid_businessDay_createdAt_idx ON SaleVoid(businessDayId, createdAt);
+
+PRAGMA foreign_keys=1;

@@ -1,0 +1,15 @@
+CREATE TABLE ActiveBasket (
+    id INTEGER PRIMARY KEY CHECK (id = 1), -- Single row enforcement
+    content TEXT NOT NULL, -- JSON serialized Basket
+    updatedAt INTEGER NOT NULL
+);
+
+insertOrUpdateActiveBasket:
+INSERT OR REPLACE INTO ActiveBasket(id, content, updatedAt)
+VALUES (1, ?, ?);
+
+getActiveBasket:
+SELECT content FROM ActiveBasket WHERE id = 1;
+
+clearActiveBasket:
+DELETE FROM ActiveBasket WHERE id = 1;

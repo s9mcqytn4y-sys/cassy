@@ -1,0 +1,271 @@
+CREATE TABLE InventoryBalance (
+    productId TEXT NOT NULL PRIMARY KEY,
+    quantity REAL NOT NULL DEFAULT 0,
+    rotationPolicy TEXT NOT NULL DEFAULT 'FIFO',
+    lastLedgerEntryId TEXT,
+    lastUpdatedAt INTEGER NOT NULL
+);
+
+CREATE TABLE StockLedgerEntry (
+    id TEXT NOT NULL PRIMARY KEY,
+    productId TEXT NOT NULL,
+    quantityDelta REAL NOT NULL,
+    mutationType TEXT NOT NULL,
+    sourceType TEXT NOT NULL,
+    sourceId TEXT NOT NULL,
+    sourceLineId TEXT NOT NULL DEFAULT '',
+    reasonCode TEXT,
+    reasonDetail TEXT,
+    actorId TEXT,
+    terminalId TEXT NOT NULL,
+    status TEXT NOT NULL,
+    createdAt INTEGER NOT NULL,
+    FOREIGN KEY(productId) REFERENCES InventoryBalance(productId) ON DELETE RESTRICT
+);
+
+CREATE TABLE InventoryDiscrepancyReview (
+    id TEXT NOT NULL PRIMARY KEY,
+    productId TEXT NOT NULL,
+    bookQuantity REAL NOT NULL,
+    countedQuantity REAL NOT NULL,
+    varianceQuantity REAL NOT NULL,
+    status TEXT NOT NULL,
+    approvalMode TEXT NOT NULL,
+    sourceType TEXT NOT NULL,
+    sourceId TEXT NOT NULL,
+    sourceLineId TEXT NOT NULL DEFAULT '',
+    reasonCode TEXT,
+    reasonDetail TEXT,
+    requestedBy TEXT NOT NULL,
+    resolvedBy TEXT,
+    terminalId TEXT NOT NULL,
+    createdAt INTEGER NOT NULL,
+    resolvedAt INTEGER,
+    resolutionNote TEXT,
+    relatedLedgerEntryId TEXT,
+    FOREIGN KEY(productId) REFERENCES InventoryBalance(productId) ON DELETE RESTRICT,
+    FOREIGN KEY(relatedLedgerEntryId) REFERENCES StockLedgerEntry(id) ON DELETE SET NULL
+);
+
+CREATE TABLE InventoryLayer (
+    id TEXT NOT NULL PRIMARY KEY,
+    productId TEXT NOT NULL,
+    sourceType TEXT NOT NULL,
+    sourceId TEXT NOT NULL,
+    sourceLineId TEXT NOT NULL DEFAULT '',
+    acquiredQuantity REAL NOT NULL,
+    remainingQuantity REAL NOT NULL,
+    acquiredAt INTEGER NOT NULL,
+    expiryAt INTEGER,
+    rotationPolicy TEXT NOT NULL,
+    status TEXT NOT NULL,
+    FOREIGN KEY(productId) REFERENCES InventoryBalance(productId) ON DELETE RESTRICT
+);
+
+CREATE TABLE InventoryApprovalAction (
+    id TEXT NOT NULL PRIMARY KEY,
+    approvalRequestId TEXT UNIQUE,
+    actionType TEXT NOT NULL,
+    productId TEXT NOT NULL,
+    quantityDelta REAL NOT NULL,
+    discrepancyReviewId TEXT,
+    reasonCode TEXT NOT NULL,
+    reasonDetail TEXT,
+    requestedBy TEXT NOT NULL,
+    terminalId TEXT NOT NULL,
+    approvalMode TEXT NOT NULL,
+    status TEXT NOT NULL,
+    createdAt INTEGER NOT NULL,
+    decidedAt INTEGER,
+    decidedBy TEXT,
+    decisionNote TEXT,
+    appliedLedgerEntryId TEXT,
+    FOREIGN KEY(productId) REFERENCES InventoryBalance(productId) ON DELETE RESTRICT,
+    FOREIGN KEY(discrepancyReviewId) REFERENCES InventoryDiscrepancyReview(id) ON DELETE SET NULL,
+    FOREIGN KEY(appliedLedgerEntryId) REFERENCES StockLedgerEntry(id) ON DELETE SET NULL
+);
+
+CREATE INDEX InventoryBalance_updated_idx ON InventoryBalance(lastUpdatedAt DESC);
+CREATE INDEX StockLedgerEntry_product_timestamp_idx ON StockLedgerEntry(productId, createdAt DESC);
+CREATE INDEX StockLedgerEntry_source_idx ON StockLedgerEntry(sourceType, sourceId, sourceLineId);
+CREATE UNIQUE INDEX StockLedgerEntry_source_mutation_uidx ON StockLedgerEntry(productId, mutationType, sourceType, sourceId, sourceLineId);
+CREATE INDEX InventoryDiscrepancyReview_product_status_idx ON InventoryDiscrepancyReview(productId, status, createdAt DESC);
+CREATE INDEX InventoryDiscrepancyReview_status_idx ON InventoryDiscrepancyReview(status, createdAt DESC);
+CREATE INDEX InventoryLayer_product_status_acquired_idx ON InventoryLayer(productId, status, acquiredAt ASC);
+CREATE INDEX InventoryLayer_product_status_expiry_idx ON InventoryLayer(productId, status, expiryAt ASC);
+CREATE INDEX InventoryApprovalAction_status_created_idx ON InventoryApprovalAction(status, createdAt DESC);
+CREATE INDEX InventoryApprovalAction_product_status_idx ON InventoryApprovalAction(productId, status, createdAt DESC);
+
+insertBalance:
+INSERT OR IGNORE INTO InventoryBalance(productId, quantity, rotationPolicy, lastLedgerEntryId, lastUpdatedAt)
+VALUES (?, 0, 'FIFO', NULL, ?);
+
+updateBalance:
+UPDATE InventoryBalance
+SET quantity = quantity + ?,
+    lastLedgerEntryId = ?,
+    lastUpdatedAt = ?
+WHERE productId = ?;
+
+setRotationPolicy:
+UPDATE InventoryBalance
+SET rotationPolicy = ?, lastUpdatedAt = ?
+WHERE productId = ?;
+
+getBalance:
+SELECT * FROM InventoryBalance WHERE productId = ?;
+
+listBalances:
+SELECT * FROM InventoryBalance
+ORDER BY productId ASC;
+
+insertLedgerEntry:
+INSERT INTO StockLedgerEntry(
+    id,
+    productId,
+    quantityDelta,
+    mutationType,
+    sourceType,
+    sourceId,
+    sourceLineId,
+    reasonCode,
+    reasonDetail,
+    actorId,
+    terminalId,
+    status,
+    createdAt
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+listLedgerByProduct:
+SELECT * FROM StockLedgerEntry
+WHERE productId = ?
+ORDER BY createdAt DESC, id DESC;
+
+insertDiscrepancy:
+INSERT INTO InventoryDiscrepancyReview(
+    id,
+    productId,
+    bookQuantity,
+    countedQuantity,
+    varianceQuantity,
+    status,
+    approvalMode,
+    sourceType,
+    sourceId,
+    sourceLineId,
+    reasonCode,
+    reasonDetail,
+    requestedBy,
+    resolvedBy,
+    terminalId,
+    createdAt,
+    resolvedAt,
+    resolutionNote,
+    relatedLedgerEntryId
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+getDiscrepancyById:
+SELECT * FROM InventoryDiscrepancyReview WHERE id = ? LIMIT 1;
+
+listDiscrepanciesByProduct:
+SELECT * FROM InventoryDiscrepancyReview
+WHERE productId = ?
+ORDER BY createdAt DESC, id DESC;
+
+listUnresolvedDiscrepancies:
+SELECT * FROM InventoryDiscrepancyReview
+WHERE status IN ('PENDING_REVIEW', 'INVESTIGATION_REQUIRED')
+ORDER BY createdAt DESC, id DESC;
+
+resolveDiscrepancy:
+UPDATE InventoryDiscrepancyReview
+SET status = ?,
+    reasonCode = ?,
+    reasonDetail = ?,
+    resolvedBy = ?,
+    resolvedAt = ?,
+    resolutionNote = ?,
+    relatedLedgerEntryId = ?
+WHERE id = ?;
+
+insertLayer:
+INSERT INTO InventoryLayer(
+    id,
+    productId,
+    sourceType,
+    sourceId,
+    sourceLineId,
+    acquiredQuantity,
+    remainingQuantity,
+    acquiredAt,
+    expiryAt,
+    rotationPolicy,
+    status
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+listActiveLayersByProduct:
+SELECT * FROM InventoryLayer
+WHERE productId = ? AND status = 'OPEN'
+ORDER BY acquiredAt ASC, id ASC;
+
+listFefoLayersByProduct:
+SELECT * FROM InventoryLayer
+WHERE productId = ? AND status = 'OPEN'
+ORDER BY
+    CASE WHEN expiryAt IS NULL THEN 1 ELSE 0 END ASC,
+    expiryAt ASC,
+    acquiredAt ASC,
+    id ASC;
+
+updateLayer:
+UPDATE InventoryLayer
+SET remainingQuantity = ?,
+    status = ?
+WHERE id = ?;
+
+insertApprovalAction:
+INSERT INTO InventoryApprovalAction(
+    id,
+    approvalRequestId,
+    actionType,
+    productId,
+    quantityDelta,
+    discrepancyReviewId,
+    reasonCode,
+    reasonDetail,
+    requestedBy,
+    terminalId,
+    approvalMode,
+    status,
+    createdAt,
+    decidedAt,
+    decidedBy,
+    decisionNote,
+    appliedLedgerEntryId
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+getApprovalActionById:
+SELECT * FROM InventoryApprovalAction WHERE id = ? LIMIT 1;
+
+listPendingApprovalActions:
+SELECT * FROM InventoryApprovalAction
+WHERE status = 'REQUESTED'
+ORDER BY createdAt DESC, id DESC;
+
+listApprovalActionsByProduct:
+SELECT * FROM InventoryApprovalAction
+WHERE productId = ?
+ORDER BY createdAt DESC, id DESC;
+
+resolveApprovalAction:
+UPDATE InventoryApprovalAction
+SET status = ?,
+    decidedAt = ?,
+    decidedBy = ?,
+    decisionNote = ?,
+    appliedLedgerEntryId = ?
+WHERE id = ?;

@@ -1,0 +1,108 @@
+import kotlin.Boolean;
+
+CREATE TABLE ProductCategory (
+    id TEXT NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL,
+    color TEXT NOT NULL
+);
+
+CREATE TABLE Product (
+    id TEXT NOT NULL PRIMARY KEY,
+    categoryId TEXT NOT NULL,
+    name TEXT NOT NULL,
+    price REAL NOT NULL,
+    sku TEXT NOT NULL,
+    imageUrl TEXT,
+    isActive INTEGER AS Boolean NOT NULL DEFAULT 1,
+    FOREIGN KEY(categoryId) REFERENCES ProductCategory(id)
+);
+
+CREATE TABLE ProductBarcode (
+    barcode TEXT NOT NULL PRIMARY KEY,
+    productId TEXT NOT NULL,
+    type TEXT NOT NULL, -- 'GLOBAL', 'INTERNAL'
+    FOREIGN KEY(productId) REFERENCES Product(id)
+);
+
+CREATE UNIQUE INDEX Product_sku_unique_idx ON Product(sku);
+CREATE INDEX Product_active_category_name_idx ON Product(isActive, categoryId, name);
+CREATE INDEX Product_active_name_sku_idx ON Product(isActive, name, sku);
+CREATE INDEX ProductBarcode_product_idx ON ProductBarcode(productId);
+
+-- Seed Data
+INSERT OR IGNORE INTO ProductCategory(id, name, color) VALUES ('cat_1', 'Minuman', '#1F7A8C');
+INSERT OR IGNORE INTO ProductCategory(id, name, color) VALUES ('cat_2', 'Sembako', '#4C956C');
+INSERT OR IGNORE INTO ProductCategory(id, name, color) VALUES ('cat_3', 'Perawatan', '#C98C2A');
+INSERT OR IGNORE INTO ProductCategory(id, name, color) VALUES ('cat_4', 'ATK', '#5B6CFF');
+INSERT OR IGNORE INTO ProductCategory(id, name, color) VALUES ('cat_5', 'Snack', '#B85C38');
+INSERT OR IGNORE INTO ProductCategory(id, name, color) VALUES ('cat_6', 'Produk Susu', '#7A9E9F');
+INSERT OR IGNORE INTO ProductCategory(id, name, color) VALUES ('cat_7', 'Kebersihan', '#8A6FDF');
+
+INSERT OR IGNORE INTO Product(id, categoryId, name, price, sku, imageUrl) VALUES ('p_1', 'cat_1', 'Air Mineral 600ml', 3500.0, 'MIN-AIR-600', NULL);
+INSERT OR IGNORE INTO Product(id, categoryId, name, price, sku, imageUrl) VALUES ('p_2', 'cat_1', 'Teh Botol 450ml', 5000.0, 'MIN-TEH-450', NULL);
+INSERT OR IGNORE INTO Product(id, categoryId, name, price, sku, imageUrl) VALUES ('p_3', 'cat_2', 'Mi Instan Goreng', 3200.0, 'SEM-MIE-001', NULL);
+INSERT OR IGNORE INTO Product(id, categoryId, name, price, sku, imageUrl) VALUES ('p_4', 'cat_2', 'Gula Pasir 1kg', 18500.0, 'SEM-GULA-1K', NULL);
+INSERT OR IGNORE INTO Product(id, categoryId, name, price, sku, imageUrl) VALUES ('p_5', 'cat_3', 'Sabun Cuci Tangan', 14500.0, 'RAW-SABUN-01', NULL);
+INSERT OR IGNORE INTO Product(id, categoryId, name, price, sku, imageUrl) VALUES ('p_6', 'cat_4', 'Buku Nota Kecil', 6500.0, 'ATK-NOTA-01', NULL);
+INSERT OR IGNORE INTO Product(id, categoryId, name, price, sku, imageUrl) VALUES ('p_7', 'cat_5', 'Keripik Kentang Original', 12500.0, 'SNK-KRPK-ORI', NULL);
+INSERT OR IGNORE INTO Product(id, categoryId, name, price, sku, imageUrl) VALUES ('p_8', 'cat_6', 'Susu UHT Coklat 200ml', 7200.0, 'SUS-UHT-CCL', NULL);
+INSERT OR IGNORE INTO Product(id, categoryId, name, price, sku, imageUrl) VALUES ('p_9', 'cat_7', 'Tisu Gulung 10s', 28900.0, 'KBR-TSU-10S', NULL);
+INSERT OR IGNORE INTO Product(id, categoryId, name, price, sku, imageUrl) VALUES ('p_10', 'cat_5', 'Biskuit Marie 240g', 10800.0, 'SNK-MARI-240', NULL);
+
+INSERT OR IGNORE INTO ProductBarcode(barcode, productId, type) VALUES ('8996001600033', 'p_1', 'GLOBAL');
+INSERT OR IGNORE INTO ProductBarcode(barcode, productId, type) VALUES ('8996001600040', 'p_2', 'GLOBAL');
+INSERT OR IGNORE INTO ProductBarcode(barcode, productId, type) VALUES ('8996001600057', 'p_3', 'GLOBAL');
+INSERT OR IGNORE INTO ProductBarcode(barcode, productId, type) VALUES ('8996001600064', 'p_4', 'GLOBAL');
+INSERT OR IGNORE INTO ProductBarcode(barcode, productId, type) VALUES ('8996001600071', 'p_7', 'GLOBAL');
+INSERT OR IGNORE INTO ProductBarcode(barcode, productId, type) VALUES ('8996001600088', 'p_8', 'GLOBAL');
+INSERT OR IGNORE INTO ProductBarcode(barcode, productId, type) VALUES ('8996001600095', 'p_9', 'GLOBAL');
+INSERT OR IGNORE INTO ProductBarcode(barcode, productId, type) VALUES ('8996001600101', 'p_10', 'GLOBAL');
+
+upsertCategory:
+INSERT OR REPLACE INTO ProductCategory(id, name, color)
+VALUES (?, ?, ?);
+
+-- Queries
+insertProduct:
+INSERT OR REPLACE INTO Product(id, categoryId, name, price, sku, imageUrl, isActive)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+insertBarcode:
+INSERT OR REPLACE INTO ProductBarcode(barcode, productId, type)
+VALUES (?, ?, ?);
+
+deleteBarcode:
+DELETE FROM ProductBarcode
+WHERE barcode = ?;
+
+selectAllProducts:
+SELECT * FROM Product
+ORDER BY isActive DESC, name COLLATE NOCASE ASC;
+
+getProductsByCategory:
+SELECT * FROM Product
+WHERE categoryId = ?
+ORDER BY isActive DESC, name COLLATE NOCASE ASC;
+
+searchProducts:
+SELECT * FROM Product
+WHERE name LIKE ('%' || ? || '%') OR sku LIKE ('%' || ? || '%')
+ORDER BY isActive DESC, name COLLATE NOCASE ASC;
+
+selectProductById:
+SELECT * FROM Product
+WHERE id = ?;
+
+findProductByBarcode:
+SELECT p.* FROM Product p
+JOIN ProductBarcode pb ON p.id = pb.productId
+WHERE pb.barcode = ?;
+
+selectAllCategories:
+SELECT * FROM ProductCategory
+ORDER BY name COLLATE NOCASE ASC;
+
+selectBarcodesByProduct:
+SELECT * FROM ProductBarcode
+WHERE productId = ?
+ORDER BY type COLLATE NOCASE ASC, barcode COLLATE NOCASE ASC;
